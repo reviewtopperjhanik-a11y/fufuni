@@ -20,24 +20,12 @@ import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { Input } from "@heroui/react";
-import { Select, SelectItem } from "@heroui/react";
-import {
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-} from "@heroui/react";
+import { Select, Label, ListBox } from "@heroui/react";
+import { Table } from "@heroui/react";
 import {
   Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  useDisclosure,
 } from "@heroui/react";
-import { Card, CardBody } from "@heroui/react";
+import { Card} from "@heroui/react";
 import { Trash2, Plus, Pencil, Save } from "lucide-react";
 
 import { useSecuredApi } from "@/authentication";
@@ -91,7 +79,7 @@ export function VariantPrices({
   const [currencies, setCurrencies] = useState<Currency[]>([]);
 
   // Modal state for adding price
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [isAddPriceModalOpen, setIsAddPriceModalOpen] = useState(false);
   const [selectedCurrency, setSelectedCurrency] = useState<string>("");
   const [priceInput, setPriceInput] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
@@ -158,7 +146,7 @@ export function VariantPrices({
         setPrices([...prices, response]);
       }
 
-      onOpenChange();
+      setIsAddPriceModalOpen(false);
       setSelectedCurrency("");
       setPriceInput("");
     } catch (err) {
@@ -226,7 +214,7 @@ export function VariantPrices({
   const handleOpenModal = () => {
     setSelectedCurrency("");
     setPriceInput("");
-    onOpen();
+    setIsAddPriceModalOpen(true);
   };
 
   return (
@@ -242,39 +230,37 @@ export function VariantPrices({
         </div>
         <Button
           isDisabled={availableCurrencies.length === 0}
-          size="sm"
-          color="primary"
-          startContent={<Plus className="w-4 h-4" />}
           onPress={handleOpenModal}
         >
+          <Plus className="w-4 h-4" />
           {t("admin-variant-prices-add")}
         </Button>
       </div>
 
       {/* Base currency fallback */}
       <Card>
-        <CardBody className="text-sm">
+        <Card.Content className="text-sm">
           <div className="flex justify-between items-center">
             <div>
-              <p className="font-mono text-xs text-default-500">
+              <p className=" text-xs text-default-500">
                 {t("admin-variant-prices-base")} ({currency})
               </p>
               <p className="font-semibold">{variantTitle}</p>
             </div>
-            <p className="font-mono font-bold text-sm">
+            <p className=" font-bold text-sm">
               {formatMoney(basePriceCents, currency)}
             </p>
           </div>
           <p className="text-xs text-default-400 mt-2">
             {t("admin-variant-prices-base-note")}
           </p>
-        </CardBody>
+        </Card.Content>
       </Card>
 
       {/* Inline edit bar (shows when a currency is being edited) */}
       {editingCurrencyId && (
         <Card>
-          <CardBody className="text-sm">
+          <Card.Content className="text-sm">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <p className="font-semibold text-sm">
@@ -288,23 +274,20 @@ export function VariantPrices({
               </div>
               <div className="flex items-center gap-2">
                 <Input
-                  size="sm"
                   type="number"
                   step="0.01"
                   min="0"
                   className="w-28"
                   value={editValue}
-                  onValueChange={setEditValue}
+                  onChange={(e) => setEditValue(e.target.value)}
                 />
                 <Button
-                  color="success"
                   size="sm"
                   onPress={() => handleSaveEdit(editingCurrencyId)}
                 >
                   {t("admin-common-save")}
                 </Button>
                 <Button
-                  color="default"
                   size="sm"
                   onPress={() => {
                     setEditingCurrencyId(null);
@@ -315,80 +298,79 @@ export function VariantPrices({
                 </Button>
               </div>
             </div>
-          </CardBody>
+          </Card.Content>
         </Card>
       )}
 
       {/* Prices table */}
       {prices.length === 0 ? (
         <Card>
-          <CardBody className="text-center text-sm text-default-500 py-6">
+          <Card.Content className="text-center text-sm text-default-500 py-6">
             {t("admin-variant-prices-empty")}
-          </CardBody>
+          </Card.Content>
         </Card>
       ) : (
-        <Table isStriped>
-          <TableHeader>
-            <TableColumn>
-              {t("admin-variant-prices-currency")}
-            </TableColumn>
-            <TableColumn align="end">
-              {t("admin-variant-prices-price")}
-            </TableColumn>
-            <TableColumn align="end" width={60}>
-              {t("admin-common-actions")}
-            </TableColumn>
-          </TableHeader>
-          <TableBody items={prices} emptyContent="No prices">
+        <Table>
+          <Table.Content>
+            <Table.Header>
+              <Table.Column isRowHeader>
+                {t("admin-variant-prices-currency")}
+              </Table.Column>
+              <Table.Column>
+                {t("admin-variant-prices-price")}
+              </Table.Column>
+              <Table.Column>
+                {t("admin-common-actions")}
+              </Table.Column>
+            </Table.Header>
+            <Table.Body items={prices} renderEmptyState={() => "No prices"}>
             {(price) => {
               const isEditing = editingCurrencyId === price.currency_id;
 
               return (
-                <TableRow key={price.currency_id}>
-                  <TableCell>
+                <Table.Row key={price.currency_id} className="odd:bg-default-50">
+                  <Table.Cell>
                     <div>
-                      <p className="font-mono font-semibold text-sm">
+                      <p className=" font-semibold text-sm">
                         {price.currency_code}
                       </p>
                       <p className="text-xs text-default-500">
                         {price.currency_symbol}
                       </p>
                     </div>
-                  </TableCell>
+                  </Table.Cell>
 
-                  <TableCell align="right">
+                  <Table.Cell>
                     {isEditing ? (
                       <div className="flex items-center justify-end gap-1">
                         <Input
-                          size="sm"
                           type="number"
                           step="0.01"
                           min="0"
                           className="w-28"
                           value={editValue}
-                          onValueChange={setEditValue}
+                          onChange={(e) => setEditValue(e.target.value)}
                           autoFocus
                           aria-label={`Edit price for ${price.currency_code}`}
                         />
-                        <span className="text-xs text-default-400 font-mono">
+                        <span className="text-xs text-default-400 ">
                           {price.currency_code}
                         </span>
                       </div>
                     ) : (
-                      <p className="font-mono font-semibold text-sm">
+                      <p className=" font-semibold text-sm">
                         {formatMoney(price.price_cents, price.currency_code)}
                       </p>
                     )}
-                  </TableCell>
+                  </Table.Cell>
 
-                  <TableCell align="right">
+                  <Table.Cell>
                     <div className="flex items-center justify-end gap-1">
                       {isEditing ? (
                         <Button
                           isIconOnly
                           size="sm"
-                          color="success"
-                          variant="light"
+                          variant="tertiary"
                           aria-label="Save price"
                           onPress={() => handleSaveEdit(price.currency_id)}
                         >
@@ -398,8 +380,7 @@ export function VariantPrices({
                         <Button
                           isIconOnly
                           size="sm"
-                          color="primary"
-                          variant="light"
+                          variant="tertiary"
                           aria-label="Edit price"
                           onPress={() => {
                             setEditingCurrencyId(price.currency_id);
@@ -413,8 +394,7 @@ export function VariantPrices({
                       <Button
                         isIconOnly
                         size="sm"
-                        color="danger"
-                        variant="light"
+                        variant="tertiary"
                         aria-label="Delete price"
                         isDisabled={isEditing}
                         onPress={() => handleDeletePrice(price.currency_id)}
@@ -422,68 +402,90 @@ export function VariantPrices({
                         <Trash2 className="w-4 h-4" />
                       </Button>
                     </div>
-                  </TableCell>
-                </TableRow>
+                  </Table.Cell>
+                </Table.Row>
               );
             }}
-          </TableBody>
+          </Table.Body>
+          </Table.Content>
         </Table>
       )}
 
       {/* Add price modal */}
-      <Modal isOpen={isOpen} size="md" onOpenChange={onOpenChange}>
-        <ModalContent>
-          <ModalHeader>
-            {t("admin-variant-prices-add-title")}
-          </ModalHeader>
-          <ModalBody>
-            <div className="space-y-4">
-              <p className="text-sm text-default-600">{variantTitle}</p>
+      <Modal
+        isOpen={isAddPriceModalOpen}
+        onOpenChange={setIsAddPriceModalOpen}
+      >
+        <Modal.Backdrop>
+          <Modal.Container>
+            <Modal.Dialog>
+              {({ close }) => (
+                <>
+                  <Modal.CloseTrigger onPress={close} />
+                  <Modal.Header>
+                    {t("admin-variant-prices-add-title")}
+                  </Modal.Header>
+                  <Modal.Body>
+                    <div className="space-y-4">
+                      <p className="text-sm text-default-600">{variantTitle}</p>
 
-              <Select
-                label={t("admin-variant-prices-select-currency")}
-                placeholder={t("admin-common-select")}
-                selectedKeys={selectedCurrency ? [selectedCurrency] : []}
-                onSelectionChange={(key) =>
-                  setSelectedCurrency(Array.from(key).join(""))
-                }
-              >
-                {availableCurrencies.map((curr) => (
-                  <SelectItem key={curr.id}>
-                    {curr.code} - {curr.display_name} ({curr.symbol})
-                  </SelectItem>
-                ))}
-              </Select>
+                      <Select
+                        placeholder={t("admin-common-select")}
+                        value={selectedCurrency || ""}
+                        onChange={(value) => setSelectedCurrency((value as string) || "")}
+                      >
+                        <Label>{t("admin-variant-prices-select-currency")}</Label>
+                        <Select.Trigger>
+                          <Select.Value />
+                          <Select.Indicator />
+                        </Select.Trigger>
+                        <Select.Popover>
+                          <ListBox>
+                            {availableCurrencies.map((curr) => (
+                              <ListBox.Item key={curr.id} id={curr.id} textValue={curr.code}>
+                                {curr.code} - {curr.display_name} ({curr.symbol})
+                                <ListBox.ItemIndicator />
+                              </ListBox.Item>
+                            ))}
+                          </ListBox>
+                        </Select.Popover>
+                      </Select>
 
-              <Input
-                label={t("admin-variant-prices-enter-price")}
-                placeholder="29.99"
-                type="number"
-                step="0.01"
-                min="0"
-                value={priceInput}
-                onValueChange={setPriceInput}
-              />
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button
-              color="default"
-              variant="light"
-              onPress={() => onOpenChange()}
-            >
-              {t("admin-common-cancel")}
-            </Button>
-            <Button
-              color="primary"
-              isDisabled={!selectedCurrency || !priceInput || submitting}
-              isLoading={submitting}
-              onPress={handleAddPrice}
-            >
-              {t("admin-common-add")}
-            </Button>
-          </ModalFooter>
-        </ModalContent>
+                      <div>
+                        <label className="text-sm font-medium">
+                          {t("admin-variant-prices-enter-price")}
+                        </label>
+                        <Input
+                          placeholder="29.99"
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={priceInput}
+                          onChange={(e) => setPriceInput(e.target.value)}
+                        />
+                      </div>
+                    </div>
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      variant="tertiary"
+                      onPress={close}
+                    >
+                      {t("admin-common-cancel")}
+                    </Button>
+                    <Button
+                      isDisabled={!selectedCurrency || !priceInput || submitting}
+                      isPending={submitting}
+                      onPress={handleAddPrice}
+                    >
+                      {t("admin-common-add")}
+                    </Button>
+                  </Modal.Footer>
+                </>
+              )}
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
       </Modal>
     </div>
   );

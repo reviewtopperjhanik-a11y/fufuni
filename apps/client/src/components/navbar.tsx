@@ -18,29 +18,13 @@
 
 import { Kbd } from "@heroui/react";
 import { Input } from "@heroui/react";
-import {
-  Navbar as HeroUINavbar,
-  NavbarBrand,
-  NavbarContent,
-  NavbarItem,
-  NavbarMenuToggle,
-  NavbarMenu,
-  NavbarMenuItem,
-} from "@heroui/react";
-import {
-  Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
-} from "@heroui/react";
+import { Dropdown, Label, Badge } from "@heroui/react";
 import { Button } from "@heroui/react";
-import { link as linkStyles } from "@heroui/react";
+
 import { clsx } from "clsx";
 import { Trans, useTranslation } from "react-i18next";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useState } from "react";
-
-import { LinkUniversal } from "./link-universal";
 import { I18nIcon, LanguageSwitch } from "./language-switch";
 
 import { AuthenticationGuardWithPermission, useAuth } from "@/authentication";
@@ -58,7 +42,6 @@ import { useCart } from "@/hooks/useCart";
 import { ShoppingCart, ChevronDown, ShieldCheck } from "lucide-react";
 import { availableLanguages } from "@/i18n";
 import { LoginModal } from '../modals/LoginModal';
-import { useDisclosure } from '@heroui/react';
 import { UserListsMenu } from "./user-lists-menu";
 
 export const Navbar = () => {
@@ -66,8 +49,9 @@ export const Navbar = () => {
   const { count: cartCount } = useCart();
   const navigate = useNavigate();
   const [searchValue, setSearchValue] = useState("");
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const { isAuthenticated } = useAuth();
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
   const submitSearch = () => {
     const q = searchValue.trim();
@@ -78,220 +62,252 @@ export const Navbar = () => {
   };
 
   const searchInput = (
-    <Input
-      value={searchValue}
-      onChange={(e) => setSearchValue(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          submitSearch();
-        }
-      }}
-      aria-label={t("search")}
-      classNames={{
-        inputWrapper: "bg-default-100",
-        input: "text-sm",
-      }}
-      endContent={
-        <Kbd className="hidden lg:inline-block" keys={["command"]}>
-          K
-        </Kbd>
-      }
-      labelPlacement="outside"
-      placeholder={`${t("search")}…`}
-      startContent={
-        <SearchIcon className="text-base text-default-400 pointer-events-none shrink-0" />
-      }
-      type="search"
-    />
+    <div className="flex items-center bg-default-100 rounded-lg px-3 py-2">
+      <SearchIcon className="text-base text-default-400 pointer-events-none shrink-0 mr-2" />
+      <Input
+        value={searchValue}
+        onChange={(e) => setSearchValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            submitSearch();
+          }
+        }}
+        aria-label={t("search")}
+        className="bg-transparent border-0"
+        placeholder={`${t("search")}…`}
+        type="search"
+      />
+      <Kbd className="ml-2">
+        <Kbd.Abbr keyValue="command" title="Command">⌘</Kbd.Abbr>
+        <Kbd.Content>K</Kbd.Content>
+      </Kbd>
+    </div>
   );
 
   return (
-    <HeroUINavbar maxWidth="xl" position="sticky">
-      <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
-        <NavbarBrand className="gap-3 max-w-fit">
-          <LinkUniversal
-            className="flex justify-start items-center gap-1"
-            color="foreground"
-            href="/"
-          >
-            <Logo />
-            <p className="font-bold text-inherit">Fufuni</p>
-          </LinkUniversal>
-        </NavbarBrand>
-        <div className="hidden lg:flex gap-4 justify-start items-center ml-2">
+    <nav className="sticky top-0 z-40 w-full border-b border-separator bg-background/70 backdrop-blur-lg">
+      <header className="flex h-16 items-center justify-between px-6 max-w-6xl mx-auto gap-4">
+        {/* Logo */}
+        <RouterLink
+          className="flex justify-start items-center gap-2 text-foreground hover:opacity-80 transition-opacity shrink-0"
+          to="/"
+        >
+          <Logo />
+          <p className="font-bold text-inherit">Fufuni</p>
+        </RouterLink>
+
+        {/* Desktop Navigation */}
+        <ul className="hidden lg:flex gap-6 justify-start items-center ml-2">
           {siteConfig().navItems.filter(item => !item.permissions || item.permissions.length === 0).map((item) => (
-            <NavbarItem key={item.href}>
-              <LinkUniversal
+            <li key={item.href}>
+              <RouterLink
                 className={clsx(
-                  linkStyles({ color: "foreground" }),
+                  "text-foreground hover:opacity-80 transition-opacity text-sm whitespace-nowrap",
                   "data-[active=true]:text-primary data-[active=true]:font-medium",
                 )}
-                color="foreground"
-                href={item.href}
+                to={item.href}
               >
                 {item.label}
-              </LinkUniversal>
-            </NavbarItem>
+              </RouterLink>
+            </li>
           ))}
           {!isAuthenticated && (
-            <Button onPress={onOpen}>
-              {t('log-in')}
-            </Button>
+            <li>
+              <Button size="sm" onPress={() => setIsLoginModalOpen(true)}>
+                {t('log-in')}
+              </Button>
+            </li>
           )}
-          <LoginModal isOpen={isOpen} onClose={onOpenChange} />
+          <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
           <AuthenticationGuardWithPermission permission="admin:store">
-            <NavbarItem>
+            <li className="hidden lg:block">
               <Dropdown>
-                <DropdownTrigger>
-                  <Button
-                    disableRipple
-                    className="p-0 bg-transparent data-[hover=true]:bg-transparent"
-                    endContent={<ChevronDown className="w-4 h-4" />}
-                    radius="sm"
-                    variant="light"
+                <Dropdown.Trigger className="cursor-pointer flex items-center gap-2 px-2 py-1 rounded hover:bg-default-100 transition-colors text-sm">
+                  {t("nav-admin")}
+                  <ChevronDown className="w-4 h-4" />
+                </Dropdown.Trigger>
+                <Dropdown.Popover>
+                  <Dropdown.Menu
+                    aria-label="Admin actions"
+                    className="w-full"
                   >
-                    {t("nav-admin")}
-                  </Button>
-                </DropdownTrigger>
-                <DropdownMenu
-                  aria-label="Admin actions"
-                  className="w-[340px]"
-                  itemClasses={{
-                    base: "gap-4",
-                  }}
-                >
-                  {siteConfig().navItems.filter(item => item.permissions && item.permissions.includes("admin:store")).map((item) => (
-                    <DropdownItem
-                      key={item.href}
-                      description={item.href}
-                      startContent={<ShieldCheck className="w-4 h-4 text-primary" />}
-                      onPress={() => navigate(item.href)}
-                    >
-                      {item.label}
-                    </DropdownItem>
-                  ))}
-                </DropdownMenu>
+                    {siteConfig().navItems.filter(item => item.permissions && item.permissions.includes("admin:store")).map((item) => (
+                      <Dropdown.Item
+                        key={item.href}
+                        id={item.href}
+                        textValue={item.label}
+                        className="gap-4"
+                        onPress={() => navigate(item.href)}
+                      >
+                        <div className="flex gap-4 w-full items-center">
+                          <ShieldCheck className="w-4 h-4 text-primary shrink-0" />
+                          <div className="flex flex-col flex-1">
+                            <Label>{item.label}</Label>
+                            <p className="text-xs text-default-400">{item.href}</p>
+                          </div>
+                        </div>
+                      </Dropdown.Item>
+                    ))}
+                  </Dropdown.Menu>
+                </Dropdown.Popover>
               </Dropdown>
-            </NavbarItem>
+            </li>
           </AuthenticationGuardWithPermission>
-        </div>
-      </NavbarContent>
+        </ul>
 
-      <NavbarContent
-        className="hidden sm:flex basis-1/5 sm:basis-full"
-        justify="end"
-      >
-        <NavbarItem className="hidden sm:flex gap-2 items-center">
+        {/* Desktop Right Items */}
+        <div className="hidden sm:flex gap-4 items-center ml-auto">
           <UserListsMenu />
-          <LinkUniversal href="/cart" className="relative">
-            <ShoppingCart size={20} />
-            {cartCount > 0 && (
-              <span className="absolute -top-1 -right-1 bg-danger text-white text-xs w-5 h-5 flex items-center justify-center rounded-full">
-                {cartCount}
-              </span>
-            )}
-          </LinkUniversal>
-          <LinkUniversal
-            isExternal
-            isInternet
+          <RouterLink
+            to="/cart"
+            className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
+          >
+            <Badge.Anchor>
+              <ShoppingCart size={20} />
+              {cartCount > 0 && (
+                <Badge size="sm" color="danger" variant="primary">{cartCount.toString()}</Badge>
+              )}
+            </Badge.Anchor>
+          </RouterLink>
+          <a
             href={siteConfig().links.twitter}
+            target="_blank"
+            rel="noopener noreferrer"
             title={t("twitter")}
+            className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
           >
             <TwitterIcon className="text-default-500" />
-          </LinkUniversal>
-          <LinkUniversal
-            isExternal
-            isInternet
+          </a>
+          <a
             href={siteConfig().links.discord}
+            target="_blank"
+            rel="noopener noreferrer"
             title={t("discord")}
+            className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
           >
             <DiscordIcon className="text-default-500" />
-          </LinkUniversal>
-          <LinkUniversal
-            isExternal
-            isInternet
+          </a>
+          <a
             href={siteConfig().links.github}
+            target="_blank"
+            rel="noopener noreferrer"
             title={t("github")}
+            className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
           >
             <GithubIcon className="text-default-500" />
-          </LinkUniversal>
+          </a>
           <ThemeSwitch />
           <LanguageSwitch
             availableLanguages={availableLanguages}
             icon={I18nIcon}
           />
-        </NavbarItem>
-        <NavbarItem className="hidden lg:flex">{searchInput}</NavbarItem>
-        <NavbarItem className="hidden md:flex">
-          <LinkUniversal
-            isExternal
-            isInternet
-            className="text-sm font-normal text-default-600 bg-default-100"
-            color="foreground"
+          <div className="hidden lg:flex">{searchInput}</div>
+          <a
             href={siteConfig().links.sponsor}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hidden md:inline-flex text-sm font-normal text-default-600 bg-default-100 px-2 py-1 rounded hover:opacity-80 transition-opacity items-center gap-2"
           >
             <HeartFilledIcon className="text-danger" />
             <Trans i18nKey="sponsor" />
-          </LinkUniversal>
-        </NavbarItem>
-      </NavbarContent>
-
-      <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
-        <LinkUniversal isExternal isInternet href={siteConfig().links.github}>
-          <GithubIcon className="text-default-500" />
-        </LinkUniversal>
-        <ThemeSwitch />
-        <NavbarMenuToggle />
-      </NavbarContent>
-
-      <NavbarMenu>
-        {searchInput}
-        <LanguageSwitch
-          availableLanguages={availableLanguages}
-          icon={I18nIcon}
-        />
-        <div className="mx-4 mt-2 flex flex-col gap-2">
-          {siteConfig().navMenuItems.map((item, index) => (
-            <NavbarMenuItem key={`${item}-${index}`}>
-              {item.permissions && item.permissions.length > 0 ? (
-                <AuthenticationGuardWithPermission
-                  permission={item.permissions[0]}
-                >
-                  <LinkUniversal
-                    color={
-                      index === 2
-                        ? "primary"
-                        : index === siteConfig().navMenuItems.length - 1
-                          ? "danger"
-                          : "foreground"
-                    }
-                    href={item.href}
-                    size="lg"
-                  >
-                    {item.label}
-                  </LinkUniversal>
-                </AuthenticationGuardWithPermission>
-              ) : (
-                <LinkUniversal
-                  color={
-                    index === 2
-                      ? "primary"
-                      : index === siteConfig().navMenuItems.length - 1
-                        ? "danger"
-                        : "foreground"
-                  }
-                  href={item.href}
-                  size="lg"
-                >
-                  {item.label}
-                </LinkUniversal>
-              )}
-            </NavbarMenuItem>
-          ))}
-          <NavbarMenuItem key="login-logout">
-          </NavbarMenuItem>
+          </a>
         </div>
-      </NavbarMenu>
-    </HeroUINavbar>
+
+        {/* Mobile Menu Icon */}
+        <div className="sm:hidden flex gap-4 items-center ml-auto">
+          <button
+            onClick={() => setIsLoginModalOpen(true)}
+            className="text-foreground hover:opacity-80 transition-opacity"
+          >
+            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+              <path d="M11 11c1.657 0 3-1.343 3-3s-1.343-3-3-3-3 1.343-3 3 1.343 3 3 3zm0 2c-2.21 0-6 1.11-6 3.33v2.67h12v-2.67c0-2.22-3.79-3.33-6-3.33z"/>
+            </svg>
+          </button>
+          <a
+            href={siteConfig().links.github}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-foreground hover:opacity-80 transition-opacity"
+          >
+            <GithubIcon className="text-default-500" />
+          </a>
+          <ThemeSwitch />
+          <Button
+            isIconOnly
+            className="text-current"
+            onPress={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            variant="ghost"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
+            </svg>
+          </Button>
+        </div>
+      </header>
+
+      {/* Mobile Menu */}
+      {isMobileMenuOpen && (
+        <div className="sm:hidden border-t border-separator bg-background">
+          <div className="p-4 space-y-4">
+            {searchInput}
+            <LanguageSwitch
+              availableLanguages={availableLanguages}
+              icon={I18nIcon}
+            />
+            <div className="flex flex-col gap-2">
+              {siteConfig().navMenuItems.map((item, index) => (
+                <div key={`${item}-${index}`}>
+                  {item.permissions && item.permissions.length > 0 ? (
+                    <AuthenticationGuardWithPermission
+                      permission={item.permissions[0]}
+                    >
+                      <RouterLink
+                        to={item.href}
+                        className={clsx(
+                          "block text-lg hover:opacity-80 transition-opacity py-2",
+                          index === 2
+                            ? "text-accent-600 font-semibold"
+                            : index === siteConfig().navMenuItems.length - 1
+                              ? "text-danger"
+                              : "text-foreground"
+                        )}
+                        onClick={() => setIsMobileMenuOpen(false)}
+                      >
+                        {item.label}
+                      </RouterLink>
+                    </AuthenticationGuardWithPermission>
+                  ) : (
+                    <RouterLink
+                      to={item.href}
+                      className={clsx(
+                        "block text-lg hover:opacity-80 transition-opacity py-2",
+                        index === 2
+                          ? "text-accent-600 font-semibold"
+                          : index === siteConfig().navMenuItems.length - 1
+                            ? "text-danger"
+                            : "text-foreground"
+                      )}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      {item.label}
+                    </RouterLink>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </nav>
   );
 };

@@ -21,27 +21,17 @@ import { useTranslation } from "react-i18next";
 import {
   Button,
   Input,
+  TextField,
+  Label,
   Select,
-  SelectItem,
+  ListBox,
   Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
   Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  useDisclosure,
   Card,
-  CardBody,
   Tooltip,
 } from "@heroui/react";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
-import { SearchIcon } from "@/components/icons";
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 
@@ -78,12 +68,12 @@ export default function CurrenciesPage() {
 
   // List state
   const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [loading, setLoading] = useState(true);
+
   const [globalFilter, setGlobalFilter] = useState<string>("");
   const [statusFilter, setStatusFilter] = useState<string>("");
 
   // Modal state
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [editingCurrency, setEditingCurrency] = useState<Currency | null>(null);
   const [formData, setFormData] = useState({
@@ -100,15 +90,12 @@ export default function CurrenciesPage() {
    * Handles setting the loading indicator and catching errors.
    */
   const loadCurrencies = async () => {
-    setLoading(true);
     try {
       const resp = await getJson(`${apiBase}/v1/regions/currencies?limit=100`);
 
       setCurrencies(resp.items || []);
     } catch (err) {
       console.error("Failed to load currencies", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -150,7 +137,7 @@ export default function CurrenciesPage() {
       decimal_places: 2,
       status: "active",
     });
-    onOpen();
+    setIsModalOpen(true);
   };
 
   /**
@@ -168,7 +155,7 @@ export default function CurrenciesPage() {
       decimal_places: currency.decimal_places,
       status: currency.status,
     });
-    onOpen();
+    setIsModalOpen(true);
   };
 
   /**
@@ -211,7 +198,7 @@ export default function CurrenciesPage() {
           await loadCurrencies();
         }
       }
-      onOpenChange();
+      setIsModalOpen(false);
     } catch (err) {
       console.error("Failed to save currency", err);
     }
@@ -238,219 +225,287 @@ export default function CurrenciesPage() {
       <div className="p-6">
         <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">{t("admin-currencies-title")}</h1>
-          <Button
-            color="primary"
-            endContent={<Plus className="w-4 h-4" />}
-            onPress={handleOpenCreate}
-          >
+          <Button variant="primary" onPress={handleOpenCreate}>
+            <Plus className="w-4 h-4" />
             {t("admin-currencies-add")}
           </Button>
         </div>
 
         <Card className="mb-6">
-          <CardBody className="flex gap-4">
-            <Input
-              isClearable
-              className="w-full"
-              placeholder={t("admin-common-search")}
-              startContent={<SearchIcon className="w-4 h-4" />}
-              value={globalFilter}
-              onValueChange={setGlobalFilter}
-            />
+          <Card.Content className="flex gap-4">
+            <TextField className="w-full">
+              <Label>{t("admin-currencies-filter-placeholder")}</Label>
+              <Input
+                placeholder={t("admin-currencies-filter-placeholder")}
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+              />
+            </TextField>
             <Select
-              label={t("admin-common-status")}
-              selectedKeys={statusFilter ? [statusFilter] : []}
-              onSelectionChange={(key) =>
-                setStatusFilter(Array.from(key).join(""))
-              }
+              value={statusFilter || ""}
+              onChange={(value) => setStatusFilter((value as string) || "")}
             >
-              <SelectItem key="">All</SelectItem>
-              <SelectItem key="active">Active</SelectItem>
-              <SelectItem key="inactive">Inactive</SelectItem>
+              <Label>{t("admin-common-status")}</Label>
+              <Select.Trigger>
+                <Select.Value />
+                <Select.Indicator />
+              </Select.Trigger>
+              <Select.Popover>
+                <ListBox>
+                  <ListBox.Item id="" textValue="All">
+                    All
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="active" textValue="Active">
+                    Active
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                  <ListBox.Item id="inactive" textValue="Inactive">
+                    Inactive
+                    <ListBox.ItemIndicator />
+                  </ListBox.Item>
+                </ListBox>
+              </Select.Popover>
             </Select>
-          </CardBody>
+          </Card.Content>
         </Card>
 
         <Card>
-          <CardBody>
-            <Table isStriped>
-              <TableHeader>
-                <TableColumn key="code">{t("admin-common-code")}</TableColumn>
-                <TableColumn key="display_name">
-                  {t("admin-common-name")}
-                </TableColumn>
-                <TableColumn key="symbol">
-                  {t("admin-common-symbol")}
-                </TableColumn>
-                <TableColumn key="decimal_places">
-                  {t("admin-currencies-decimals")}
-                </TableColumn>
-                <TableColumn key="status">
-                  {t("admin-common-status")}
-                </TableColumn>
-                <TableColumn key="actions">
-                  {t("admin-common-actions")}
-                </TableColumn>
-              </TableHeader>
-              <TableBody
-                emptyContent={<div>{t("admin-common-empty")}</div>}
-                isLoading={loading}
-                items={displayed}
-                loadingContent={<div>{t("admin-common-loading")}</div>}
-              >
-                {(currency) => (
-                  <TableRow key={currency.id}>
-                    <TableCell className="font-mono font-bold">
-                      {currency.code}
-                    </TableCell>
-                    <TableCell>{currency.display_name}</TableCell>
-                    <TableCell>{currency.symbol}</TableCell>
-                    <TableCell>{currency.decimal_places}</TableCell>
-                    <TableCell>
-                      <span
-                        className={
-                          currency.status === "active"
-                            ? "text-green-600"
-                            : "text-gray-600"
-                        }
-                      >
-                        {currency.status}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex gap-2">
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          onPress={() => handleOpenEdit(currency)}
+          <Card.Content>
+            <Table>
+              <Table.Content>
+                <Table.Header>
+                  <Table.Column key="code" isRowHeader>
+                    {t("admin-common-code")}
+                  </Table.Column>
+                  <Table.Column key="display_name">
+                    {t("admin-common-name")}
+                  </Table.Column>
+                  <Table.Column key="symbol">
+                    {t("admin-common-symbol")}
+                  </Table.Column>
+                  <Table.Column key="decimal_places">
+                    {t("admin-currencies-decimals")}
+                  </Table.Column>
+                  <Table.Column key="status">
+                    {t("admin-common-status")}
+                  </Table.Column>
+                  <Table.Column key="actions">
+                    {t("admin-common-actions")}
+                  </Table.Column>
+                </Table.Header>
+                <Table.Body
+                  renderEmptyState={() => <div>{t("admin-common-empty")}</div>}
+                >
+                  {displayed.map((currency) => (
+                    <Table.Row key={currency.id} className="odd:bg-default-50">
+                      <Table.Cell className=" font-bold">
+                        {currency.code}
+                      </Table.Cell>
+                      <Table.Cell>{currency.display_name}</Table.Cell>
+                      <Table.Cell>{currency.symbol}</Table.Cell>
+                      <Table.Cell>{currency.decimal_places}</Table.Cell>
+                      <Table.Cell>
+                        <span
+                          className={
+                            currency.status === "active"
+                              ? "text-green-600"
+                              : "text-gray-600"
+                          }
                         >
-                          <Edit2 className="w-4 h-4" />
-                        </Button>
-                        <Button
-                          isIconOnly
-                          color="danger"
-                          size="sm"
-                          variant="light"
-                          onPress={() => handleDelete(currency.id)}
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
+                          {currency.status}
+                        </span>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex gap-2">
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="tertiary"
+                            onPress={() => handleOpenEdit(currency)}
+                          >
+                            <Edit2 className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="tertiary"
+                            onPress={() => handleDelete(currency.id)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))}
+                </Table.Body>
+              </Table.Content>
             </Table>
-          </CardBody>
+          </Card.Content>
         </Card>
 
-        <Modal isOpen={isOpen} size="lg" onOpenChange={onOpenChange}>
-          <ModalContent>
-            <ModalHeader className="flex flex-col gap-1">
-              {isEditMode
-                ? t("admin-currencies-edit")
-                : t("admin-currencies-create")}
-            </ModalHeader>
-            <ModalBody>
-              <Tooltip
-                content={t(
-                  "admin-currencies-code-help",
-                  "ISO 4217 currency code",
+        <Modal isOpen={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Modal.Backdrop>
+            <Modal.Container size="lg">
+              <Modal.Dialog>
+                {({ close }) => (
+                  <>
+                    <Modal.CloseTrigger onPress={close} />
+                    <Modal.Header>
+                      {isEditMode
+                        ? t("admin-currencies-edit")
+                        : t("admin-currencies-create")}
+                    </Modal.Header>
+                    <Modal.Body>
+                      <Tooltip>
+                        <Tooltip.Trigger>
+                          <TextField>
+                            <Label>{t("admin-common-code")}</Label>
+                            <Input
+                              disabled={isEditMode}
+                              maxLength={3}
+                              placeholder="USD"
+                              value={formData.code}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  code: e.target.value.toUpperCase(),
+                                })
+                              }
+                            />
+                          </TextField>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          {t(
+                            "admin-currencies-code-help",
+                            "ISO 4217 currency code",
+                          )}
+                        </Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip>
+                        <Tooltip.Trigger>
+                          <TextField>
+                            <Label>{t("admin-common-name")}</Label>
+                            <Input
+                              placeholder="US Dollar"
+                              value={formData.display_name}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  display_name: e.target.value,
+                                })
+                              }
+                            />
+                          </TextField>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          {t("admin-common-name")}
+                        </Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip>
+                        <Tooltip.Trigger>
+                          <TextField>
+                            <Label>{t("admin-common-symbol")}</Label>
+                            <Input
+                              maxLength={5}
+                              placeholder="$"
+                              value={formData.symbol}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  symbol: e.target.value,
+                                })
+                              }
+                            />
+                          </TextField>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          {t(
+                            "admin-currencies-symbol-help",
+                            "Symbol displayed to customers",
+                          )}
+                        </Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip>
+                        <Tooltip.Trigger>
+                          <TextField>
+                            <Label>{t("admin-currencies-decimals")}</Label>
+                            <Input
+                              max={8}
+                              min={0}
+                              placeholder="2"
+                              type="number"
+                              value={formData.decimal_places.toString()}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  decimal_places: parseInt(e.target.value) || 2,
+                                })
+                              }
+                            />
+                          </TextField>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          {t(
+                            "admin-currencies-decimals-help",
+                            "Number of decimal places",
+                          )}
+                        </Tooltip.Content>
+                      </Tooltip>
+                      <Tooltip>
+                        <Tooltip.Trigger>
+                          <Select
+                            value={formData.status}
+                            onChange={(value) =>
+                              setFormData({
+                                ...formData,
+                                status: value as "active" | "inactive",
+                              })
+                            }
+                          >
+                            <Label>{t("admin-common-status")}</Label>
+                            <Select.Trigger>
+                              <Select.Value />
+                              <Select.Indicator />
+                            </Select.Trigger>
+                            <Select.Popover>
+                              <ListBox>
+                                {STATUS_OPTIONS.map((opt) => (
+                                  <ListBox.Item
+                                    key={opt}
+                                    id={opt}
+                                    textValue={opt}
+                                  >
+                                    {opt}
+                                    <ListBox.ItemIndicator />
+                                  </ListBox.Item>
+                                ))}
+                              </ListBox>
+                            </Select.Popover>
+                          </Select>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          {t("admin-common-status")}
+                        </Tooltip.Content>
+                      </Tooltip>
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <Button variant="tertiary" onPress={close}>
+                        {t("admin-common-cancel")}
+                      </Button>
+                      <Button
+                        isDisabled={!formData.display_name}
+                        variant="primary"
+                        onPress={handleSave}
+                      >
+                        {t("admin-common-save")}
+                      </Button>
+                    </Modal.Footer>
+                  </>
                 )}
-              >
-                <Input
-                  isDisabled={isEditMode}
-                  label={t("admin-common-code")}
-                  maxLength={3}
-                  placeholder="USD"
-                  value={formData.code}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, code: value.toUpperCase() })
-                  }
-                />
-              </Tooltip>
-              <Tooltip content={t("admin-common-name")}>
-                <Input
-                  label={t("admin-common-name")}
-                  placeholder="US Dollar"
-                  value={formData.display_name}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, display_name: value })
-                  }
-                />
-              </Tooltip>
-              <Tooltip
-                content={t(
-                  "admin-currencies-symbol-help",
-                  "Symbol displayed to customers",
-                )}
-              >
-                <Input
-                  label={t("admin-common-symbol")}
-                  maxLength={5}
-                  placeholder="$"
-                  value={formData.symbol}
-                  onValueChange={(value) =>
-                    setFormData({ ...formData, symbol: value })
-                  }
-                />
-              </Tooltip>
-              <Tooltip
-                content={t(
-                  "admin-currencies-decimals-help",
-                  "Number of decimal places",
-                )}
-              >
-                <Input
-                  label={t("admin-currencies-decimals")}
-                  max={8}
-                  min={0}
-                  placeholder="2"
-                  type="number"
-                  value={formData.decimal_places.toString()}
-                  onValueChange={(value) =>
-                    setFormData({
-                      ...formData,
-                      decimal_places: parseInt(value) || 2,
-                    })
-                  }
-                />
-              </Tooltip>
-              <Tooltip content={t("admin-common-status")}>
-                <Select
-                  label={t("admin-common-status")}
-                  selectedKeys={[formData.status]}
-                  onSelectionChange={(key) =>
-                    setFormData({
-                      ...formData,
-                      status: Array.from(key).join("") as "active" | "inactive",
-                    })
-                  }
-                >
-                  {STATUS_OPTIONS.map((opt) => (
-                    <SelectItem key={opt}>{opt}</SelectItem>
-                  ))}
-                </Select>
-              </Tooltip>
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                color="default"
-                variant="light"
-                onPress={() => onOpenChange()}
-              >
-                {t("admin-common-cancel")}
-              </Button>
-              <Button
-                color="primary"
-                isDisabled={!formData.display_name}
-                onPress={handleSave}
-              >
-                {t("admin-common-save")}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
         </Modal>
       </div>
     </DefaultLayout>

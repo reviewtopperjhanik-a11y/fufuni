@@ -6,12 +6,9 @@
 import { useState } from "react";
 import {
   Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
-  Button,
-  DropdownSection,
+  Label,
   Badge,
+  Header,
 } from "@heroui/react";
 import { useAuth } from "@/authentication/providers/use-auth";
 import { useTranslation } from "react-i18next";
@@ -82,94 +79,138 @@ export function UserListsMenu() {
 
   return (
     <>
-      <Dropdown placement="bottom-end">
-        <DropdownTrigger>
-          <Button isIconOnly variant="light" aria-label="Account Menu" className="relative">
-            <Badge content={totalItems} color="danger" size="sm" isInvisible={totalItems === 0}>
-              <UserIcon size={20} className="text-default-500" />
+      <Dropdown>
+        <Dropdown.Trigger className="inline-flex items-center" aria-label="Account Menu">
+          {/* {totalItems > 0 && (
+            <Badge content={totalItems.toString()} color="danger">
+              <UserIcon size={20} />
             </Badge>
-          </Button>
-        </DropdownTrigger>
+          )}
+          {totalItems === 0 && <UserIcon size={20}/>} */}
+          <Badge.Anchor>
+            <UserIcon size={20} />
+            <Badge size="sm" color="danger" variant="primary">{totalItems.toString()}</Badge>
+          </Badge.Anchor>
+        </Dropdown.Trigger>
         
-        <DropdownMenu 
-          aria-label="User Lists Menu" 
-          variant="flat"
-          className="w-80"
-        >
-          <DropdownSection title={user?.name || user?.email || t("my-account", "My Account")} showDivider>
-            <DropdownItem key="account" onPress={() => navigate('/account')}>
-              {t('dashboard', 'Dashboard')}
-            </DropdownItem>
-          </DropdownSection>
+        <Dropdown.Popover>
+          <Dropdown.Menu 
+            aria-label="User Lists Menu" 
+            className="w-80"
+          >
+            <Dropdown.Section>
+              <Header>{user?.name || user?.email || t("my-account", "My Account")}</Header>
+              <Dropdown.Item 
+                key="account" 
+                id="account"
+                textValue="Dashboard"
+                onPress={() => navigate('/account')}
+              >
+                <Label>{t('dashboard', 'Dashboard')}</Label>
+              </Dropdown.Item>
+            </Dropdown.Section>
 
-          <DropdownSection title={t('my-wishlist', 'My Wishlist')} showDivider>
-            {wishlist && wishlist.length > 0 ? (
-              wishlist.map((productId) => {
-                const matchedProduct = wishlistProducts.find((p) => p.id === productId);
-                const displayTitle = matchedProduct
-                  ? resolveTitle(matchedProduct.title, i18n.language)
-                  : productId;
+            <Dropdown.Section>
+              <Header>{t('my-wishlist', 'My Wishlist')}</Header>
+              {wishlist && wishlist.length > 0 ? (
+                wishlist.map((productId) => {
+                  const matchedProduct = wishlistProducts.find((p) => p.id === productId);
+                  const displayTitle = matchedProduct
+                    ? resolveTitle(matchedProduct.title, i18n.language)
+                    : productId;
 
-                return (
-                  <DropdownItem
-                    key={`wishlist-${productId}`}
-                    startContent={<Heart className="w-4 h-4 text-danger shrink-0" fill="currentColor" />}
-                    description={matchedProduct ? undefined : `ID: ${productId}`}
-                    onPress={() => navigate(`/product/${productId}`)}
-                  >
-                    {displayTitle}
-                  </DropdownItem>
-                );
-              })
-            ) : (
-              <DropdownItem key="wishlist-empty" isReadOnly className="text-default-400">
-                {t('wishlist-empty', 'Your wishlist is empty')}
-              </DropdownItem>
-            )}
-          </DropdownSection>
-
-          <DropdownSection title={t('my-saved-carts', 'My Saved Carts')}>
-            {savedCarts && savedCarts.length > 0 ? (
-              savedCarts.map(snapshot => {
-                // Handle both new snapshot format and legacy string format
-                const isSnapshot = typeof snapshot === 'object' && snapshot !== null && 'items' in snapshot;
-                if (!isSnapshot) {
-                  // Legacy format: just an ID string - show but disable loading
                   return (
-                    <DropdownItem
-                      key={`cart-${snapshot}`}
-                      startContent={<Bookmark className="w-4 h-4 text-primary shrink-0" fill="currentColor" />}
-                      description={`ID: ${snapshot} (${t('legacy', 'legacy')})`}
-                      isDisabled
+                    <Dropdown.Item
+                      key={`wishlist-${productId}`}
+                      id={`wishlist-${productId}`}
+                      textValue={displayTitle}
+                      onPress={() => navigate(`/product/${productId}`)}
                     >
-                      {t('cart-number', { num: (snapshot as string).slice(0, 8) }) || `Cart #${(snapshot as string).slice(0, 8)}`}
-                    </DropdownItem>
+                      <div className="flex gap-4 w-full items-center">
+                        <Heart className="w-4 h-4 text-danger shrink-0" fill="currentColor" />
+                        <div className="flex flex-col flex-1 gap-1">
+                          <Label>{displayTitle}</Label>
+                          {matchedProduct ? null : <p className="text-xs text-default-400">ID: {productId}</p>}
+                        </div>
+                      </div>
+                    </Dropdown.Item>
                   );
-                }
+                })
+              ) : (
+                <Dropdown.Item 
+                  key="wishlist-empty" 
+                  id="wishlist-empty"
+                  textValue="Your wishlist is empty"
+                  isDisabled 
+                  className="text-default-400"
+                >
+                  <Label>{t('wishlist-empty', 'Your wishlist is empty')}</Label>
+                </Dropdown.Item>
+              )}
+            </Dropdown.Section>
 
-                // New format: full snapshot
-                const itemCount = snapshot.items?.length || 0;
-                const totalCents = snapshot.totals?.total_cents || 0;
-                const currency = snapshot.currency || 'USD';
-                
-                return (
-                  <DropdownItem
-                    key={`cart-${snapshot.id}`}
-                    startContent={<Bookmark className="w-4 h-4 text-primary shrink-0" fill="currentColor" />}
-                    description={`${itemCount} ${itemCount === 1 ? t('item') : t('items')} • ${formatMoney(totalCents, currency)}`}
-                    onPress={() => handleLoadCart(snapshot)}
-                  >
-                    {t('cart-number', { num: snapshot.id.slice(0, 8) }) || `Cart #${snapshot.id.slice(0, 8)}`}
-                  </DropdownItem>
-                );
-              })
-            ) : (
-              <DropdownItem key="carts-empty" isReadOnly className="text-default-400">
-                {t('saved-carts-empty', 'No saved carts')}
-              </DropdownItem>
-            )}
-          </DropdownSection>
-        </DropdownMenu>
+            <Dropdown.Section>
+              <Header>{t('my-saved-carts', 'My Saved Carts')}</Header>
+              {savedCarts && savedCarts.length > 0 ? (
+                savedCarts.map(snapshot => {
+                  // Handle both new snapshot format and legacy string format
+                  const isSnapshot = typeof snapshot === 'object' && snapshot !== null && 'items' in snapshot;
+                  if (!isSnapshot) {
+                    // Legacy format: just an ID string - show but disable loading
+                    return (
+                      <Dropdown.Item
+                        key={`cart-${snapshot}`}
+                        id={`cart-${snapshot}`}
+                        textValue={`Cart #${(snapshot as string).slice(0, 8)}`}
+                        isDisabled
+                      >
+                        <div className="flex gap-4 w-full items-center">
+                          <Bookmark className="w-4 h-4 text-primary shrink-0" fill="currentColor" />
+                          <div className="flex flex-col flex-1 gap-1">
+                            <Label>{t('cart-number', { num: (snapshot as string).slice(0, 8) }) || `Cart #${(snapshot as string).slice(0, 8)}`}</Label>
+                            <p className="text-xs text-default-400">ID: {snapshot} (${t('legacy', 'legacy')})</p>
+                          </div>
+                        </div>
+                      </Dropdown.Item>
+                    );
+                  }
+
+                  // New format: full snapshot
+                  const itemCount = snapshot.items?.length || 0;
+                  const totalCents = snapshot.totals?.total_cents || 0;
+                  const currency = snapshot.currency || 'USD';
+                  
+                  return (
+                    <Dropdown.Item
+                      key={`cart-${snapshot.id}`}
+                      id={`cart-${snapshot.id}`}
+                      textValue={t('cart-number', { num: snapshot.id.slice(0, 8) }) || `Cart #${snapshot.id.slice(0, 8)}`}
+                      onPress={() => handleLoadCart(snapshot)}
+                    >
+                      <div className="flex gap-4 w-full items-center">
+                        <Bookmark className="w-4 h-4 text-primary shrink-0" fill="currentColor" />
+                        <div className="flex flex-col flex-1 gap-1">
+                          <Label>{t('cart-number', { num: snapshot.id.slice(0, 8) }) || `Cart #${snapshot.id.slice(0, 8)}`}</Label>
+                          <p className="text-xs text-default-400">{itemCount} ${itemCount === 1 ? t('item') : t('items')} • ${formatMoney(totalCents, currency)}</p>
+                        </div>
+                      </div>
+                    </Dropdown.Item>
+                  );
+                })
+              ) : (
+                <Dropdown.Item 
+                  key="carts-empty" 
+                  id="carts-empty"
+                  textValue="No saved carts"
+                  isDisabled 
+                  className="text-default-400"
+                >
+                  <Label>{t('saved-carts-empty', 'No saved carts')}</Label>
+                </Dropdown.Item>
+              )}
+            </Dropdown.Section>
+          </Dropdown.Menu>
+        </Dropdown.Popover>
       </Dropdown>
 
       {/* Saved Cart Modal */}

@@ -21,30 +21,15 @@ import { useMutation } from "@tanstack/react-query";
 import { RefreshCw, AlertTriangle, Package, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
-import { Input } from "@heroui/react";
-import { Select, SelectItem } from "@heroui/react";
-import {
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
-} from "@heroui/react";
-import {
-  Modal,
-  ModalContent,
-  ModalHeader,
-  ModalBody,
-  ModalFooter,
-  useDisclosure,
-} from "@heroui/react";
-import { Card, CardBody } from "@heroui/react";
+import { Input, TextField, Label } from "@heroui/react";
+import { Select, ListBox } from "@heroui/react";
+import { Table } from "@heroui/react";
+import { Modal } from "@heroui/react";
+import { Card } from "@heroui/react";
 import { Tooltip } from "@heroui/react";
 import { Chip } from "@heroui/react";
 import clsx from "clsx";
 
-import { SearchIcon } from "@/components/icons";
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { resolveTitle } from "@/utils/description";
@@ -110,11 +95,10 @@ export default function InventoryPage() {
   // List state
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [allWarehouses, setAllWarehouses] = useState<Warehouse[]>([]);
-  const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState<string>("");
 
   // Modal state
-  const { isOpen, onOpen, onOpenChange } = useDisclosure();
+  const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [selectedWarehouse, setSelectedWarehouse] = useState<string>("");
   const [adjustDelta, setAdjustDelta] = useState("");
@@ -127,7 +111,6 @@ export default function InventoryPage() {
    * Also loads the complete list of all warehouses. Uses JWT token from useSecuredApi.
    */
   const loadData = async () => {
-    setLoading(true);
     try {
       const [inventoryResponse, warehousesResponse] = await Promise.all([
         getJson(`${apiBase}/v1/inventory?cb=${Date.now()}`),
@@ -138,8 +121,6 @@ export default function InventoryPage() {
       setAllWarehouses(warehousesResponse.items || []);
     } catch (err) {
       console.error("Failed to load inventory or warehouses", err);
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -148,7 +129,7 @@ export default function InventoryPage() {
   }, []);
 
   // Filtered inventory
-  const displayed = useMemo(() => {
+  const displayedItems = useMemo(() => {
     const term = globalFilter.trim().toLowerCase();
 
     if (term) {
@@ -274,7 +255,7 @@ export default function InventoryPage() {
       {
         onSuccess: () => {
           // Close modal after successful adjustment
-          onOpenChange();
+          setIsModalOpen(false);
         },
       },
     );
@@ -301,7 +282,7 @@ export default function InventoryPage() {
     setSelectedWarehouse(item.warehouses?.[0]?.warehouse_id || "");
     setAdjustDelta("");
     setAdjustReason("restock");
-    onOpen();
+    setIsModalOpen(true);
   };
 
   return (
@@ -311,404 +292,458 @@ export default function InventoryPage() {
           <h1 className="text-3xl font-bold">{t("admin-inventory-title")}</h1>
           <button
             className="p-2 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
-            disabled={loading}
             onClick={loadData}
           >
-            <RefreshCw className={loading ? "animate-spin" : ""} size={20} />
+            <RefreshCw className="" size={20} />
           </button>
         </div>
 
         <Card className="mb-6">
-          <CardBody>
-            <Input
-              isClearable
-              className="w-full"
-              placeholder={t("admin-common-search")}
-              startContent={<SearchIcon className="w-4 h-4" />}
-              value={globalFilter}
-              onValueChange={setGlobalFilter}
-            />
-          </CardBody>
+          <Card.Content>
+            <TextField className="w-full">
+              <Label>{t("admin-inventory-filter-placeholder")}</Label>
+              <Input
+                placeholder={t("admin-inventory-filter-placeholder")}
+                value={globalFilter}
+                onChange={(e) => setGlobalFilter(e.target.value)}
+              />
+            </TextField>
+          </Card.Content>
         </Card>
 
         <Card>
-          <CardBody>
-            <Table isStriped>
-              <TableHeader>
-                <TableColumn key="sku">
-                  {t("admin-inventory-col-sku")}
-                </TableColumn>
-                <TableColumn key="product">
-                  {t("admin-inventory-col-product")}
-                </TableColumn>
-                <TableColumn key="on_hand">
-                  {t("admin-inventory-col-on-hand")}
-                </TableColumn>
-                <TableColumn key="reserved">
-                  {t("admin-inventory-col-reserved")}
-                </TableColumn>
-                <TableColumn key="available">
-                  {t("admin-inventory-col-available")}
-                </TableColumn>
-              </TableHeader>
-              <TableBody
-                emptyContent={<div>{t("admin-inventory-empty")}</div>}
-                isLoading={loading}
-                items={displayed}
-                loadingContent={<div>{t("admin-common-loading")}</div>}
-              >
-                {(item) => {
-                  const isLow = item.available <= 5 && item.available > 0;
-                  const isOut = item.available <= 0;
+          <Card.Content>
+            <Table>
+              <Table.ScrollContainer>
+                <Table.Content aria-label={t("admin-inventory-title")}>
+                  <Table.Header>
+                    <Table.Column key="sku" isRowHeader>
+                      {t("admin-inventory-col-sku")}
+                    </Table.Column>
+                    <Table.Column key="product">
+                      {t("admin-inventory-col-product")}
+                    </Table.Column>
+                    <Table.Column key="on_hand">
+                      {t("admin-inventory-col-on-hand")}
+                    </Table.Column>
+                    <Table.Column key="reserved">
+                      {t("admin-inventory-col-reserved")}
+                    </Table.Column>
+                    <Table.Column key="available">
+                      {t("admin-inventory-col-available")}
+                    </Table.Column>
+                  </Table.Header>
+                  <Table.Body
+                    renderEmptyState={() => (
+                      <div>{t("admin-inventory-empty")}</div>
+                    )}
+                  >
+                    {displayedItems.map((item) => {
+                      const isLow = item.available <= 5 && item.available > 0;
+                      const isOut = item.available <= 0;
 
-                  return (
-                    <TableRow
-                      key={item.sku}
-                      className="cursor-pointer"
-                      onClick={() => handleOpenItem(item)}
-                    >
-                      <TableCell>
-                        <span className="font-mono text-sm">{item.sku}</span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {resolveTitle(
-                            item.product_title || "-",
-                            i18n.language,
-                          )}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {item.on_hand}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span className="font-mono text-sm">
-                          {item.reserved}
-                        </span>
-                      </TableCell>
-                      <TableCell>
-                        <span
-                          className={clsx(
-                            "font-mono text-sm",
-                            isOut && "text-red-500",
-                            isLow && "text-amber-500",
-                          )}
+                      return (
+                        <Table.Row
+                          key={item.sku}
+                          className="cursor-pointer odd:bg-default-50"
+                          
                         >
-                          {isLow && (
-                            <AlertTriangle className="inline mr-1" size={12} />
-                          )}
-                          {item.available}
-                        </span>
-                      </TableCell>
-                    </TableRow>
-                  );
-                }}
-              </TableBody>
+                          <Table.Cell className=" text-sm" onClick={() => handleOpenItem(item)}>
+                            {item.sku}
+                          </Table.Cell>
+                          <Table.Cell className=" text-sm" onClick={() => handleOpenItem(item)}>
+                            {resolveTitle(
+                              item.product_title || "-",
+                              i18n.language,
+                            )}
+                          </Table.Cell>
+                          <Table.Cell className=" text-sm" onClick={() => handleOpenItem(item)}>
+                            {item.on_hand}
+                          </Table.Cell>
+                          <Table.Cell className=" text-sm" onClick={() => handleOpenItem(item)}>
+                            {item.reserved}
+                          </Table.Cell>
+                          <Table.Cell
+                            className={clsx(
+                              " text-sm",
+                              isOut && "text-red-500",
+                              isLow && "text-amber-500",
+                            )}
+                            onClick={() => handleOpenItem(item)}
+                          >
+                            {isLow && (
+                              <AlertTriangle
+                                className="inline mr-1"
+                                size={12}
+                              />
+                            )}
+                            {item.available}
+                          </Table.Cell>
+                        </Table.Row>
+                      );
+                    })}
+                  </Table.Body>
+                </Table.Content>
+              </Table.ScrollContainer>
             </Table>
-          </CardBody>
+          </Card.Content>
         </Card>
 
         {/* Detail modal */}
-        <Modal isOpen={isOpen} size="md" onOpenChange={onOpenChange}>
-          <ModalContent>
-            <ModalHeader className="flex flex-col gap-1">
-              {selectedItem?.sku || t("admin-inventory-title")}
-            </ModalHeader>
-            <ModalBody>
-              {selectedItem && (
-                <div className="space-y-5">
-                  {/* Product info */}
-                  <div className="flex items-center gap-3 p-3 rounded-lg border">
-                    <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 border">
-                      <Package className="text-gray-600" size={18} />
-                    </div>
-                    <div>
-                      <p className="font-mono text-sm font-medium">
-                        {selectedItem.sku}
-                      </p>
-                      <p className="font-mono text-sm text-gray-600">
-                        {selectedItem.product_title || "-"}
-                      </p>
-                    </div>
-                  </div>
+        <Modal isOpen={isModalOpen} onOpenChange={setIsModalOpen}>
+          <Modal.Backdrop>
+            <Modal.Container size="md">
+              <Modal.Dialog>
+                {({ close }) => (
+                  <>
+                    <Modal.CloseTrigger onPress={close} />
+                    <Modal.Header>
+                      {selectedItem?.sku || t("admin-inventory-title")}
+                    </Modal.Header>
+                    <Modal.Body>
+                      {selectedItem && (
+                        <div className="space-y-5">
+                          {/* Product info */}
+                          <div className="flex items-center gap-3 p-3 rounded-lg border">
+                            <div className="w-10 h-10 flex items-center justify-center rounded-lg bg-gray-100 border">
+                              <Package className="text-gray-600" size={18} />
+                            </div>
+                            <div>
+                              <p className=" text-sm font-medium">
+                                {selectedItem.sku}
+                              </p>
+                              <p className=" text-sm text-gray-600">
+                                {selectedItem.product_title || "-"}
+                              </p>
+                            </div>
+                          </div>
 
-                  {/* Stock levels */}
-                  <div className="grid grid-cols-3 gap-3">
-                    <div className="p-3 rounded-lg text-center border">
-                      <p className="text-2xl font-mono font-semibold">
-                        {selectedItem.on_hand}
-                      </p>
-                      <p className="text-xs mt-1 text-gray-600">
-                        {t("admin-inventory-col-on-hand")}
-                      </p>
-                    </div>
-                    <div className="p-3 rounded-lg text-center border">
-                      <p className="text-2xl font-mono font-semibold">
-                        {selectedItem.reserved}
-                      </p>
-                      <p className="text-xs mt-1 text-gray-600">
-                        {t("admin-inventory-col-reserved")}
-                      </p>
-                    </div>
-                    <div className="p-3 rounded-lg text-center border">
-                      <p
-                        className={clsx(
-                          "text-2xl font-mono font-semibold",
-                          selectedItem.available <= 0 && "text-red-500",
-                          selectedItem.available > 0 &&
-                            selectedItem.available <= 5 &&
-                            "text-amber-500",
-                        )}
-                      >
-                        {selectedItem.available}
-                      </p>
-                      <p className="text-xs mt-1 text-gray-600">
-                        {t("admin-inventory-col-available")}
-                      </p>
-                    </div>
-                  </div>
-
-                  {/* Adjust form */}
-                  <form
-                    className="space-y-4 pt-4 border-t"
-                    onSubmit={handleFormSubmit}
-                  >
-                    {/* Warehouse distribution */}
-                    <div className="space-y-3">
-                      <p className="text-sm font-medium">
-                        {t("admin-inventory-warehouses")}
-                      </p>
-                      <div className="space-y-2 max-h-64 overflow-y-auto">
-                        {allWarehouses.map((warehouse) => {
-                          const exists = hasProductInWarehouse(warehouse.id);
-                          const qty = getWarehouseQuantity(warehouse.id);
-                          const isSelected = selectedWarehouse === warehouse.id;
-
-                          return (
-                            <div
-                              key={warehouse.id}
-                              className={clsx(
-                                "flex items-center justify-between gap-3 p-3 rounded-lg border transition-colors",
-                                isSelected
-                                  ? "bg-blue-50 border-blue-300"
-                                  : "hover:bg-gray-50",
-                              )}
-                            >
-                              {/* Warehouse info + status */}
-                              <label className="flex items-center gap-3 flex-1 cursor-pointer">
-                                <input
-                                  checked={isSelected}
-                                  className="w-4 h-4"
-                                  name="warehouse"
-                                  type="radio"
-                                  value={warehouse.id}
-                                  onChange={(e) =>
-                                    setSelectedWarehouse(e.target.value)
-                                  }
-                                />
-                                <div className="flex-1">
-                                  <p className="text-sm font-medium">
-                                    {warehouse.display_name}
-                                  </p>
-                                  {exists && (
-                                    <p className="text-xs text-gray-500">
-                                      Qty: {qty}
-                                    </p>
-                                  )}
-                                </div>
-
-                                {/* Status badge */}
-                                {!exists && (
-                                  <Chip
-                                    color="default"
-                                    size="sm"
-                                    variant="flat"
-                                  >
-                                    {t("admin-inventory-not-stocked")}
-                                  </Chip>
+                          {/* Stock levels */}
+                          <div className="grid grid-cols-3 gap-3">
+                            <div className="p-3 rounded-lg text-center border">
+                              <p className="text-2xl  font-semibold">
+                                {selectedItem.on_hand}
+                              </p>
+                              <p className="text-xs mt-1 text-gray-600">
+                                {t("admin-inventory-col-on-hand")}
+                              </p>
+                            </div>
+                            <div className="p-3 rounded-lg text-center border">
+                              <p className="text-2xl  font-semibold">
+                                {selectedItem.reserved}
+                              </p>
+                              <p className="text-xs mt-1 text-gray-600">
+                                {t("admin-inventory-col-reserved")}
+                              </p>
+                            </div>
+                            <div className="p-3 rounded-lg text-center border">
+                              <p
+                                className={clsx(
+                                  "text-2xl  font-semibold",
+                                  selectedItem.available <= 0 && "text-red-500",
+                                  selectedItem.available > 0 &&
+                                    selectedItem.available <= 5 &&
+                                    "text-amber-500",
                                 )}
-                                {exists && qty === 0 && (
-                                  <Chip color="danger" size="sm" variant="flat">
-                                    {t("admin-inventory-badge-empty")}
-                                  </Chip>
-                                )}
-                                {exists && qty > 0 && qty <= 5 && (
-                                  <Chip
-                                    color="warning"
-                                    size="sm"
-                                    variant="flat"
-                                  >
-                                    {t("admin-inventory-low")}
-                                  </Chip>
-                                )}
-                                {exists && qty > 5 && (
-                                  <Chip
-                                    color="success"
-                                    size="sm"
-                                    variant="flat"
-                                  >
-                                    {t("admin-inventory-in-stock")}
-                                  </Chip>
-                                )}
-                              </label>
+                              >
+                                {selectedItem.available}
+                              </p>
+                              <p className="text-xs mt-1 text-gray-600">
+                                {t("admin-inventory-col-available")}
+                              </p>
+                            </div>
+                          </div>
 
-                              {/* Quick actions */}
-                              <div className="flex items-center gap-1">
-                                {!exists && (
-                                  <Tooltip
-                                    content={t(
-                                      "admin-inventory-init-warehouse",
-                                    )}
-                                  >
-                                    <Button
-                                      isIconOnly
-                                      color="success"
-                                      isLoading={
-                                        initializeWarehouseMutation.isPending
-                                      }
-                                      size="sm"
-                                      variant="light"
-                                      onPress={() => {
-                                        if (selectedItem) {
-                                          initializeWarehouseMutation.mutate({
-                                            sku: selectedItem.sku,
-                                            warehouseId: warehouse.id,
-                                          });
-                                        }
-                                      }}
+                          {/* Adjust form */}
+                          <form
+                            className="space-y-4 pt-4 border-t"
+                            onSubmit={handleFormSubmit}
+                          >
+                            {/* Warehouse distribution */}
+                            <div className="space-y-3">
+                              <p className="text-sm font-medium">
+                                {t("admin-inventory-warehouses")}
+                              </p>
+                              <div className="space-y-2 max-h-64 overflow-y-auto">
+                                {allWarehouses.map((warehouse) => {
+                                  const exists = hasProductInWarehouse(
+                                    warehouse.id,
+                                  );
+                                  const qty = getWarehouseQuantity(
+                                    warehouse.id,
+                                  );
+                                  const isSelected =
+                                    selectedWarehouse === warehouse.id;
+
+                                  return (
+                                    <div
+                                      key={warehouse.id}
+                                      className={clsx(
+                                        "flex items-center justify-between gap-3 p-3 rounded-lg border transition-colors",
+                                        isSelected
+                                          ? "bg-blue-50 border-blue-300"
+                                          : "hover:bg-gray-50",
+                                      )}
                                     >
-                                      <Plus size={16} />
-                                    </Button>
-                                  </Tooltip>
-                                )}
+                                      {/* Warehouse info + status */}
+                                      <label className="flex items-center gap-3 flex-1 cursor-pointer">
+                                        <input
+                                          checked={isSelected}
+                                          className="w-4 h-4"
+                                          name="warehouse"
+                                          type="radio"
+                                          value={warehouse.id}
+                                          onChange={(e) =>
+                                            setSelectedWarehouse(e.target.value)
+                                          }
+                                        />
+                                        <div className="flex-1">
+                                          <p className="text-sm font-medium">
+                                            {warehouse.display_name}
+                                          </p>
+                                          {exists && (
+                                            <p className="text-xs text-gray-500">
+                                              Qty: {qty}
+                                            </p>
+                                          )}
+                                        </div>
 
-                                {exists && qty === 0 && (
-                                  <Tooltip
-                                    content={t(
-                                      "admin-inventory-remove-warehouse",
-                                    )}
-                                  >
-                                    <Button
-                                      isIconOnly
-                                      color="danger"
-                                      isLoading={
-                                        deleteWarehouseMutation.isPending
-                                      }
-                                      size="sm"
-                                      variant="light"
-                                      onPress={() => {
-                                        if (selectedItem) {
-                                          deleteWarehouseMutation.mutate({
-                                            sku: selectedItem.sku,
-                                            warehouseId: warehouse.id,
-                                          });
-                                        }
-                                      }}
-                                    >
-                                      <Trash2 size={16} />
-                                    </Button>
-                                  </Tooltip>
-                                )}
+                                        {/* Status badge */}
+                                        {!exists && (
+                                          <Chip
+                                            color="default"
+                                            size="sm"
+                                            variant="tertiary"
+                                          >
+                                            {t("admin-inventory-not-stocked")}
+                                          </Chip>
+                                        )}
+                                        {exists && qty === 0 && (
+                                          <Chip
+                                            color="danger"
+                                            size="sm"
+                                            variant="tertiary"
+                                          >
+                                            {t("admin-inventory-badge-empty")}
+                                          </Chip>
+                                        )}
+                                        {exists && qty > 0 && qty <= 5 && (
+                                          <Chip
+                                            color="warning"
+                                            size="sm"
+                                            variant="tertiary"
+                                          >
+                                            {t("admin-inventory-low")}
+                                          </Chip>
+                                        )}
+                                        {exists && qty > 5 && (
+                                          <Chip
+                                            color="success"
+                                            size="sm"
+                                            variant="tertiary"
+                                          >
+                                            {t("admin-inventory-in-stock")}
+                                          </Chip>
+                                        )}
+                                      </label>
+
+                                      {/* Quick actions */}
+                                      <div className="flex items-center gap-1">
+                                        {!exists && (
+                                          <Tooltip>
+                                            <Tooltip.Trigger>
+                                              <Button
+                                                isIconOnly
+                                                size="sm"
+                                                variant="tertiary"
+                                                onPress={() => {
+                                                  if (selectedItem) {
+                                                    initializeWarehouseMutation.mutate(
+                                                      {
+                                                        sku: selectedItem.sku,
+                                                        warehouseId:
+                                                          warehouse.id,
+                                                      },
+                                                    );
+                                                  }
+                                                }}
+                                              >
+                                                <Plus size={16} />
+                                              </Button>
+                                            </Tooltip.Trigger>
+                                            <Tooltip.Content>
+                                              {t(
+                                                "admin-inventory-init-warehouse",
+                                              )}
+                                            </Tooltip.Content>
+                                          </Tooltip>
+                                        )}
+
+                                        {exists && qty === 0 && (
+                                          <Tooltip>
+                                            <Tooltip.Trigger>
+                                              <Button
+                                                isIconOnly
+                                                size="sm"
+                                                variant="danger"
+                                                onPress={() => {
+                                                  if (selectedItem) {
+                                                    deleteWarehouseMutation.mutate(
+                                                      {
+                                                        sku: selectedItem.sku,
+                                                        warehouseId:
+                                                          warehouse.id,
+                                                      },
+                                                    );
+                                                  }
+                                                }}
+                                              >
+                                                <Trash2 size={16} />
+                                              </Button>
+                                            </Tooltip.Trigger>
+                                            <Tooltip.Content>
+                                              {t(
+                                                "admin-inventory-remove-warehouse",
+                                              )}
+                                            </Tooltip.Content>
+                                          </Tooltip>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
                               </div>
                             </div>
-                          );
-                        })}
-                      </div>
-                    </div>
 
-                    {/* Adjustment form for selected warehouse */}
-                    {selectedWarehouse &&
-                      hasProductInWarehouse(selectedWarehouse) && (
-                        <div className="space-y-3 pt-3 border-t">
-                          <p className="text-xs font-medium text-gray-600">
-                            {t("admin-inventory-adjust-section")}
-                          </p>
-                          <div className="grid grid-cols-2 gap-3">
-                            <Tooltip
-                              content={t(
-                                "admin-inventory-field-quantity",
-                                "Enter quantity to add or remove",
-                              )}
-                            >
-                              <Input
-                                required
-                                label={t("admin-inventory-field-quantity")}
-                                placeholder="e.g. 50 or -10"
-                                type="number"
-                                value={adjustDelta}
-                                onValueChange={setAdjustDelta}
-                              />
-                            </Tooltip>
-                            <Tooltip
-                              content={t(
-                                "admin-inventory-field-reason",
-                                "Reason for adjustment",
-                              )}
-                            >
-                              <Select
-                                label={t("admin-inventory-field-reason")}
-                                selectedKeys={[adjustReason]}
-                                onSelectionChange={(key) =>
-                                  setAdjustReason(Array.from(key).join(""))
-                                }
-                              >
-                                {ADJUST_REASONS.map((r) => (
-                                  <SelectItem key={r}>
-                                    {r.charAt(0).toUpperCase() + r.slice(1)}
-                                  </SelectItem>
-                                ))}
-                              </Select>
-                            </Tooltip>
-                          </div>
+                            {/* Adjustment form for selected warehouse */}
+                            {selectedWarehouse &&
+                              hasProductInWarehouse(selectedWarehouse) && (
+                                <div className="space-y-3 pt-3 border-t">
+                                  <p className="text-xs font-medium text-gray-600">
+                                    {t("admin-inventory-adjust-section")}
+                                  </p>
+                                  <div className="grid grid-cols-2 gap-3">
+                                    <Tooltip>
+                                      <Tooltip.Trigger>
+                                        <TextField isRequired>
+                                          <Label>
+                                            {t(
+                                              "admin-inventory-field-quantity",
+                                            )}
+                                          </Label>
+                                          <Input
+                                            placeholder="e.g. 50 or -10"
+                                            type="number"
+                                            value={adjustDelta}
+                                            onChange={(e) =>
+                                              setAdjustDelta(e.target.value)
+                                            }
+                                          />
+                                        </TextField>
+                                      </Tooltip.Trigger>
+                                      <Tooltip.Content>
+                                        {t(
+                                          "admin-inventory-field-quantity",
+                                          "Enter quantity to add or remove",
+                                        )}
+                                      </Tooltip.Content>
+                                    </Tooltip>
+                                    <Tooltip>
+                                      <Tooltip.Trigger>
+                                        <Select
+                                          value={adjustReason}
+                                          onChange={(value) =>
+                                            setAdjustReason(
+                                              (value as string) || "",
+                                            )
+                                          }
+                                        >
+                                          <Label>
+                                            {t(
+                                              "admin-inventory-field-reason",
+                                              "Reason for adjustment",
+                                            )}
+                                          </Label>
+                                          <Select.Trigger>
+                                            <Select.Value />
+                                            <Select.Indicator />
+                                          </Select.Trigger>
+                                          <Select.Popover>
+                                            <ListBox>
+                                              {ADJUST_REASONS.map((r) => (
+                                                <ListBox.Item
+                                                  key={r}
+                                                  id={r}
+                                                  textValue={
+                                                    r.charAt(0).toUpperCase() +
+                                                    r.slice(1)
+                                                  }
+                                                >
+                                                  {r.charAt(0).toUpperCase() +
+                                                    r.slice(1)}
+                                                  <ListBox.ItemIndicator />
+                                                </ListBox.Item>
+                                              ))}
+                                            </ListBox>
+                                          </Select.Popover>
+                                        </Select>
+                                      </Tooltip.Trigger>
+                                      <Tooltip.Content>
+                                        {t(
+                                          "admin-inventory-field-reason",
+                                          "Reason for adjustment",
+                                        )}
+                                      </Tooltip.Content>
+                                    </Tooltip>
+                                  </div>
 
-                          {/* Quick actions */}
-                          <div className="flex items-center gap-2">
-                            <span className="text-xs text-gray-600">
-                              {t("admin-inventory-quick-label")}
-                            </span>
-                            {[10, 25, 50, 100].map((n) => (
-                              <button
-                                key={n}
-                                className="px-2 py-1 text-xs font-mono rounded-lg border hover:bg-gray-100 transition-colors"
-                                type="button"
-                                onClick={() => setAdjustDelta(String(n))}
-                              >
-                                +{n}
-                              </button>
-                            ))}
-                          </div>
+                                  {/* Quick actions */}
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-600">
+                                      {t("admin-inventory-quick-label")}
+                                    </span>
+                                    {[10, 25, 50, 100].map((n) => (
+                                      <button
+                                        key={n}
+                                        className="px-2 py-1 text-xs  rounded-lg border hover:bg-gray-100 transition-colors"
+                                        type="button"
+                                        onClick={() =>
+                                          setAdjustDelta(String(n))
+                                        }
+                                      >
+                                        +{n}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                          </form>
                         </div>
                       )}
-                  </form>
-                </div>
-              )}
-            </ModalBody>
-            <ModalFooter>
-              <Button
-                color="default"
-                variant="light"
-                onPress={() => onOpenChange()}
-              >
-                {t("admin-common-cancel")}
-              </Button>
-              <Button
-                color="primary"
-                isDisabled={
-                  adjustMutation.isPending ||
-                  !adjustDelta ||
-                  !selectedWarehouse ||
-                  !hasProductInWarehouse(selectedWarehouse)
-                }
-                onPress={handleAdjust}
-              >
-                {adjustMutation.isPending
-                  ? t("admin-inventory-adjusting")
-                  : t("admin-inventory-btn-apply")}
-              </Button>
-            </ModalFooter>
-          </ModalContent>
+                    </Modal.Body>
+                    <Modal.Footer>
+                      <Button variant="tertiary" onPress={close}>
+                        {t("admin-common-cancel")}
+                      </Button>
+                      <Button
+                        isDisabled={
+                          adjustMutation.isPending ||
+                          !adjustDelta ||
+                          !selectedWarehouse ||
+                          !hasProductInWarehouse(selectedWarehouse)
+                        }
+                        onPress={handleAdjust}
+                      >
+                        {adjustMutation.isPending
+                          ? t("admin-inventory-adjusting")
+                          : t("admin-inventory-btn-apply")}
+                      </Button>
+                    </Modal.Footer>
+                  </>
+                )}
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
         </Modal>
       </div>
     </DefaultLayout>

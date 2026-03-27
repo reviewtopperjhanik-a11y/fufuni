@@ -19,13 +19,13 @@
 import { useAuth } from '@/authentication/providers/use-auth';
 import {
   Modal,
-  ModalContent,
-  ModalBody,
   Button,
-  Divider,
+  Separator,
+  TextField,
   Input,
+  Label,
 } from '@heroui/react';
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import FufuniLogo from '../assets/fufuni_logo_02.svg';
 
@@ -69,30 +69,39 @@ function SvgIcon({ svg }: { svg: string }) {
  * - Email passwordless login (magic link) as primary flow
  * - Social login providers (Google, Apple, GitHub, Microsoft) below a divider
  *
- * Usage:
- * ```tsx
- * const [isOpen, setIsOpen] = useState(false);
- * <LoginModal isOpen={isOpen} onClose={() => setIsOpen(false)} />
- * ```
+ * State management: Syncs props-based isOpen/onClose with internal component state.
  */
-export function LoginModal({ isOpen, onClose, returnTo, pendingWishlistProduct }: LoginModalProps) {
+export function LoginModal({ isOpen: _isOpen, onClose: _onClose, returnTo, pendingWishlistProduct }: LoginModalProps) {
   const { isAuthenticated, login, getJson, deleteJson, postJson } = useAuth();
   const apiHelpers = { getJson, deleteJson, postJson };
   void apiHelpers;
 
   const { t } = useTranslation();
+  const [isModalOpen, setIsModalOpen] = useState(_isOpen);
+  const [email, setEmail] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  // Sync parent isOpen prop with internal state
+  useEffect(() => {
+    setIsModalOpen(_isOpen);
+  }, [_isOpen]);
+
+  const handleOpenChange = (open: boolean) => {
+    setIsModalOpen(open);
+    if (!open) {
+      _onClose();
+    }
+  };
 
   const redirectUri = new URL(
-      import.meta.env.BASE_URL || "/",
-      window.location.origin,
-    ).toString();
+    import.meta.env.BASE_URL || "/",
+    window.location.origin,
+  ).toString();
 
   if (isAuthenticated) {
     // Already logged in: no need to show login modal
     return null;
   }
-  const [email, setEmail] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
 
   const handlePasswordlessLogin = async () => {
     if (!email) return;
@@ -148,112 +157,109 @@ export function LoginModal({ isOpen, onClose, returnTo, pendingWishlistProduct }
   };
 
   return (
-    <Modal
-      isOpen={isOpen}
-      onClose={onClose}
-      size="sm"
-      backdrop="blur"
-      placement="center"
-      classNames={{
-        base: 'bg-white dark:bg-zinc-900',
-        closeButton: 'top-3 right-3 z-10',
-      }}
-    >
-      <ModalContent>
-        <ModalBody className="flex flex-col items-center gap-4 px-6 pt-8 pb-7">
+    <Modal isOpen={isModalOpen} onOpenChange={handleOpenChange}>
+      <Modal.Backdrop>
+        <Modal.Container size="sm">
+          <Modal.Dialog>
+            {({ close }) => (
+              <>
+                <Modal.CloseTrigger onPress={close} />
+                <Modal.Body className="flex flex-col items-center gap-4 px-6 pt-8 pb-7">
 
-          {/* Fufuni logo + name */}
-          <div className="flex flex-col items-center gap-1.5 mb-1">
-            <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shadow-sm">
-              <img
-                src={FufuniLogo}
-                alt="Fufuni"
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <span className="text-xs text-default-400 font-medium tracking-wide">
-              {import.meta.env.STORE_NAME || 'fufuni'}
-            </span>
-          </div>
+                  {/* Fufuni logo + name */}
+                  <div className="flex flex-col items-center gap-1.5 mb-1">
+                    <div className="w-12 h-12 rounded-xl overflow-hidden bg-white shadow-sm">
+                      <img
+                        src={FufuniLogo}
+                        alt="Fufuni"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <span className="text-xs text-default-400 font-medium tracking-wide">
+                      {import.meta.env.STORE_NAME || 'fufuni'}
+                    </span>
+                  </div>
 
-          {/* Title & subtitle */}
-          <div className="flex flex-col items-center gap-1.5 text-center">
-            <h2 className="text-2xl font-bold text-foreground">
-              {t('login-modal-title')}
-            </h2>
-            <p className="text-sm text-default-500 leading-snug max-w-67.5">
-              {t('login-modal-subtitle', {
-                storeName: import.meta.env.STORE_NAME || 'Fufuni',
-              })}
-            </p>
-          </div>
+                  {/* Title & subtitle */}
+                  <div className="flex flex-col items-center gap-1.5 text-center">
+                    <h2 className="text-2xl font-bold text-foreground">
+                      {t('login-modal-title')}
+                    </h2>
+                    <p className="text-sm text-default-500 leading-snug max-w-67.5">
+                      {t('login-modal-subtitle', {
+                        storeName: import.meta.env.STORE_NAME || 'Fufuni',
+                      })}
+                    </p>
+                  </div>
 
-          {/* Email input */}
-          <Input
-            type="email"
-            label={`${t('email')} *`}
-            placeholder=" "
-            value={email}
-            onValueChange={setEmail}
-            onKeyDown={(e) => e.key === 'Enter' && handlePasswordlessLogin()}
-            variant="bordered"
-            className="w-full"
-            isDisabled={isLoading}
-          />
+                  {/* Email input */}
+                  <TextField className="w-full" isDisabled={isLoading}>
+                    <Label>{`${t('email')} *`}</Label>
+                    <Input
+                      type="email"
+                      placeholder=" "
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handlePasswordlessLogin()}
+                    />
+                  </TextField>
 
-          {/* Primary CTA */}
-          <Button
-            color="primary"
-            className="w-full"
-            isLoading={isLoading}
-            onPress={handlePasswordlessLogin}
-            isDisabled={!email}
-          >
-            {t('login-continue')}
-          </Button>
+                  {/* Primary CTA */}
+                  <Button
+                    className="w-full"
+                    isPending={isLoading}
+                    onPress={handlePasswordlessLogin}
+                    isDisabled={!email}
+                  >
+                    {t('login-continue')}
+                  </Button>
 
-          {/* Sign-up link */}
-          <p className="text-sm text-default-500">
-            {t('login-new-customer')}{' '}
-            <button
-              type="button"
-              className="text-primary font-semibold hover:underline cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
-              onClick={handleSignUp}
-              disabled={isLoading}
-            >
-              {t('login-signup')}
-            </button>
-          </p>
+                  {/* Sign-up link */}
+                  <p className="text-sm text-default-500">
+                    {t('login-new-customer')}{' '}
+                    <button
+                      type="button"
+                      className="text-primary font-semibold hover:underline cursor-pointer disabled:cursor-not-allowed disabled:opacity-50"
+                      onClick={handleSignUp}
+                      disabled={isLoading}
+                    >
+                      {t('login-signup')}
+                    </button>
+                  </p>
 
-          {/* Divider with "ou" */}
-          <div className="flex w-full items-center gap-3">
-            <Divider className="flex-1" />
-            <span className="text-xs text-default-400 shrink-0">
-              {t('or')}
-            </span>
-            <Divider className="flex-1" />
-          </div>
+                  {/* Divider with "ou" */}
+                  <div className="flex w-full items-center gap-3">
+                    <Separator className="flex-1" />
+                    <span className="text-xs text-default-400 shrink-0">
+                      {t('or')}
+                    </span>
+                    <Separator className="flex-1" />
+                  </div>
 
-          {/* Social provider buttons */}
-          <div className="flex flex-col gap-2 w-full">
-            {SOCIAL_PROVIDERS.map(({ id, label }) => (
-              <Button
-                key={id}
-                variant="bordered"
-                className="w-full justify-start gap-3"
-                isLoading={isLoading}
-                onPress={() => handleSocialLogin(id)}
-                startContent={<SvgIcon svg={PROVIDER_ICONS[id]} />}
-              >
-                {t('login-with', {
-                  provider: label,
-                })}
-              </Button>
-            ))}
-          </div>
+                  {/* Social provider buttons */}
+                  <div className="flex flex-col gap-2 w-full">
+                    {SOCIAL_PROVIDERS.map(({ id, label }) => (
+                      <Button
+                        key={id}
+                        variant="outline"
+                        className="w-full justify-start gap-3"
+                        isPending={isLoading}
+                        onPress={() => handleSocialLogin(id)}
+                      >
+                        <SvgIcon svg={PROVIDER_ICONS[id]} />
+                        {t('login-with', {
+                          provider: label,
+                        })}
+                      </Button>
+                    ))}
+                  </div>
 
-        </ModalBody>
-      </ModalContent>
+                </Modal.Body>
+              </>
+            )}
+          </Modal.Dialog>
+        </Modal.Container>
+      </Modal.Backdrop>
     </Modal>
   );
 }
