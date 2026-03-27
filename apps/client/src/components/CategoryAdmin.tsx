@@ -38,8 +38,10 @@ import {
   getTitleForLocale,
   mergeLocale,
   getEditorContent,
+  parseTitle,
 } from '@/utils/description';
 import { availableLanguages } from '@/i18n';
+import { translateWithAi, type AiParams } from '@/utils/ai-client';
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? '/v1';
 
@@ -122,6 +124,10 @@ function CategoryFormModal({
   isLoading: boolean;
 }) {
   const { t, i18n } = useTranslation();
+  const { getJson, hasPermission } = useSecuredApi();
+  const [canUseAi, setCanUseAi] = useState(false);
+  const [isTranslatingName, setIsTranslatingName] = useState(false);
+  const [isTranslatingDesc, setIsTranslatingDesc] = useState(false);
   
   const defaultLocale =
     availableLanguages.find((l) => l.isDefault)?.code ?? "en-US";
@@ -131,6 +137,14 @@ function CategoryFormModal({
       ? current
       : defaultLocale;
   });
+
+  // Check AI permission on mount
+  useEffect(() => {
+    const aiPermission = (import.meta as any).env?.AI_PERMISSION ?? 'ai:api';
+    hasPermission(aiPermission)
+      .then(setCanUseAi)
+      .catch(() => setCanUseAi(false));
+  }, [hasPermission]);
 
   const [formData, setFormData] = useState(() =>
     category
@@ -197,14 +211,109 @@ function CategoryFormModal({
     }));
   };
 
-  const handleTranslateName = () => {
-    // TODO: Implement AI translation for category name
-    console.log("Translate category name via AI");
+  const handleTranslateName = async () => {
+    setIsTranslatingName(true);
+    try {
+      // 1. Fetch AI configuration
+      const params = await getJson(`${(import.meta as any).env?.API_BASE_URL}/v1/ai/parameters`) as AiParams;
+
+      // 2. Find best source to translate from
+      const FALLBACK = ['en-US', 'fr-FR', 'es-ES', 'zh-CN', 'ar-SA', 'he-IL'];
+      const parsed = parseTitle(formData.name);
+
+      let sourceText = '';
+      if (typeof parsed === 'string') {
+        sourceText = parsed;
+      } else {
+        const sourceLang = FALLBACK.find((l) => l !== selectedLocale && !!parsed[l]);
+        sourceText = sourceLang ? parsed[sourceLang] : '';
+      }
+
+      if (!sourceText) {
+        alert(t('admin-products-ai-no-source'));
+        return;
+      }
+
+      // 3. Target language name
+      const targetLangName =
+        availableLanguages.find((l) => l.code === selectedLocale)?.nativeName ?? selectedLocale;
+
+      // 4. Translate
+      const result = await translateWithAi(sourceText, targetLangName, params, false);
+      if (!result.success) throw new Error(result.error ?? 'Translation failed');
+
+      if (result.content) {
+        const translated = result.content.trim();
+        setFormData((prev) => ({
+          ...prev,
+          nameValue: translated,
+        }));
+        const updated = mergeTitleLocale(formData.name, selectedLocale, translated);
+        setFormData((prev) => ({
+          ...prev,
+          name: updated,
+        }));
+      }
+    } catch (err) {
+      console.error('AI name translation failed', err);
+      alert(t('admin-products-ai-error'));
+    } finally {
+      setIsTranslatingName(false);
+    }
   };
 
-  const handleTranslateDescription = () => {
-    // TODO: Implement AI translation for category description
-    console.log("Translate category description via AI");
+  const handleTranslateDescription = async () => {
+    setIsTranslatingDesc(true);
+    try {
+      // 1. Fetch AI configuration
+      const params = await getJson(`${(import.meta as any).env?.API_BASE_URL }/v1/ai/parameters`) as AiParams;
+
+      // 2. Find best source to translate from
+      const FALLBACK = ['en-US', 'fr-FR', 'es-ES', 'zh-CN', 'ar-SA', 'he-IL'];
+      const currentDesc = formData.description || '';
+      const parsed = parseTitle(currentDesc); // parseTitle works for both titles and descriptions structured in the same way
+
+      let sourceText = '';
+      if (typeof parsed === 'string') {
+        sourceText = parsed;
+      } else {
+        const sourceLang = FALLBACK.find(
+          (l) => l !== selectedLocale && !!parsed[l]
+        );
+        sourceText = sourceLang ? parsed[sourceLang] : '';
+      }
+
+      if (!sourceText) {
+        alert(t('admin-products-ai-no-source'));
+        return;
+      }
+
+      // 3. Target language name
+      const targetLangName =
+        availableLanguages.find((l) => l.code === selectedLocale)?.nativeName ?? selectedLocale;
+
+      // 4. Translate HTML content
+      const result = await translateWithAi(sourceText, targetLangName, params, true);
+      if (!result.success) throw new Error(result.error ?? 'Translation failed');
+
+      if (result.content) {
+        const translated = result.content.trim();
+        setFormData((prev) => ({
+          ...prev,
+          descriptionValue: translated,
+        }));
+        const updated = mergeLocale(formData.description, selectedLocale, translated);
+        setFormData((prev) => ({
+          ...prev,
+          description: updated,
+        }));
+      }
+    } catch (err) {
+      console.error('AI description translation failed', err);
+      alert(t('admin-products-ai-error'));
+    } finally {
+      setIsTranslatingDesc(false);
+    }
   };
 
   const handleSubmit = () => {
@@ -293,15 +402,18 @@ function CategoryFormModal({
                   <label className="text-sm font-medium">
                     {t('name')} <span className="text-red-500">*</span>
                   </label>
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="tertiary"
-                    isDisabled={isLoading}
-                    onPress={handleTranslateName}
-                  >
-                    <Wand2 className="w-4 h-4" />
-                  </Button>
+                  {canUseAi && (
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="tertiary"
+                      isDisabled={isLoading || isTranslatingName}
+                      isPending={isTranslatingName}
+                      onPress={handleTranslateName}
+                    >
+                      <Wand2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
                 <Input
                   placeholder="T-Shirts"
@@ -315,15 +427,18 @@ function CategoryFormModal({
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-sm font-medium">{t('description')}</label>
-                  <Button
-                    isIconOnly
-                    size="sm"
-                    variant="tertiary"
-                    isDisabled={isLoading}
-                    onPress={handleTranslateDescription}
-                  >
-                    <Wand2 className="w-4 h-4" />
-                  </Button>
+                  {canUseAi && (
+                    <Button
+                      isIconOnly
+                      size="sm"
+                      variant="tertiary"
+                      isDisabled={isLoading || isTranslatingDesc}
+                      isPending={isTranslatingDesc}
+                      onPress={handleTranslateDescription}
+                    >
+                      <Wand2 className="w-4 h-4" />
+                    </Button>
+                  )}
                 </div>
                 <textarea
                   placeholder="Collection of classic t-shirts"
