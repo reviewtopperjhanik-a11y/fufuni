@@ -23,7 +23,7 @@ import {
   Label,
 } from "@heroui/react";
 
-import { type AvailableLanguage } from "@/i18n";
+import { type AvailableLanguage, availableLanguages as defaultAvailableLanguages } from "@/i18n";
 import { type IconSvgProps } from "@/types";
 
 interface LanguageSwitchProps {
@@ -79,9 +79,7 @@ export const I18nIcon: FC<IconSvgProps> = ({
  * ```
  */
 export const LanguageSwitch: FC<LanguageSwitchProps> = ({
-  availableLanguages: availableLanguages = [
-    { code: "en-US", nativeName: "English", isRTL: false, isDefault: true },
-  ],
+  availableLanguages: availableLanguages = defaultAvailableLanguages,
   icon: Icon = I18nIcon,
 }) => {
   const { i18n, t } = useTranslation();

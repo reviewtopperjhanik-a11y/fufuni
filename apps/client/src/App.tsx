@@ -53,6 +53,7 @@ import OrderDetail from "@/pages/account/OrderDetail";
 import Addresses from "@/pages/account/Addresses";
 import Preferences from "@/pages/account/Preferences";
 import LoginPage from "@/pages/Login";
+import CategoriesPage from "./pages/admin/categories";
 
 function App() {
   const { isLoading } = useAuth();
@@ -104,6 +105,10 @@ function App() {
         <Route
           element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_AUTH0_PERMISSION}><UsersAndPermissionsPage /></AuthenticationGuardWithPermission>}
           path="/admin/users"
+        />
+        <Route
+          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_AUTH0_PERMISSION}><CategoriesPage /></AuthenticationGuardWithPermission>}
+          path="/admin/categories"
         />
         <Route
           element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><ProductsPage /></AuthenticationGuardWithPermission>}

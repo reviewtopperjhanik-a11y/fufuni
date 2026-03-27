@@ -1,0 +1,13 @@
+-- Migration 028: Add multilingual support to categories (name, description)
+-- Allows storing category names and descriptions in JSON format for multiple locales
+-- 
+-- Run locally:  npx wrangler d1 execute merchant --local --file migrations/028-categories-multilingual.sql
+-- Run remotely: npx wrangler d1 execute merchant-db --remote --file migrations/028-categories-multilingual.sql
+
+-- No schema changes needed: name and description columns already support JSON strings.
+-- The migration is here for documentation. The columns store either:
+-- - Plain text (legacy): "T-Shirts"
+-- - JSON object (new multilingue): {"en-US": "T-Shirts", "fr-FR": "T-Shirts"}
+--
+-- Logic to determine format is handled in application code using parseTitle/resolveTitle
+-- from description.ts utilities on both frontend and backend.

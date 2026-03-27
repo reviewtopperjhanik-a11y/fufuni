@@ -1095,6 +1095,78 @@ export const ConfigListResponse = z.object({
 }).openapi('ConfigList');
 
 // ============================================================
+// CATEGORY SCHEMAS (Feature 027)
+// ============================================================
+
+export const CategoryResponse = z.object({
+  id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
+  handle: z.string().openapi({ example: 't-shirts', description: 'URL-friendly slug' }),
+  name: z.string().openapi({ example: 'T-Shirts' }),
+  description: z.string().nullable().openapi({ example: 'Collection of classic t-shirts' }),
+  parent_id: z.string().uuid().nullable().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
+  image_url: z.string().url().nullable().openapi({ example: 'https://example.com/category.jpg' }),
+  position: z.number().int().openapi({ example: 0, description: 'Sort order' }),
+  status: z.enum(['active', 'inactive']).openapi({ example: 'active' }),
+  created_at: z.string().datetime().openapi({ example: '2026-03-27T10:00:00Z' }),
+  updated_at: z.string().datetime().openapi({ example: '2026-03-27T10:00:00Z' }),
+}).openapi('Category');
+
+export const CategoryListResponse = z.object({
+  items: z.array(CategoryResponse),
+}).openapi('CategoryList');
+
+export const CreateCategoryBody = z.object({
+  handle: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/).openapi({ 
+    example: 't-shirts', 
+    description: 'URL-friendly slug (lowercase, hyphens only)' 
+  }),
+  name: z.string().min(1).max(1000).openapi({ 
+    example: 'T-Shirts',
+    description: 'Category name (plain text or JSON for multilingual: {"en-US": "T-Shirts", "fr-FR": "T-Shirts"})' 
+  }),
+  description: z.string().optional().openapi({ 
+    example: 'Collection of classic t-shirts',
+    description: 'Category description (plain text or JSON for multilingual)' 
+  }),
+  parent_id: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
+  image_url: z.string().url().optional().openapi({ example: 'https://example.com/category.jpg' }),
+  position: z.number().int().optional().default(0).openapi({ example: 0 }),
+}).openapi('CreateCategory');
+
+export const UpdateCategoryBody = z.object({
+  handle: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/).optional().openapi({ example: 't-shirts' }),
+  name: z.string().min(1).max(1000).optional().openapi({ 
+    example: 'T-Shirts',
+    description: 'Category name (plain text or JSON for multilingual: {"en-US": "T-Shirts", "fr-FR": "T-Shirts"})'
+  }),
+  description: z.string().nullable().optional().openapi({ 
+    example: 'Collection of classic t-shirts',
+    description: 'Category description (plain text or JSON for multilingual)'
+  }),
+  parent_id: z.string().uuid().nullable().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
+  image_url: z.string().url().nullable().optional().openapi({ example: 'https://example.com/category.jpg' }),
+  position: z.number().int().optional().openapi({ example: 0 }),
+  status: z.enum(['active', 'inactive']).optional().openapi({ example: 'active' }),
+}).openapi('UpdateCategory');
+
+export const AssignProductsToCategoryBody = z.object({
+  product_ids: z.array(z.string().uuid()).openapi({ description: 'Array of product UUIDs' }),
+}).openapi('AssignProductsToCategory');
+
+export const CategoryIdParam = z.object({
+  id: z.string().uuid().openapi({ param: { name: 'id', in: 'path' } }),
+});
+
+export const CategoryHandleParam = z.object({
+  handle: z.string().openapi({ param: { name: 'handle', in: 'path' } }),
+});
+
+export const CategoryProductsResponse = z.object({
+  items: z.array(ProductResponse),
+  pagination: PaginationResponse,
+}).openapi('CategoryProducts');
+
+// ============================================================
 // TYPE EXPORTS
 // ============================================================
 

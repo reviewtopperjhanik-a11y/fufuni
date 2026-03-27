@@ -864,6 +864,60 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
             END
           `,
         },
+        // ── Migration 027 ── Product categories (hierarchical) ─────────────────────
+        // Allow products to belong to multiple categories via join table.
+        // Categories can have optional parent_id for hierarchical navigation.
+        {
+          name: '027_categories_table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS categories (
+              id          TEXT PRIMARY KEY,
+              handle      TEXT NOT NULL UNIQUE,
+              name        TEXT NOT NULL,
+              description TEXT,
+              parent_id   TEXT REFERENCES categories(id) ON DELETE SET NULL,
+              image_url   TEXT,
+              position    INTEGER NOT NULL DEFAULT 0,
+              status      TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+              created_at  TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at  TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+          `,
+        },
+        {
+          name: '027_product_categories_table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS product_categories (
+              product_id  TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+              category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+              position    INTEGER NOT NULL DEFAULT 0,
+              PRIMARY KEY (product_id, category_id)
+            )
+          `,
+        },
+        {
+          name: '027_idx_product_categories_category',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_product_categories_category ON product_categories (category_id, position)',
+        },
+        {
+          name: '027_idx_categories_handle_active',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_categories_handle_active ON categories (handle) WHERE status = \'active\'',
+        },
+        {
+          name: '027_idx_categories_parent',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories (parent_id) WHERE status = \'active\'',
+        },
+        {
+          name: '027_trg_categories_updated_at',
+          sql: `
+            CREATE TRIGGER IF NOT EXISTS trg_categories_updated_at
+            AFTER UPDATE ON categories
+            FOR EACH ROW
+            BEGIN
+              UPDATE categories SET updated_at = datetime('now') WHERE id = NEW.id;
+            END
+          `,
+        },
       ];
 
       for (const migration of migrations) {

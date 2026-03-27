@@ -42,6 +42,7 @@ import { auth0Routes } from './routes/auth0';
 import { me } from './routes/me';
 import { userPreferencesRouter } from './routes/user-preferences';
 import { savedCartsRouter } from './routes/saved-carts';
+import { publicCategories, adminCategories } from './routes/categories';
 import { regions } from './routes/regions';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { ai } from './routes/ai';
@@ -74,6 +75,7 @@ app.use('*', async (c, next) => {
 
 // Mount public routes BEFORE authentication middleware
 app.route('/v1/orders', publicOrders);
+app.route('/v1/categories', publicCategories);
 
 app.use('/v1/*', rateLimitMiddleware());
 
@@ -108,6 +110,7 @@ app.route('/v1/products', catalog);
 app.route('/v1/inventory', inventory);
 app.route('/v1/carts', checkout);
 app.route('/v1/orders', orders);
+app.route('/v1/categories', adminCategories);
 app.route('/v1/customers', customers);
 app.route('/v1/webhooks', webhooks);
 app.route('/v1/webhooks', webhooksRoutes);

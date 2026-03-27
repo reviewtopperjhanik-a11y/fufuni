@@ -39,6 +39,11 @@ export const siteConfig = () => ({
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
     {
+      label: i18next.t("categories"),
+      href: "/admin/categories",
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+    },
+    {
       label: i18next.t("admin-customers-title"),
       href: "/admin/customers",
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
@@ -103,6 +108,11 @@ export const siteConfig = () => ({
     {
       label: i18next.t("admin-products-title"),
       href: "/admin/products",
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+    },
+    {
+      label: i18next.t("categories"),
+      href: "/admin/categories",
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
     {
