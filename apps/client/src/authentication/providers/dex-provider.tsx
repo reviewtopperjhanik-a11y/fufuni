@@ -417,6 +417,36 @@ export const useDexProvider = (
     }
   };
 
+  const postForm = async (url: string, formData: FormData): Promise<any> => {
+    try {
+      const accessToken = await getAccessToken();
+
+      if (!accessToken) {
+        throw new Error("Not authenticated");
+      }
+
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          // Don't set Content-Type - let the browser set it with boundary
+        },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error(
+          `HTTP error ${response.status}: ${response.statusText}`,
+        );
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error("Error posting form:", error);
+      throw error;
+    }
+  };
+
   const deleteJson = async (url: string): Promise<any> => {
     try {
       const accessToken = await getAccessToken();
@@ -527,6 +557,7 @@ export const useDexProvider = (
     hasPermission,
     getJson,
     postJson,
+    postForm,
     patchJson,
     putJson,
     deleteJson,

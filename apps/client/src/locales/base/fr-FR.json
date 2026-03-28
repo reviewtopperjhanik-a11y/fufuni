@@ -649,7 +649,7 @@
   "category-delete": "Supprimer la catégorie",
   "category-products": "Produits de cette catégorie",
   "category-handle-help": "Slug convivial pour les URL (minuscules, tirets uniquement)",
-  "parent-category": "Catégorie parent",
+  "parent-category": "Catégorie parente",
   "subcategories": "Sous-catégories",
   "confirm-delete": "Confirmer la suppression",
   "confirm-delete-category": "Êtes-vous sûr de vouloir supprimer \"{{name}}\" ? Cette action est irréversible.",
@@ -658,5 +658,16 @@
   "error-category-exists": "Une catégorie avec ce handle existe déjà",
   "error-category-not-found": "Catégorie non trouvée",
   "error-loading-categories": "Erreur lors du chargement des catégories",
-  "error-loading-products": "Erreur lors du chargement des produits"
+  "error-loading-products": "Erreur lors du chargement des produits",
+  "image": "Image",
+  "admin-image-upload-btn": "Télécharger l'image",
+  "admin-image-uploading": "Téléchargement...",
+  "admin-image-upload-hint": "Les images < 1MB sont stockées localement (base64), les images plus grandes sont téléchargées sur R2",
+  "admin-image-force-r2": "Télécharger sur R2 cloud (optimisé pour CDN)",
+  "admin-image-url-btn": "Utiliser une URL",
+  "admin-image-url-placeholder": "https://exemple.com/image.jpg ou data:image/png;base64,...",
+  "admin-image-url-hint": "Entrez une URL publique ou un URI de données. Prend en charge http(s), Cloudinary et autres CDN",
+  "admin-image-storage-local": "Stocké localement dans la base de données (base64 encodé)",
+  "admin-image-storage-r2": "Stocké dans le bucket R2 (optimisé pour CDN)",
+  "admin-image-storage-url": "Référence URL externe (CDN externe ou service)"
 }

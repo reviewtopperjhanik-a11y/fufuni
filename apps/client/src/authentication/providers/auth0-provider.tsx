@@ -334,6 +334,56 @@ export const useAuth0Provider = (): AuthProvider => {
     [getAccessTokenWithAutoRefresh],
   );
 
+  const postForm = useCallback(
+    async (url: string, formData: FormData): Promise<any> => {
+      try {
+        const accessToken = await getAccessTokenWithAutoRefresh();
+
+        if (!accessToken) {
+          throw new Error("Unable to retrieve access token");
+        }
+
+        const makeRequest = async (token: string): Promise<Response> => {
+          const response = await fetch(url, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+              // Don't set Content-Type - let the browser set it with boundary
+            },
+            body: formData,
+          });
+
+          if (response.status !== 401) {
+            return response;
+          }
+
+          const refreshedToken =
+            (await getAccessTokenWithAutoRefresh({
+              cacheMode: "off",
+            } as any)) || token;
+
+          return fetch(url, {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${refreshedToken}`,
+              // Don't set Content-Type - let the browser set it with boundary
+            },
+            body: formData,
+          });
+        };
+
+        const apiResponse = await makeRequest(accessToken);
+
+        return await apiResponse.json();
+      } catch (error) {
+        // eslint-disable-next-line no-console
+        console.error("Error posting form:", error);
+        throw error;
+      }
+    },
+    [getAccessTokenWithAutoRefresh],
+  );
+
   const deleteJson = useCallback(
     async (url: string): Promise<any> => {
       try {
@@ -495,6 +545,7 @@ export const useAuth0Provider = (): AuthProvider => {
       hasPermission,
       getJson,
       postJson,
+      postForm,
       patchJson,
       putJson,
       deleteJson,
@@ -510,6 +561,7 @@ export const useAuth0Provider = (): AuthProvider => {
       hasPermission,
       getJson,
       postJson,
+      postForm,
       putJson,
       deleteJson,
     ],

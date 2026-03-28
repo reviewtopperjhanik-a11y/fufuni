@@ -658,5 +658,16 @@
   "error-category-exists": "קטגוריה בשם זה כבר קיימת",
   "error-category-not-found": "קטגוריה לא נמצאה",
   "error-loading-categories": "שגיאה בטעינת קטגוריות",
-  "error-loading-products": "שגיאה בטעינת מוצרים"
+  "error-loading-products": "שגיאה בטעינת מוצרים",
+  "image": "תמונה",
+  "admin-image-upload-btn": "העלאת תמונה",
+  "admin-image-uploading": "בעלייה...",
+  "admin-image-upload-hint": "תמונות < 1MB מאוחסנות באופן מקומי (base64), תמונות גדולות יותר מועלות ל-R2",
+  "admin-image-force-r2": "העלאה ל-R2 cloud (מיטוב עבור CDN)",
+  "admin-image-url-btn": "שימוש ב-URL",
+  "admin-image-url-placeholder": "https://example.com/image.jpg או data:image/png;base64,...",
+  "admin-image-url-hint": "הזן כתובת URL ציבורית או URI נתונים. תומך בـ http(s), Cloudinary ו-CDN אחרים",
+  "admin-image-storage-local": "מאוחסן באופן מקומי בבסיס הנתונים (קידוד base64)",
+  "admin-image-storage-r2": "מאוחסן בדלי R2 (מיטוב עבור CDN)",
+  "admin-image-storage-url": "הפניות URL חיצוניות (CDN חיצוני או שירות)"
 }

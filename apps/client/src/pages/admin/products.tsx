@@ -24,11 +24,12 @@ import { Select, Label, ListBox } from "@heroui/react";
 import { Table } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
-import { Image as ImageIcon, X, Wand2 } from "lucide-react";
+import { Wand2, Image as ImageIcon } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { SearchIcon } from "@/components/icons";
+import { ImageUploadInput } from "@/components/ImageUploadInput";
 import { formatMoney } from "@/utils/currency";
 import { VariantPrices } from "@/components/VariantPrices";
 import { RichDescriptionEditor } from "@/components/RichDescriptionEditor";
@@ -162,7 +163,6 @@ export default function ProductsPage() {
   const [variantTitle, setVariantTitle] = useState("");
   const [variantPrice, setVariantPrice] = useState("");
   const [variantImage, setVariantImage] = useState<string | null>(null);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [submittingVariant, setSubmittingVariant] = useState(false);
   // enrichment fields
   const [variantWeightG, setVariantWeightG] = useState("");
@@ -463,40 +463,10 @@ export default function ProductsPage() {
   };
 
   /**
-   * Handle image upload: POST file to /v1/images endpoint.
-   *
-   * @param e - file input change event
+   * Handle image upload: Upload using the new ImageUploadInput component
+   * which supports 3 storage methods: base64 local, R2 remote, external URL
    */
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-
-    if (!file) return;
-
-    setUploadingImage(true);
-    try {
-      const formData = new FormData();
-
-      formData.append("file", file);
-
-      const response = await fetch(`${apiBase}/v1/images`, {
-        method: "POST",
-        body: formData,
-        headers: {
-          Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}`,
-        },
-      });
-
-      if (!response.ok) throw new Error("Upload failed");
-      const result = await response.json();
-
-      setVariantImage(result.url || result.key);
-    } catch (err) {
-      console.error("Image upload error", err);
-      alert(t("admin-products-image-upload-error"));
-    } finally {
-      setUploadingImage(false);
-    }
-  };
+  // (Image handling is now handled by ImageUploadInput component)
 
   /**
    * Submit variant form: create or update variant.
@@ -1042,34 +1012,15 @@ export default function ProductsPage() {
                         />
                       </div>
                       <div>
-                        <label className="block text-sm font-medium">
+                        <label className="block text-sm font-medium mb-2">
                           {t("admin-products-field-image")}
                         </label>
-                        {variantImage ? (
-                          <div className="relative inline-block mt-2">
-                            <img
-                              alt="Preview"
-                              className="w-20 h-20 object-cover rounded border"
-                              src={variantImage}
-                            />
-                            <button
-                              className="absolute -top-2 -right-2 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center text-xs hover:bg-red-600"
-                              type="button"
-                              onClick={() => setVariantImage(null)}
-                            >
-                              <X size={12} />
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="mt-2">
-                            <Input
-                              accept="image/*"
-                              disabled={uploadingImage}
-                              type="file"
-                              onChange={handleImageUpload}
-                            />
-                          </div>
-                        )}
+                        <ImageUploadInput
+                          apiBaseUrl={apiBase}
+                          disabled={submittingVariant}
+                          value={variantImage}
+                          onChange={setVariantImage}
+                        />
                       </div>
 
                       {/* Enrichment Fields */}
@@ -1251,7 +1202,7 @@ export default function ProductsPage() {
                     </Button>
                     <Button
                       form="variant-form"
-                      isDisabled={uploadingImage}
+                      isDisabled={submittingVariant}
                       isPending={submittingVariant}
                       type="submit"
                       variant="primary"

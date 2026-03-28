@@ -657,5 +657,16 @@
   "error-category-exists": "Una categoría con este nombre ya existe",
   "error-category-not-found": "Categoría no encontrada",
   "error-loading-categories": "Error al cargar las categorías",
-  "error-loading-products": "Error al cargar los productos"
+  "error-loading-products": "Error al cargar los productos",
+  "image": "Imagen",
+  "admin-image-upload-btn": "Subir imagen",
+  "admin-image-uploading": "Subiendo...",
+  "admin-image-upload-hint": "Las imágenes < 1MB se almacenan localmente (base64), las imágenes más grandes se suben a R2",
+  "admin-image-force-r2": "Subir a R2 cloud (optimizado para CDN)",
+  "admin-image-url-btn": "Usar URL",
+  "admin-image-url-placeholder": "https://ejemplo.com/imagen.jpg o data:image/png;base64,...",
+  "admin-image-url-hint": "Ingrese una URL pública o un URI de datos. Soporta http(s), Cloudinary y otros CDN",
+  "admin-image-storage-local": "Almacenado localmente en la base de datos (codificado en base64)",
+  "admin-image-storage-r2": "Almacenado en bucket R2 (optimizado para CDN)",
+  "admin-image-storage-url": "Referencia de URL externa (CDN externo o servicio)"
 }

@@ -658,5 +658,16 @@
   "error-category-exists": "已存在具有此名称的分类",
   "error-category-not-found": "未找到分类",
   "error-loading-categories": "加载分类出错",
-  "error-loading-products": "加载产品出错"
+  "error-loading-products": "加载产品出错",
+  "image": "图像",
+  "admin-image-upload-btn": "上传图像",
+  "admin-image-uploading": "上传中...",
+  "admin-image-upload-hint": "< 1MB 的图像存储在本地（base64），较大的图像上传到 R2",
+  "admin-image-force-r2": "上传到 R2 cloud（CDN 优化）",
+  "admin-image-url-btn": "使用 URL",
+  "admin-image-url-placeholder": "https://示例.com/image.jpg 或 data:image/png;base64,...",
+  "admin-image-url-hint": "输入公共 URL 或数据 URI。支持 http(s)、Cloudinary 和其他 CDN",
+  "admin-image-storage-local": "在数据库中本地存储（base64 编码）",
+  "admin-image-storage-r2": "存储在 R2 bucket（CDN 优化）",
+  "admin-image-storage-url": "外部 URL 参考（外部 CDN 或服务）"
 }

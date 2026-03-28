@@ -658,5 +658,16 @@
   "error-category-exists": "توجد بالفعل فئة بهذا الاسم",
   "error-category-not-found": "لم يتم العثور على الفئة",
   "error-loading-categories": "حدث خطأ في تحميل الفئات",
-  "error-loading-products": "حدث خطأ في تحميل المنتجات"
+  "error-loading-products": "حدث خطأ في تحميل المنتجات",
+  "image": "الصورة",
+  "admin-image-upload-btn": "تحميل الصورة",
+  "admin-image-uploading": "جاري التحميل...",
+  "admin-image-upload-hint": "يتم تخزين الصور < 1 ميجابايت محليًا (base64)، والصور الأكبر يتم تحميلها إلى R2",
+  "admin-image-force-r2": "التحميل إلى R2 cloud (محسّن للـ CDN)",
+  "admin-image-url-btn": "استخدام URL",
+  "admin-image-url-placeholder": "https://example.com/image.jpg أو data:image/png;base64,...",
+  "admin-image-url-hint": "أدخل عنوان URL عام أو معرف بيانات. يدعم http(s) و Cloudinary و CDN آخرى",
+  "admin-image-storage-local": "مخزن محليًا في قاعدة البيانات (ترميز base64)",
+  "admin-image-storage-r2": "مخزن في bucket R2 (محسّن للـ CDN)",
+  "admin-image-storage-url": "مرجع URL خارجي (CDN خارجي أو خدمة)"
 }

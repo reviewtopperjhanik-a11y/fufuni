@@ -653,5 +653,16 @@
   "error-category-exists": "A category with this handle already exists",
   "error-category-not-found": "Category not found",
   "error-loading-categories": "Failed to load categories",
-  "error-loading-products": "Failed to load products"
+  "error-loading-products": "Failed to load products",
+  "image": "Image",
+  "admin-image-upload-btn": "Upload Image",
+  "admin-image-uploading": "Uploading...",
+  "admin-image-upload-hint": "Images < 1MB are stored locally (base64), larger images are uploaded to R2 cloud storage",
+  "admin-image-force-r2": "Upload to R2 cloud (CDN optimized)",
+  "admin-image-url-btn": "Use URL",
+  "admin-image-url-placeholder": "https://example.com/image.jpg or data:image/png;base64,...",
+  "admin-image-url-hint": "Enter a public URL or data URI. Supports http(s), Cloudinary, and other CDNs",
+  "admin-image-storage-local": "Stored locally in database (base64 encoded)",
+  "admin-image-storage-r2": "Stored in R2 cloud bucket (CDN optimized)",
+  "admin-image-storage-url": "External URL reference (external CDN or service)"
 }
