@@ -674,5 +674,8 @@
   "admin-inventory-filter-placeholder": "Search inventory by SKU or product name...",
   "admin-regions-filter-placeholder": "Search regions...",
   "admin-tax-rates-filter-placeholder": "Search tax rates by country code or tax code...",
-  "admin-currencies-filter-placeholder": "Search currencies..."
+  "admin-currencies-filter-placeholder": "Search currencies...",
+  "admin-products-field-tax-code": "Tax Code",
+  "admin-products-field-compare-at-price": "Compare At Price (cents)",
+  "admin-products-field-barcode": "Barcode"
 }

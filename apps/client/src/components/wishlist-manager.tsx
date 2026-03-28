@@ -5,7 +5,9 @@
 
 import { useMemo } from "react";
 import {
+  Button,
   Card,
+  Link as HeroUILink,
   Input} from "@heroui/react";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { useState } from "react";

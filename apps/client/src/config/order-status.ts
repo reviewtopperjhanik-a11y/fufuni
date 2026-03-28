@@ -6,13 +6,13 @@
 /** Maps order status strings to HeroUI Chip color variants. */
 export const ORDER_STATUS_COLORS = {
   paid: "success",
-  processing: "primary",
-  shipped: "primary",
+  processing: "accent",
+  shipped: "accent",
   delivered: "success",
   refunded: "danger",
   canceled: "danger",
   pending: "warning",
 } as const satisfies Record<
   string,
-  "success" | "warning" | "danger" | "default" | "primary"
+  "success" | "warning" | "danger" | "default" | "accent"
 >;

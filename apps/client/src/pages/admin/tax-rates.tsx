@@ -3,19 +3,21 @@
  * License: AGPL-3.0-or-later
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { Input, TextField, Label } from "@heroui/react";
 import { Table } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
-import { Edit2, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
+import { RowActions } from "@/shared/ui/admin/row-actions";
+import { StatusBadge } from "@/shared/ui/admin/status-badge";
+import { useAdminCrud } from "@/hooks/use-admin-crud";
 import { LocalizedTaxNameInput } from "@/components/localized-tax-name-input";
 import { getTaxNameForLocale } from "@/utils/description";
 import { availableLanguages } from "@/i18n";
@@ -39,13 +41,29 @@ export default function TaxRatesPage() {
 
   const apiBase = getApiBase();
 
-  const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
-  const [globalFilter, setGlobalFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const {
+    items: taxRates,
+    setItems: setTaxRates,
+    displayedItems: displayed,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem: editingTaxRate,
+    openCreate,
+    openEdit,
+  } = useAdminCrud<TaxRate>({
+    filterFn: (r, term) =>
+      getTaxNameForLocale(r.display_name, i18n.language)
+        .toLowerCase()
+        .includes(term) ||
+      (r.country_code?.toLowerCase() ?? "").includes(term) ||
+      (r.tax_code?.toLowerCase() ?? "").includes(term),
+  });
 
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingTaxRate, setEditingTaxRate] = useState<TaxRate | null>(null);
   const [formData, setFormData] = useState({
     display_name: "",
     country_code: "" as string | null,
@@ -71,31 +89,7 @@ export default function TaxRatesPage() {
     loadData();
   }, []);
 
-  const displayed = useMemo(() => {
-    let filtered = taxRates;
-
-    if (statusFilter) {
-      filtered = filtered.filter((r) => r.status === statusFilter);
-    }
-    const term = globalFilter.trim().toLowerCase();
-
-    if (term) {
-      filtered = filtered.filter(
-        (r) =>
-          getTaxNameForLocale(r.display_name, i18n.language)
-            .toLowerCase()
-            .includes(term) ||
-          (r.country_code?.toLowerCase() || "").includes(term) ||
-          (r.tax_code?.toLowerCase() || "").includes(term),
-      );
-    }
-
-    return filtered;
-  }, [taxRates, statusFilter, globalFilter]);
-
   const handleOpenCreate = () => {
-    setIsEditMode(false);
-    setEditingTaxRate(null);
     setFormData({
       display_name: "",
       country_code: "",
@@ -106,12 +100,10 @@ export default function TaxRatesPage() {
     setSelectedLocale(
       availableLanguages.find((l) => l.isDefault)?.code || "en-US",
     );
-    setIsModalOpen(true);
+    openCreate();
   };
 
   const handleOpenEdit = (taxRate: TaxRate) => {
-    setIsEditMode(true);
-    setEditingTaxRate(taxRate);
     setFormData({
       display_name: taxRate.display_name,
       country_code: taxRate.country_code || "",
@@ -119,7 +111,7 @@ export default function TaxRatesPage() {
       rate_percentage: taxRate.rate_percentage,
       status: taxRate.status,
     });
-    setIsModalOpen(true);
+    openEdit(taxRate);
   };
 
   const handleSave = async () => {
@@ -216,35 +208,13 @@ export default function TaxRatesPage() {
                       <Table.Cell>{item.tax_code || "-"}</Table.Cell>
                       <Table.Cell>{item.rate_percentage}%</Table.Cell>
                       <Table.Cell>
-                        <span
-                          className={
-                            item.status === "active"
-                              ? "text-green-600 font-semibold"
-                              : "text-gray-400"
-                          }
-                        >
-                          {item.status}
-                        </span>
+                        <StatusBadge status={item.status} />
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleOpenEdit(item)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="danger"
-                            onPress={() => handleDelete(item.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        <RowActions
+                          onDelete={() => handleDelete(item.id)}
+                          onEdit={() => handleOpenEdit(item)}
+                        />
                       </Table.Cell>
                     </Table.Row>
                   ))}

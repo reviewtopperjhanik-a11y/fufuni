@@ -136,7 +136,7 @@ export default function OrderDetail() {
             {t("account-order-details")}
           </h2>
           <Chip
-            color={(ORDER_STATUS_COLORS[order.status] as any) || "default"}
+            color={ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS] || "default"}
             variant="tertiary"
           >
             {order.status}

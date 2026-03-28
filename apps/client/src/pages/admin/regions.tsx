@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { Input, TextField, Label } from "@heroui/react";
@@ -24,12 +24,14 @@ import { Table } from "@heroui/react";
 import { Checkbox } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
-import { Edit2, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
+import { RowActions } from "@/shared/ui/admin/row-actions";
+import { StatusBadge } from "@/shared/ui/admin/status-badge";
+import { useAdminCrud } from "@/hooks/use-admin-crud";
 
 /**
  * A geographical or market region used by the platform.
@@ -66,16 +68,27 @@ export default function RegionsPage() {
 
   const apiBase = getApiBase();
 
-  // List state
-  const [regions, setRegions] = useState<Region[]>([]);
-  const [currencies, setCurrencies] = useState<Currency[]>([]);
-  const [globalFilter, setGlobalFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const {
+    items: regions,
+    setItems: setRegions,
+    displayedItems: displayed,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem: editingRegion,
+    openCreate,
+    openEdit,
+  } = useAdminCrud<Region>({
+    filterFn: (r, term) =>
+      r.display_name.toLowerCase().includes(term) ||
+      (r.currency_code?.toLowerCase() ?? "").includes(term),
+  });
 
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingRegion, setEditingRegion] = useState<Region | null>(null);
+  const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [formData, setFormData] = useState({
     display_name: "",
     currency_id: "",
@@ -107,32 +120,10 @@ export default function RegionsPage() {
     loadData();
   }, []);
 
-  // Filtered regions
-  const displayed = useMemo(() => {
-    let filtered = regions;
-
-    if (statusFilter) {
-      filtered = filtered.filter((r) => r.status === statusFilter);
-    }
-    const term = globalFilter.trim().toLowerCase();
-
-    if (term) {
-      filtered = filtered.filter(
-        (r) =>
-          r.display_name.toLowerCase().includes(term) ||
-          r.currency_code?.toLowerCase().includes(term),
-      );
-    }
-
-    return filtered;
-  }, [regions, statusFilter, globalFilter]);
-
   /**
    * Prepare and open the modal for creating a new region.
    */
   const handleOpenCreate = () => {
-    setIsEditMode(false);
-    setEditingRegion(null);
     setFormData({
       display_name: "",
       currency_id: "",
@@ -140,7 +131,7 @@ export default function RegionsPage() {
       tax_inclusive: false,
       status: "active",
     });
-    setIsModalOpen(true);
+    openCreate();
   };
 
   /**
@@ -149,8 +140,6 @@ export default function RegionsPage() {
    * @param region - region object to modify
    */
   const handleOpenEdit = (region: Region) => {
-    setIsEditMode(true);
-    setEditingRegion(region);
     setFormData({
       display_name: region.display_name,
       currency_id: region.currency_id,
@@ -158,7 +147,7 @@ export default function RegionsPage() {
       tax_inclusive: region.tax_inclusive,
       status: region.status,
     });
-    setIsModalOpen(true);
+    openEdit(region);
   };
 
   /**
@@ -295,35 +284,13 @@ export default function RegionsPage() {
                         )}
                       </Table.Cell>
                       <Table.Cell>
-                        <span
-                          className={
-                            region.status === "active"
-                              ? "text-green-600"
-                              : "text-gray-600"
-                          }
-                        >
-                          {region.status}
-                        </span>
+                        <StatusBadge status={region.status} />
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleOpenEdit(region)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleDelete(region.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        <RowActions
+                          onDelete={() => handleDelete(region.id)}
+                          onEdit={() => handleOpenEdit(region)}
+                        />
                       </Table.Cell>
                     </Table.Row>
                   ))}

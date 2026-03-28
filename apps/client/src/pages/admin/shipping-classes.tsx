@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { Input, TextField, Label } from "@heroui/react";
@@ -24,7 +24,7 @@ import { Table } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
 import { Chip } from "@heroui/react";
-import { Edit2, Trash2, Package } from "lucide-react";
+import { Package } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
@@ -36,6 +36,9 @@ import {
   deleteShippingClass,
 } from "@/lib/store-api";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
+import { RowActions } from "@/shared/ui/admin/row-actions";
+import { StatusBadge } from "@/shared/ui/admin/status-badge";
+import { useAdminCrud } from "@/hooks/use-admin-crud";
 
 // ─── Component ───────────────────────────────────────────────────────────
 
@@ -43,15 +46,25 @@ export default function ShippingClassesPage() {
   const { t } = useTranslation();
   const securedApi = useSecuredApi();
 
-  // List state
-  const [classes, setClasses] = useState<ShippingClass[]>([]);
-  const [globalFilter, setGlobalFilter] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const {
+    setItems: setClasses,
+    displayedItems: displayed,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem: editingClass,
+    openCreate,
+    openEdit,
+  } = useAdminCrud<ShippingClass>({
+    filterFn: (c, term) =>
+      c.display_name.toLowerCase().includes(term) ||
+      c.code.toLowerCase().includes(term),
+  });
 
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingClass, setEditingClass] = useState<ShippingClass | null>(null);
   const [formData, setFormData] = useState({
     code: "",
     display_name: "",
@@ -76,31 +89,9 @@ export default function ShippingClassesPage() {
     loadData();
   }, []);
 
-  // ─── Filtered list ─────────────────────────────────────────────────────
-
-  const displayed = useMemo(() => {
-    let filtered = classes;
-
-    if (statusFilter)
-      filtered = filtered.filter((c) => c.status === statusFilter);
-    const term = globalFilter.trim().toLowerCase();
-
-    if (term) {
-      filtered = filtered.filter(
-        (c) =>
-          c.display_name.toLowerCase().includes(term) ||
-          c.code.toLowerCase().includes(term),
-      );
-    }
-
-    return filtered;
-  }, [classes, statusFilter, globalFilter]);
-
   // ─── Handlers ──────────────────────────────────────────────────────────
 
   const handleOpenCreate = () => {
-    setIsEditMode(false);
-    setEditingClass(null);
     setFormData({
       code: "",
       display_name: "",
@@ -108,12 +99,10 @@ export default function ShippingClassesPage() {
       resolution: "exclusive",
       status: "active",
     });
-    setIsModalOpen(true);
+    openCreate();
   };
 
   const handleOpenEdit = (cls: ShippingClass) => {
-    setIsEditMode(true);
-    setEditingClass(cls);
     setFormData({
       code: cls.code,
       display_name: cls.display_name,
@@ -121,7 +110,7 @@ export default function ShippingClassesPage() {
       resolution: cls.resolution,
       status: cls.status,
     });
-    setIsModalOpen(true);
+    openEdit(cls);
   };
 
   const handleSave = async () => {
@@ -276,35 +265,13 @@ export default function ShippingClassesPage() {
                         {cls.description ?? "—"}
                       </Table.Cell>
                       <Table.Cell>
-                        <span
-                          className={
-                            cls.status === "active"
-                              ? "text-green-600"
-                              : "text-gray-400"
-                          }
-                        >
-                          {cls.status}
-                        </span>
+                        <StatusBadge status={cls.status} />
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleOpenEdit(cls)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleDelete(cls.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        <RowActions
+                          onDelete={() => handleDelete(cls.id)}
+                          onEdit={() => handleOpenEdit(cls)}
+                        />
                       </Table.Cell>
                     </Table.Row>
                   ))}

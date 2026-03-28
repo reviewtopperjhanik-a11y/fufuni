@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -30,12 +30,14 @@ import {
   Card,
   Tooltip,
 } from "@heroui/react";
-import { Edit2, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
+import { RowActions } from "@/shared/ui/admin/row-actions";
+import { StatusBadge } from "@/shared/ui/admin/status-badge";
+import { useAdminCrud } from "@/hooks/use-admin-crud";
 
 /**
  * Represents a currency record returned by the API.
@@ -66,16 +68,27 @@ export default function CurrenciesPage() {
 
   const apiBase = getApiBase();
 
-  // List state
-  const [currencies, setCurrencies] = useState<Currency[]>([]);
+  const {
+    items: currencies,
+    setItems: setCurrencies,
+    displayedItems: displayed,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem: editingCurrency,
+    openCreate,
+    openEdit,
+  } = useAdminCrud<Currency>({
+    filterFn: (c, term) =>
+      c.code.toLowerCase().includes(term) ||
+      c.display_name.toLowerCase().includes(term) ||
+      c.symbol.toLowerCase().includes(term),
+  });
 
-  const [globalFilter, setGlobalFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
-
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingCurrency, setEditingCurrency] = useState<Currency | null>(null);
   const [formData, setFormData] = useState({
     code: "",
     display_name: "",
@@ -103,33 +116,10 @@ export default function CurrenciesPage() {
     loadCurrencies();
   }, []);
 
-  // Filtered currencies
-  const displayed = useMemo(() => {
-    let filtered = currencies;
-
-    if (statusFilter) {
-      filtered = filtered.filter((c) => c.status === statusFilter);
-    }
-    const term = globalFilter.trim().toLowerCase();
-
-    if (term) {
-      filtered = filtered.filter(
-        (c) =>
-          c.code.toLowerCase().includes(term) ||
-          c.display_name.toLowerCase().includes(term) ||
-          c.symbol.toLowerCase().includes(term),
-      );
-    }
-
-    return filtered;
-  }, [currencies, statusFilter, globalFilter]);
-
   /**
    * Reset the form for creating a new currency and show the modal.
    */
   const handleOpenCreate = () => {
-    setIsEditMode(false);
-    setEditingCurrency(null);
     setFormData({
       code: "",
       display_name: "",
@@ -137,7 +127,7 @@ export default function CurrenciesPage() {
       decimal_places: 2,
       status: "active",
     });
-    setIsModalOpen(true);
+    openCreate();
   };
 
   /**
@@ -146,8 +136,6 @@ export default function CurrenciesPage() {
    * @param currency - the currency record being edited
    */
   const handleOpenEdit = (currency: Currency) => {
-    setIsEditMode(true);
-    setEditingCurrency(currency);
     setFormData({
       code: currency.code,
       display_name: currency.display_name,
@@ -155,7 +143,7 @@ export default function CurrenciesPage() {
       decimal_places: currency.decimal_places,
       status: currency.status,
     });
-    setIsModalOpen(true);
+    openEdit(currency);
   };
 
   /**
@@ -268,35 +256,13 @@ export default function CurrenciesPage() {
                       <Table.Cell>{currency.symbol}</Table.Cell>
                       <Table.Cell>{currency.decimal_places}</Table.Cell>
                       <Table.Cell>
-                        <span
-                          className={
-                            currency.status === "active"
-                              ? "text-green-600"
-                              : "text-gray-600"
-                          }
-                        >
-                          {currency.status}
-                        </span>
+                        <StatusBadge status={currency.status} />
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleOpenEdit(currency)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleDelete(currency.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        <RowActions
+                          onDelete={() => handleDelete(currency.id)}
+                          onEdit={() => handleOpenEdit(currency)}
+                        />
                       </Table.Cell>
                     </Table.Row>
                   ))}

@@ -16,19 +16,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@heroui/react";
 import { Input, TextField, Label } from "@heroui/react";
 import { Table } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
-import { Edit2, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
+import { RowActions } from "@/shared/ui/admin/row-actions";
+import { StatusBadge } from "@/shared/ui/admin/status-badge";
+import { useAdminCrud } from "@/hooks/use-admin-crud";
 
 /**
  * Represents a warehouse location within a region, including its address and
@@ -69,18 +71,28 @@ export default function WarehousesPage() {
 
   const apiBase = getApiBase();
 
-  // List state
-  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
-  const [countries, setCountries] = useState<Country[]>([]);
-  const [globalFilter, setGlobalFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const {
+    items: warehouses,
+    setItems: setWarehouses,
+    displayedItems: displayed,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem: editingWarehouse,
+    openCreate,
+    openEdit,
+  } = useAdminCrud<Warehouse>({
+    filterFn: (w, term) =>
+      w.display_name.toLowerCase().includes(term) ||
+      w.city.toLowerCase().includes(term) ||
+      w.country_code.toLowerCase().includes(term),
+  });
 
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingWarehouse, setEditingWarehouse] = useState<Warehouse | null>(
-    null,
-  );
+  const [countries, setCountries] = useState<Country[]>([]);
   const [formData, setFormData] = useState({
     display_name: "",
     address_line1: "",
@@ -121,32 +133,12 @@ export default function WarehousesPage() {
    * Compute warehouses matching the active filters and search term. Results are
    * sorted by priority.
    */
-  const displayed = useMemo(() => {
-    let filtered = warehouses;
-
-    if (statusFilter) {
-      filtered = filtered.filter((w) => w.status === statusFilter);
-    }
-    const term = globalFilter.trim().toLowerCase();
-
-    if (term) {
-      filtered = filtered.filter(
-        (w) =>
-          w.display_name.toLowerCase().includes(term) ||
-          w.city.toLowerCase().includes(term) ||
-          w.country_code.toLowerCase().includes(term),
-      );
-    }
-
-    return filtered.sort((a, b) => a.priority - b.priority);
-  }, [warehouses, statusFilter, globalFilter]);
+  const displayedSorted = displayed.sort((a, b) => a.priority - b.priority);
 
   /**
    * Reset the form and open modal to create a new warehouse.
    */
   const handleOpenCreate = () => {
-    setIsEditMode(false);
-    setEditingWarehouse(null);
     setFormData({
       display_name: "",
       address_line1: "",
@@ -158,7 +150,7 @@ export default function WarehousesPage() {
       priority: 1,
       status: "active",
     });
-    setIsModalOpen(true);
+    openCreate();
   };
 
   /**
@@ -167,8 +159,6 @@ export default function WarehousesPage() {
    * @param warehouse - the warehouse to edit
    */
   const handleOpenEdit = (warehouse: Warehouse) => {
-    setIsEditMode(true);
-    setEditingWarehouse(warehouse);
     setFormData({
       display_name: warehouse.display_name,
       address_line1: warehouse.address_line1,
@@ -180,7 +170,7 @@ export default function WarehousesPage() {
       priority: warehouse.priority,
       status: warehouse.status,
     });
-    setIsModalOpen(true);
+    openEdit(warehouse);
   };
 
   /**
@@ -291,7 +281,7 @@ export default function WarehousesPage() {
                 <Table.Body
                   renderEmptyState={() => <div>{t("admin-common-empty")}</div>}
                 >
-                  {displayed.map((warehouse) => (
+                  {displayedSorted.map((warehouse) => (
                     <Table.Row key={warehouse.id} className="odd:bg-default-50">
                       <Table.Cell>{warehouse.display_name}</Table.Cell>
                       <Table.Cell>
@@ -305,35 +295,13 @@ export default function WarehousesPage() {
                         </span>
                       </Table.Cell>
                       <Table.Cell>
-                        <span
-                          className={
-                            warehouse.status === "active"
-                              ? "text-green-600"
-                              : "text-gray-600"
-                          }
-                        >
-                          {warehouse.status}
-                        </span>
+                        <StatusBadge status={warehouse.status} />
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleOpenEdit(warehouse)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleDelete(warehouse.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
-                        </div>
+                        <RowActions
+                          onDelete={() => handleDelete(warehouse.id)}
+                          onEdit={() => handleOpenEdit(warehouse)}
+                        />
                       </Table.Cell>
                     </Table.Row>
                   ))}

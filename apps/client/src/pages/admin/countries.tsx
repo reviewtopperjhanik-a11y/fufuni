@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Button,
@@ -30,12 +30,14 @@ import {
   Card,
   Tooltip,
 } from "@heroui/react";
-import { Edit2, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
+import { RowActions } from "@/shared/ui/admin/row-actions";
+import { StatusBadge } from "@/shared/ui/admin/status-badge";
+import { useAdminCrud } from "@/hooks/use-admin-crud";
 
 /**
  * Represents a country as returned by the API.
@@ -80,15 +82,27 @@ export default function CountriesPage() {
 
   const apiBase = getApiBase();
 
-  // List state
-  const [countries, setCountries] = useState<Country[]>([]);
-  const [globalFilter, setGlobalFilter] = useState<string>("");
-  const [statusFilter, setStatusFilter] = useState<string>("");
+  const {
+    items: countries,
+    setItems: setCountries,
+    displayedItems: displayed,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem: editingCountry,
+    openCreate,
+    openEdit,
+  } = useAdminCrud<Country>({
+    filterFn: (c, term) =>
+      c.code.toLowerCase().includes(term) ||
+      c.display_name.toLowerCase().includes(term) ||
+      c.country_name.toLowerCase().includes(term),
+  });
 
-  // Modal state
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingCountry, setEditingCountry] = useState<Country | null>(null);
   const [formData, setFormData] = useState({
     code: "",
     display_name: "",
@@ -116,33 +130,10 @@ export default function CountriesPage() {
     loadCountries();
   }, []);
 
-  // Filtered countries
-  const displayed = useMemo(() => {
-    let filtered = countries;
-
-    if (statusFilter) {
-      filtered = filtered.filter((c) => c.status === statusFilter);
-    }
-    const term = globalFilter.trim().toLowerCase();
-
-    if (term) {
-      filtered = filtered.filter(
-        (c) =>
-          c.code.toLowerCase().includes(term) ||
-          c.display_name.toLowerCase().includes(term) ||
-          c.country_name.toLowerCase().includes(term),
-      );
-    }
-
-    return filtered;
-  }, [countries, statusFilter, globalFilter]);
-
   /**
    * Prepare form for creating a new country and open the modal.
    */
   const handleOpenCreate = () => {
-    setIsEditMode(false);
-    setEditingCountry(null);
     setFormData({
       code: "",
       display_name: "",
@@ -150,7 +141,7 @@ export default function CountriesPage() {
       language_code: "en",
       status: "active",
     });
-    setIsModalOpen(true);
+    openCreate();
   };
 
   /**
@@ -159,8 +150,6 @@ export default function CountriesPage() {
    * @param country - the country object being edited
    */
   const handleOpenEdit = (country: Country) => {
-    setIsEditMode(true);
-    setEditingCountry(country);
     setFormData({
       code: country.code,
       display_name: country.display_name,
@@ -168,7 +157,7 @@ export default function CountriesPage() {
       language_code: country.language_code,
       status: country.status,
     });
-    setIsModalOpen(true);
+    openEdit(country);
   };
 
   /**
@@ -283,35 +272,13 @@ export default function CountriesPage() {
                       <Table.Cell>{country.country_name}</Table.Cell>
                       <Table.Cell>{country.language_code}</Table.Cell>
                       <Table.Cell>
-                        <span
-                          className={
-                            country.status === "active"
-                              ? "text-green-600"
-                              : "text-gray-600"
-                          }
-                        >
-                          {country.status}
-                        </span>
+                        <StatusBadge status={country.status} />
                       </Table.Cell>
                       <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleOpenEdit(country)}
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            isIconOnly
-                            size="sm"
-                            variant="tertiary"
-                            onPress={() => handleDelete(country.id)}
-                          >
-                            <Trash2 className="w-4 h-4 text-danger" />
-                          </Button>
-                        </div>
+                        <RowActions
+                          onDelete={() => handleDelete(country.id)}
+                          onEdit={() => handleOpenEdit(country)}
+                        />
                       </Table.Cell>
                     </Table.Row>
                   ))}

@@ -113,7 +113,7 @@ export default function OrderHistory() {
                   <Table.Cell>
                     <Chip
                       color={
-                        (ORDER_STATUS_COLORS[order.status] as any) || "default"
+                        ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS] || "default"
                       }
                       size="sm"
                       variant="primary"
