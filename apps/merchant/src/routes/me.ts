@@ -734,7 +734,7 @@ const getMyPreferences = createRoute({
             description: 'Customer preferences',
             content: {
                 'application/json': {
-                    schema: z.record(z.any()),
+                    schema: z.record(z.string(), z.any()),
                 },
             },
         },

@@ -92,7 +92,7 @@ app.openapi(sendMail, async (c) => {
       html: body.html,
     });
 
-    return c.json(result, result.status);
+    return c.json(result, result.status as 200 | 400);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Unknown error';
     throw ApiError.invalidRequest(message);

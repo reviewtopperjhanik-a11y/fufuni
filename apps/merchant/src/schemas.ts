@@ -37,6 +37,7 @@ export const IdParam = z.object({
 /** Query parameters for cursor-based paginated list endpoints. */
 export const PaginationQuery = z.object({
   cursor: z.string().optional().openapi({ param: { name: 'cursor', in: 'query' } }),
+  limit: z.string().optional().openapi({ param: { name: 'limit', in: 'query' }, example: '20' }),
 });
 
 /** Pagination metadata included in every list response body. */
@@ -48,7 +49,7 @@ export const PaginationResponse = z.object({
 export const ErrorResponse = z.object({
     code: z.string().openapi({ example: 'invalid_request' }),
     message: z.string().openapi({ example: 'Invalid request parameters' }),
-    details: z.record(z.unknown()).optional(),
+    details: z.record(z.string(), z.unknown()).optional(),
 }).openapi('Error');
 
 // ============================================================
@@ -574,7 +575,7 @@ export const CustomerResponse = z.object({
     total_spent_cents: z.number().int(),
     last_order_at: z.string().datetime().nullable(),
   }),
-  metadata: z.record(z.unknown()).nullable(),
+  metadata: z.record(z.string(), z.unknown()).nullable(),
   created_at: z.string().datetime(),
   updated_at: z.string().datetime(),
 }).openapi('Customer');
@@ -613,7 +614,7 @@ export const UpdateCustomerBody = z.object({
   name: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
   accepts_marketing: z.boolean().optional(),
-  metadata: z.record(z.unknown()).nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).nullable().optional(),
 }).openapi('UpdateCustomer');
 
 /** Request body for POST /v1/customers/:id/addresses. */
@@ -779,7 +780,7 @@ export const UpdateWebhookBody = z.object({
 export const WebhookDeliveryResponse = z.object({
   id: z.string().uuid(),
   event_type: z.string(),
-  payload: z.record(z.unknown()),
+  payload: z.record(z.string(), z.unknown()),
   status: z.enum(['pending', 'success', 'failed']),
   attempts: z.number().int(),
   response_code: z.number().int().nullable(),
@@ -1201,6 +1202,22 @@ export const AdjustWarehouseInventoryBody = z.object({
 export const DeleteWarehouseInventoryBody = z.object({
   warehouse_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
 }).openapi('DeleteWarehouseInventory');
+
+/** Query parameters for the regional inventory endpoint. */
+export const RegionalInventoryResponse = z.object({
+  sku: z.string().openapi({ example: 'TEE-BLK-M' }),
+  region_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
+  total_on_hand: z.number().int().openapi({ example: 100 }),
+  total_reserved: z.number().int().openapi({ example: 20 }),
+  total_available: z.number().int().openapi({ example: 80 }),
+  warehouses: z.array(z.object({
+    warehouse_id: z.string().uuid(),
+    warehouse_name: z.string().nullable(),
+    on_hand: z.number().int(),
+    reserved: z.number().int(),
+    available: z.number().int(),
+  })),
+}).openapi('RegionalInventoryResponse');
 
 // ============================================================
 // CONFIG SCHEMAS

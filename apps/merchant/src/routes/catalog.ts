@@ -387,7 +387,7 @@ app.openapi(listProducts, async (c) => {
 
   const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].created_at : null;
 
-  return c.json({ items, pagination: { has_more: hasMore, next_cursor: nextCursor } }, 200);
+  return c.json({ items, pagination: { has_more: hasMore, next_cursor: nextCursor } } as any, 200);
 });
 
 app.openapi(searchProducts, async (c) => {
@@ -470,7 +470,7 @@ app.openapi(searchProducts, async (c) => {
 
   const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].created_at : null;
 
-  return c.json({ items, pagination: { has_more: hasMore, next_cursor: nextCursor } }, 200);
+  return c.json({ items, pagination: { has_more: hasMore, next_cursor: nextCursor } } as any, 200);
 });
 
 const getProduct = createRoute({
@@ -521,7 +521,7 @@ app.openapi(getProduct, async (c) => {
     [id]
   );
 
-  return c.json(mapProduct(product, variants, taxRateByCode, defaultTaxRate, defaultTaxInclusive, categories), 200);
+  return c.json(mapProduct(product, variants, taxRateByCode, defaultTaxRate, defaultTaxInclusive, categories) as any, 200);
 });
 
 const createProduct = createRoute({
@@ -605,7 +605,7 @@ app.openapi(createProduct, async (c) => {
       handle: processedHandle, 
       status: 'active', 
       created_at: timestamp 
-    }, [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, []),
+    }, [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, []) as any,
     201
   );
 });
@@ -727,7 +727,7 @@ app.openapi(updateProduct, async (c) => {
     [id]
   );
 
-  return c.json(mapProduct(product, variants, taxRateByCode, defaultTaxRate, defaultTaxInclusive, categories), 200);
+  return c.json(mapProduct(product, variants, taxRateByCode, defaultTaxRate, defaultTaxInclusive, categories) as any, 200);
 });
 
 const deleteProduct = createRoute({
@@ -834,7 +834,7 @@ app.openapi(createVariant, async (c) => {
   );
 
   const [variant] = await db.query<any>(`SELECT * FROM variants WHERE id = ?`, [id]);
-  return c.json(mapVariant(variant), 201);
+  return c.json(mapVariant(variant, null, false), 201);
 });
 
 const updateVariant = createRoute({
@@ -928,7 +928,7 @@ app.openapi(updateVariant, async (c) => {
 
   const [variant] = await db.query<any>(`SELECT * FROM variants WHERE id = ?`, [variantId]);
 
-  return c.json(mapVariant(variant), 200);
+  return c.json(mapVariant(variant, null, false), 200);
 });
 
 const deleteVariant = createRoute({

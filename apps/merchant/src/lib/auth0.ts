@@ -131,7 +131,7 @@ export const getUserMetadata = async (
     throw new Error(`Failed to fetch user metadata: ${await resp.text()}`);
   }
 
-  const data = await resp.json();
+  const data = (await resp.json()) as any;
   return data.user_metadata ?? {};
 };
 

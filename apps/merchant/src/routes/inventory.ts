@@ -40,6 +40,7 @@ import {
   DeleteWarehouseInventoryBody,
   WarehouseInventoryItem,
   RegionalInventoryQuery,
+  RegionalInventoryResponse,
   ErrorResponse,
 } from '../schemas';
 
@@ -559,16 +560,13 @@ app.openapi(deleteWarehouseInventory, async (c) => {
 
   return c.json({
     sku: sku,
+    warehouse_id: existing.warehouse_id,
+    warehouse_name: warehouse.display_name ?? null,
     on_hand: totalOnHand,
     reserved: totalReserved,
     available: totalOnHand - totalReserved,
-    variant_title: variantInfo?.variant_title,
-    product_title: variantInfo?.product_title,
-    warehouses: allWarehouses.map(w => ({
-      warehouse_id: w.warehouse_id,
-      warehouse_name: w.warehouse_name,
-      quantity: w.on_hand,
-    })),
+    variant_title: variantInfo?.variant_title ?? null,
+    product_title: variantInfo?.product_title ?? null,
   }, 200);
 });
 
@@ -586,7 +584,7 @@ const getRegionalInventory = createRoute({
   },
   responses: {
     200: {
-      content: { 'application/json': { schema: WarehouseInventoryItem } },
+      content: { 'application/json': { schema: RegionalInventoryResponse } },
       description: 'Regional inventory summary',
     },
     404: {

@@ -204,7 +204,10 @@ async function syncDiscountToStripe(
       }
 
       const promotionCode = await stripe.promotionCodes.create({
-        coupon: couponId,
+        promotion: {
+          coupon: couponId,
+          type: 'coupon' as const,
+        },
         code: discount.code.toUpperCase(),
         active: true,
         metadata: { merchant_discount_id: discount.id },

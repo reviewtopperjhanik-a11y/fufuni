@@ -260,6 +260,14 @@ export class ApiError extends Error {
   static stripeError(message: string) {
     return new ApiError('stripe_error', 502, message);
   }
+
+  static internalServerError(message = 'Internal server error') {
+    return new ApiError('internal_server_error', 500, message);
+  }
+
+  static badRequest(message: string, details?: Record<string, unknown>) {
+    return new ApiError('bad_request', 400, message, details);
+  }
 }
 
 /**

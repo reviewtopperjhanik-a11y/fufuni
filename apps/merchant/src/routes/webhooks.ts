@@ -133,11 +133,9 @@ webhooks.post('/stripe', async (c) => {
 
         // Extract customer details from full Stripe session
         const customerEmail = cart.customer_email;
-        const shippingName =
-          session.shipping_details?.name || session.customer_details?.name || null;
-        const shippingPhone =
-          session.shipping_details?.phone || session.customer_details?.phone || null;
-        const shippingAddress = session.shipping_details?.address || null;
+        const shippingName = session.customer_details?.name || null;
+        const shippingPhone = session.customer_details?.phone || null;
+        const shippingAddress = session.customer_details?.address || null;
 
         // Upsert customer (create or update on email match)
         let customerId: string | null = null;
