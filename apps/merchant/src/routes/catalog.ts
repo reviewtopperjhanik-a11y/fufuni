@@ -280,6 +280,7 @@ function mapProduct(
   taxRateByCode: Record<string, any>,
   defaultTaxRate: any | null,
   defaultTaxInclusive: boolean,
+  categories: Record<string, any>[] = [],
 ) {
   return {
     id: p.id as string,
@@ -291,6 +292,7 @@ function mapProduct(
     vendor: (p.vendor ?? null) as string | null,
     tags: (p.tags ?? null) as string | null,
     handle: (p.handle ?? null) as string | null,
+    categories: categories.length > 0 ? categories : null,
     variants: variants.map((v) => {
       const code = (v.tax_code as string | null) ?? null;
       const selectedRate = code ? taxRateByCode[code] : null;
@@ -360,8 +362,27 @@ app.openapi(listProducts, async (c) => {
   const [defaultRegion] = await db.query<any>(`SELECT tax_inclusive FROM regions WHERE is_default = 1 LIMIT 1`);
   const defaultTaxInclusive = defaultRegion ? defaultRegion.tax_inclusive === 1 : false;
 
+  // Load categories for each product
+  const categoriesByProduct: Record<string, any[]> = {};
+  if (productIds.length > 0) {
+    const placeholders = productIds.map(() => '?').join(',');
+    const allCategories = await db.query<any>(
+      `SELECT c.* FROM categories c
+       JOIN product_categories pc ON pc.category_id = c.id
+       WHERE pc.product_id IN (${placeholders}) AND c.status = 'active'
+       ORDER BY pc.position ASC`,
+      productIds
+    );
+    for (const cat of allCategories) {
+      if (!categoriesByProduct[cat.product_id]) {
+        categoriesByProduct[cat.product_id] = [];
+      }
+      categoriesByProduct[cat.product_id].push(cat);
+    }
+  }
+
   const items = products.map((p) =>
-    mapProduct(p, variantsByProduct[p.id] || [], taxRateByCode, defaultTaxRate, defaultTaxInclusive),
+    mapProduct(p, variantsByProduct[p.id] || [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, categoriesByProduct[p.id] || []),
   );
 
   const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].created_at : null;
@@ -412,7 +433,40 @@ app.openapi(searchProducts, async (c) => {
     }
   }
 
-  const items = products.map((p) => mapProduct(p, variantsByProduct[p.id] || []));
+  const activeTaxRates = await db.query<any>(`SELECT * FROM tax_rates WHERE status = 'active'`);
+  const taxRateByCode: Record<string, any> = {};
+  let defaultTaxRate: any | null = null;
+  for (const tr of activeTaxRates) {
+    if (tr.tax_code) {
+      taxRateByCode[tr.tax_code] = tr;
+    } else if (!defaultTaxRate) {
+      defaultTaxRate = tr;
+    }
+  }
+
+  const [defaultRegion] = await db.query<any>(`SELECT tax_inclusive FROM regions WHERE is_default = 1 LIMIT 1`);
+  const defaultTaxInclusive = defaultRegion ? defaultRegion.tax_inclusive === 1 : false;
+
+  // Load categories for each product
+  const categoriesByProduct: Record<string, any[]> = {};
+  if (productIds.length > 0) {
+    const placeholders = productIds.map(() => '?').join(',');
+    const allCategories = await db.query<any>(
+      `SELECT c.* FROM categories c
+       JOIN product_categories pc ON pc.category_id = c.id
+       WHERE pc.product_id IN (${placeholders}) AND c.status = 'active'
+       ORDER BY pc.position ASC`,
+      productIds
+    );
+    for (const cat of allCategories) {
+      if (!categoriesByProduct[cat.product_id]) {
+        categoriesByProduct[cat.product_id] = [];
+      }
+      categoriesByProduct[cat.product_id].push(cat);
+    }
+  }
+
+  const items = products.map((p) => mapProduct(p, variantsByProduct[p.id] || [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, categoriesByProduct[p.id] || []));
 
   const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].created_at : null;
 
@@ -458,7 +512,16 @@ app.openapi(getProduct, async (c) => {
   const [defaultRegion] = await db.query<any>(`SELECT tax_inclusive FROM regions WHERE is_default = 1 LIMIT 1`);
   const defaultTaxInclusive = defaultRegion ? defaultRegion.tax_inclusive === 1 : false;
 
-  return c.json(mapProduct(product, variants, taxRateByCode, defaultTaxRate, defaultTaxInclusive), 200);
+  // Load categories for this product
+  const categories = await db.query<any>(
+    `SELECT c.* FROM categories c
+     JOIN product_categories pc ON pc.category_id = c.id
+     WHERE pc.product_id = ? AND c.status = 'active'
+     ORDER BY pc.position ASC`,
+    [id]
+  );
+
+  return c.json(mapProduct(product, variants, taxRateByCode, defaultTaxRate, defaultTaxInclusive, categories), 200);
 });
 
 const createProduct = createRoute({
@@ -518,6 +581,20 @@ app.openapi(createProduct, async (c) => {
     [id, title, description || null, processedVendor, processedTags, processedHandle, timestamp]
   );
 
+  const activeTaxRates = await db.query<any>(`SELECT * FROM tax_rates WHERE status = 'active'`);
+  const taxRateByCode: Record<string, any> = {};
+  let defaultTaxRate: any | null = null;
+  for (const tr of activeTaxRates) {
+    if (tr.tax_code) {
+      taxRateByCode[tr.tax_code] = tr;
+    } else if (!defaultTaxRate) {
+      defaultTaxRate = tr;
+    }
+  }
+
+  const [defaultRegion] = await db.query<any>(`SELECT tax_inclusive FROM regions WHERE is_default = 1 LIMIT 1`);
+  const defaultTaxInclusive = defaultRegion ? defaultRegion.tax_inclusive === 1 : false;
+
   return c.json(
     mapProduct({ 
       id, 
@@ -528,7 +605,7 @@ app.openapi(createProduct, async (c) => {
       handle: processedHandle, 
       status: 'active', 
       created_at: timestamp 
-    }, []),
+    }, [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, []),
     201
   );
 });
@@ -627,7 +704,30 @@ app.openapi(updateProduct, async (c) => {
   const [product] = await db.query<any>(`SELECT * FROM products WHERE id = ?`, [id]);
   const variants = await db.query<any>(`SELECT * FROM variants WHERE product_id = ?`, [id]);
 
-  return c.json(mapProduct(product, variants), 200);
+  const activeTaxRates = await db.query<any>(`SELECT * FROM tax_rates WHERE status = 'active'`);
+  const taxRateByCode: Record<string, any> = {};
+  let defaultTaxRate: any | null = null;
+  for (const tr of activeTaxRates) {
+    if (tr.tax_code) {
+      taxRateByCode[tr.tax_code] = tr;
+    } else if (!defaultTaxRate) {
+      defaultTaxRate = tr;
+    }
+  }
+
+  const [defaultRegion] = await db.query<any>(`SELECT tax_inclusive FROM regions WHERE is_default = 1 LIMIT 1`);
+  const defaultTaxInclusive = defaultRegion ? defaultRegion.tax_inclusive === 1 : false;
+
+  // Load categories for this product
+  const categories = await db.query<any>(
+    `SELECT c.* FROM categories c
+     JOIN product_categories pc ON pc.category_id = c.id
+     WHERE pc.product_id = ? AND c.status = 'active'
+     ORDER BY pc.position ASC`,
+    [id]
+  );
+
+  return c.json(mapProduct(product, variants, taxRateByCode, defaultTaxRate, defaultTaxInclusive, categories), 200);
 });
 
 const deleteProduct = createRoute({

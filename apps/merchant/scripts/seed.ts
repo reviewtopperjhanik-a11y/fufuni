@@ -166,6 +166,124 @@ async function seedTaxes() {
   return { tax20, tax5 };
 }
 
+async function seedCategories() {
+  console.log('📁 Creating categories...');
+
+  // Create parent category "merchandising"
+  const parentCategory = await api('/v1/categories', {
+    handle: 'merchandising',
+    name: JSON.stringify({
+      'en-US': 'Merchandising',
+      'fr-FR': 'Merchandising',
+      'es-ES': 'Merchandising',
+      'zh-CN': '商品',
+      'ar-SA': 'السلع',
+      'he-IL': 'סחורה',
+    }),
+    description: JSON.stringify({
+      'en-US': 'SCTG Merchandising products',
+      'fr-FR': 'Produits de marchandisage SCTG',
+      'es-ES': 'Productos de mercancía SCTG',
+      'zh-CN': 'SCTG商品产品',
+      'ar-SA': 'منتجات البضائع SCTG',
+      'he-IL': 'מוצרי סחורה של SCTG',
+    }),
+  });
+
+  // Create child categories
+  const classicTeesCategory = await api('/v1/categories', {
+    handle: 'classic-tees',
+    name: JSON.stringify({
+      'en-US': 'Classic Tees',
+      'fr-FR': 'T-Shirts Classiques',
+      'es-ES': 'Camisetas Clásicas',
+      'zh-CN': '经典T恤',
+      'ar-SA': 'تي شيرتات كلاسيكية',
+      'he-IL': 'טי שירטים קלאסיים',
+    }),
+    description: JSON.stringify({
+      'en-US': 'SCTG classic tees',
+      'fr-FR': 'T-shirts classiques SCTG',
+      'es-ES': 'Camisetas clásicas SCTG',
+      'zh-CN': 'SCTG经典T恤',
+      'ar-SA': 'تي شيرتات SCTG الكلاسيكية',
+      'he-IL': 'טי שירטים קלאסיים של SCTG',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  const capsCategory = await api('/v1/categories', {
+    handle: 'caps',
+    name: JSON.stringify({
+      'en-US': 'Caps',
+      'fr-FR': 'Casquettes',
+      'es-ES': 'Gorras',
+      'zh-CN': '帽子',
+      'ar-SA': 'قبعات',
+      'he-IL': 'כובעים',
+    }),
+    description: JSON.stringify({
+      'en-US': 'SCTG caps',
+      'fr-FR': 'Casquettes SCTG',
+      'es-ES': 'Gorras SCTG',
+      'zh-CN': 'SCTG帽子',
+      'ar-SA': 'قبعات SCTG',
+      'he-IL': 'כובעים של SCTG',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  const hoodiesCategory = await api('/v1/categories', {
+    handle: 'hoodies',
+    name: JSON.stringify({
+      'en-US': 'Hoodies',
+      'fr-FR': 'Sweats à Capuche',
+      'es-ES': 'Sudaderas con Capucha',
+      'zh-CN': '连帽衫',
+      'ar-SA': 'هوديز',
+      'he-IL': 'סווטשירטים',
+    }),
+    description: JSON.stringify({
+      'en-US': 'SCTG Hoodies',
+      'fr-FR': 'Sweats à Capuche SCTG',
+      'es-ES': 'Sudaderas con Capucha SCTG',
+      'zh-CN': 'SCTG连帽衫',
+      'ar-SA': 'هوديز SCTG',
+      'he-IL': 'סווטשירטים של SCTG',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  const stickersCategory = await api('/v1/categories', {
+    handle: 'stickers',
+    name: JSON.stringify({
+      'en-US': 'Stickers',
+      'fr-FR': 'Autocollants',
+      'es-ES': 'Pegatinas',
+      'zh-CN': '贴纸',
+      'ar-SA': 'ملصقات',
+      'he-IL': 'מדבקות',
+    }),
+    description: JSON.stringify({
+      'en-US': 'SCTG stickers',
+      'fr-FR': 'Autocollants SCTG',
+      'es-ES': 'Pegatinas SCTG',
+      'zh-CN': 'SCTG贴纸',
+      'ar-SA': 'ملصقات SCTG',
+      'he-IL': 'מדבקות של SCTG',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  return {
+    merchandising: parentCategory.id,
+    classicTees: classicTeesCategory.id,
+    caps: capsCategory.id,
+    hoodies: hoodiesCategory.id,
+    stickers: stickersCategory.id,
+  };
+}
+
 async function seedRegions() {
   console.log('📋 Fetching existing currencies and countries...');
 
@@ -357,27 +475,34 @@ async function seed() {
   // Create regions and other data
   const regionData = await seedRegions();
 
-  // Products
+  // Create categories
+  const categoryData = await seedCategories();
+
+  // Products with their category mapping
   const products = [
     {
       title: '{"en-US":"Classic Tee", "fr-FR":"T-Shirt Classique", "es-ES":"Camiseta Clásica","zh-CN":"经典T恤","ar-SA":"تي شيرت كلاسيكي" ,"he-IL":"טי שירט קלאסי" }',
       description: '{"en-US":"<p>Premium cotton t-shirt. Soft, breathable, and built to last, with our logo…</p>", "fr-FR":"<p>T-shirt en coton premium. Doux, respirant et conçu pour durer, avec notre logo…</p>", "es-ES":"<p>Camiseta de algodón premium. Suave, transpirable y duradera, con nuestro logo…</p>","zh-CN":"<p>优质棉质T恤。柔软、透气、经久耐用，印有我们的标志…</p>","ar-SA":"<p>تي شيرت قطني فاخر. ناعم، قابل للتنفس، ومصمم ليدوم طويلاً، مع شعارنا…</p>" ,"he-IL":"<p>חולצת טי כותנה פרימיום. רכה, נושמת ובנויה להחזיק מעמד, עם הלוגו שלנו…</p>" }',
       vendor: '{"en-US":"SCTG","fr-FR":"SCTG","es-ES":"SCTG","zh-CN":"SCTG","ar-SA":"SCTG","he-IL":"SCTG"}',
+      category_id: categoryData.classicTees,
     },
     {
       title: '{"en-US":"Hoodie", "fr-FR":"Sweat à capuche", "es-ES":"Sudadera con capucha", "zh-CN":"连帽衫", "ar-SA":"هودي", "he-IL":"סווטשירט עם כובע" }',
       description: '{"en-US":"<p>Cozy pullover hoodie with large logo. Perfect for coding sessions…</p>","fr-FR":"<p>Sweat à capuche confortable avec grand logo. Parfait pour les sessions de codage…</p>", "es-ES":"<p>Sudadera con capucha cómoda y gran logo. Perfecta para sesiones de programación…</p>","zh-CN":"<p>舒适的连帽衫，带有大标志。非常适合编码会话…</p>","ar-SA":"<p>سويت بالكلاو مريح مع شعار كبير. مثالية لجلسات البرمجة…</p>" ,"he-IL":"<p>חולצת קפואה נוחה עם לוגו גדול. מושלמת לישיבות תכנות…</p>" }',
       vendor: '{"en-US":"SCTG","fr-FR":"SCTG","es-ES":"SCTG","zh-CN":"SCTG","ar-SA":"SCTG","he-IL":"SCTG"}',
+      category_id: categoryData.hoodies,
     },
     {
       title: '{"en-US":"Cap", "fr-FR":"Casquette", "es-ES":"Gorra", "zh-CN":"棒球帽", "ar-SA":"قبعة", "he-IL":"כובע" }',
       description: '{"en-US":"<p><strong>Embroidered</strong> baseball cap with logo. One size fits all heads…</p>", "fr-FR":"<p>Casquette de baseball brodée avec logo. Une taille convient à toutes les têtes…</p>", "es-ES":"<p>Gorra de béisbol bordada con logo. Talla única para todas las cabezas…</p>","zh-CN":"<p>刺绣棒球帽，带有标志。适合所有头型…</p>","ar-SA":"<p>قبعة بيسبول مخيطة بشعار. مقاس واحد يناسب جميع الرؤوس…</p>" ,"he-IL":"<p>כובע בייסבול רקום עם לוגו. גודל אחד מתאים לכל הראש…</p>" }',
       vendor: '{"en-US":"SCTG","fr-FR":"SCTG","es-ES":"SCTG","zh-CN":"SCTG","ar-SA":"SCTG","he-IL":"SCTG"}',
+      category_id: categoryData.caps,
     },
     {
       title: '{"en-US":"Sticker Pack", "fr-FR":"Pack d’autocollants", "es-ES":"Paquete de pegatinas", "zh-CN":"贴纸包", "ar-SA":"مجموعة ملصقات", "he-IL":"חבילת מדבקות" }',
       description: '{"en-US":"<p>Set of 5 die-cut vinyl stickers. Beautiful, waterproof and durable…</p>", "fr-FR":"<p>Ensemble de 5 autocollants en vinyle découpés. Beaux, imperméables et durables…</p>", "es-ES":"<p>Set de 5 pegatinas de vinilo recortadas. Hermosas, impermeables y duraderas…</p>","zh-CN":"<p>5件套模切乙烯基贴纸。美观、防水且耐用…</ p>","ar-SA":"<p>مجموعة من 5 ملصقات فينيل مقطوعة. جميلة، مقاومة للماء ومتينة…</ p>" ,"he-IL":"< p>סט של 5 מדבקות ויניל חתוכות. יפות, עמידות למים ועמידות…</ p>" }',
       vendor: '{"en-US":"SCTG","fr-FR":"SCTG","es-ES":"SCTG","zh-CN":"SCTG","ar-SA":"SCTG","he-IL":"SCTG"}',
+      category_id: categoryData.stickers,
     },
   ];
 
@@ -442,8 +567,15 @@ async function seed() {
     console.log(`📦 Creating ${displayTitle}...`);
 
     // Send only the supported product fields to the API (exclude our helper keys if any)
-    const { handle, ...productPayload } = prod as any;
+    const { handle, category_id, ...productPayload } = prod as any;
     const product = await api('/v1/products', productPayload);
+
+    // Add product to its category
+    if (category_id) {
+      await api(`/v1/categories/${category_id}/products`, {
+        product_ids: [product.id],
+      });
+    }
 
     const productVariants = variants[titleKey];
     if (!productVariants) {

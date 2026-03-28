@@ -167,6 +167,7 @@ export const ProductResponse = z.object({
   status: ProductStatus,
   created_at: z.string().datetime(),
   variants: z.array(VariantResponse),
+  categories: z.array(z.lazy(() => CategoryResponse)).nullable().optional().openapi({ description: 'Categories this product belongs to' }),
   // Enrichment fields (stored as JSON strings for multilingual support)
   vendor: z.string().nullable().openapi({ example: '{"en-US":"Acme Corp","fr-FR":"Corp Acme"}', description: 'Brand or manufacturer name (JSON object with locale keys)' }),
   tags: z.string().nullable().openapi({ example: '{"en-US":"cotton, summer","fr-FR":"coton, été"}', description: 'Tags as comma-separated values per locale (JSON object with locale keys)' }),
