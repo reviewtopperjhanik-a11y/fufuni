@@ -38,6 +38,9 @@ import { buildOrderConfirmationEmail } from './email-templates';
 import { generateOrderViewToken, hashOrderToken } from './order-token';
 import { sendMailgunEmail } from '../mailgun';
 
+/**
+ * Input options for {@link sendOrderConfirmationEmail}.
+ */
 export type SendOrderConfirmationOptions = {
   orderId: string;
   /**
@@ -47,6 +50,10 @@ export type SendOrderConfirmationOptions = {
   regenerateToken?: boolean;
 };
 
+/**
+ * Result returned by {@link sendOrderConfirmationEmail}.
+ * Always resolves (never rejects) — check `success` to detect failures.
+ */
 export type SendOrderConfirmationResult = {
   orderId: string;
   customerEmail: string;
@@ -70,6 +77,20 @@ async function buildOrderToken(orderId: string, secret: string, issuedAt: Date) 
   return generateOrderViewToken(orderId, secret, { issuedAt, ttlSeconds: TOKEN_TTL_SECONDS });
 }
 
+/**
+ * Sends an order confirmation email to the customer.
+ *
+ * Generates (or re-uses) a signed order-view token, persists its hash to the
+ * database, builds the email body via {@link buildOrderConfirmationEmail}, and
+ * delivers it through Mailgun.
+ *
+ * Always resolves — delivery errors are captured in the returned
+ * {@link SendOrderConfirmationResult} rather than thrown.
+ *
+ * @param env     - Worker environment bindings.
+ * @param db      - Database instance.
+ * @param options - Order ID and optional token-rotation flag.
+ */
 export async function sendOrderConfirmationEmail(
   env: Env,
   db: Database,

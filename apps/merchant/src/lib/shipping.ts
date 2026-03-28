@@ -26,7 +26,10 @@
 // Purpose: Centralized shipping calculation helpers.
 // These functions are shared between checkout.ts and potentially other routes.
 
-// Type for a resolved shipping rate (returned to the client)
+/**
+ * A single shipping rate resolved and priced for a specific region and currency.
+ * Returned to the client in the `GET /v1/carts/:id/shipping-rates` response.
+ */
 export interface ShippingRateItem {
   id: string;
   display_name: string;
@@ -40,7 +43,10 @@ export interface ShippingRateItem {
   tax_inclusive: boolean;
 }
 
-// Resolved cart class information
+/**
+ * Result of resolving the shipping class(es) present in a cart.
+ * Drives the class-based filtering logic inside {@link getCompatibleShippingRates}.
+ */
 export interface CartClassResolution {
   has_special_class: boolean;
   class_ids: Set<string>;
@@ -56,6 +62,15 @@ type DB = { query: <T>(sql: string, params?: unknown[]) => Promise<T[]> };
 // Determines which shipping classes are present in a given cart.
 // The variant's class takes priority over the product's class (variant override).
 // Returns the set of class IDs and their resolution modes.
+/**
+ * Determines which shipping classes are used by the items in a cart.
+ *
+ * The variant's `shipping_class_id` takes priority over the product's class
+ * (variant override pattern). The returned set drives class-based rate filtering.
+ *
+ * @param db      - Database / query helper.
+ * @param cart_id - UUID of the cart.
+ */
 export async function resolveCartItemClasses(
   db: DB,
   cart_id: string,
@@ -101,6 +116,15 @@ export async function resolveCartItemClasses(
 // Only includes variants marked as requiring shipping (requires_shipping = 1).
 // Virtual/downloadable products are excluded from weight calculations.
 // Returns 0 if no cart items or if variants have no weight set.
+/**
+ * Computes the total packed weight of a cart in grams.
+ * Sums `variant.weight_g × qty` for all items where `requires_shipping = 1`.
+ * Virtual / digital products (`requires_shipping = 0`) are excluded.
+ *
+ * @param db      - Database / query helper.
+ * @param cart_id - UUID of the cart.
+ * @returns Total weight in grams (0 when the cart is empty or all items are virtual).
+ */
 export async function computeCartWeightG(db: DB, cart_id: string): Promise<number> {
   const result = await db.query<{ total_weight_g: number }>(
     `SELECT COALESCE(SUM(v.weight_g * ci.qty), 0) AS total_weight_g
@@ -126,6 +150,23 @@ export async function computeCartWeightG(db: DB, cart_id: string): Promise<numbe
 //      - Cart has ADDITIVE class   → rates matching the class + universal rates (shipping_class_id IS NULL)
 //
 // This replaces the old inlined getCompatibleShippingRates in checkout.ts.
+/**
+ * Returns the list of shipping rates that are compatible with a given cart,
+ * priced in the cart's currency.
+ *
+ * Filtering rules:
+ * 1. Rate must belong to the cart's region.
+ * 2. Rate's `max_weight_g` must be ≥ cart total weight (or null = unlimited).
+ * 3. Class filtering:
+ *    - Cart has **no special class** → only universal rates (`shipping_class_id IS NULL`).
+ *    - Cart has an **exclusive class** → only rates explicitly matching those class IDs.
+ *    - Cart has an **additive class** → rates matching the class + universal rates.
+ *
+ * @param db          - Database / query helper.
+ * @param region_id   - UUID of the cart's region (or `null` if unset → returns `[]`).
+ * @param cart_id     - UUID of the cart.
+ * @param currency_id - UUID of the target currency for rate prices.
+ */
 export async function getCompatibleShippingRates(
   db: DB,
   region_id: string | null,

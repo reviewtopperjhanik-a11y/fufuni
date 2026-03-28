@@ -93,8 +93,18 @@ function checkRateLimit(
 }
 
 /**
- * Rate limiting middleware
- * Must be applied after auth middleware to get role info
+ * Hono middleware factory that enforces sliding-window rate limits using
+ * an in-memory counter store.
+ *
+ * Must be mounted **after** the auth middleware so role-based limits can be
+ * applied. Uses API key as the identifier when present; falls back to the
+ * client IP (`CF-Connecting-IP` / `X-Forwarded-For`).
+ *
+ * Rate-limit headers (`X-RateLimit-Limit`, `X-RateLimit-Remaining`,
+ * `X-RateLimit-Reset`, `Retry-After`) are appended when
+ * `rateLimits.includeHeaders` is `true`.
+ *
+ * @throws {@link ApiError} 429 when the caller exceeds the configured limit.
  */
 export function rateLimitMiddleware() {
   return async (c: Context<{ Bindings: Env }>, next: Next) => {
@@ -148,8 +158,11 @@ export function rateLimitMiddleware() {
 }
 
 /**
- * Get current rate limit status for an identifier
- * Useful for debugging or admin endpoints
+ * Returns the current sliding-window rate-limit status for a given identifier
+ * and config. Useful for debug endpoints and observability.
+ *
+ * @param identifier - API key or client IP string.
+ * @param config     - The rate-limit config to evaluate against.
  */
 export function getRateLimitStatus(identifier: string, config: RateLimitConfig) {
   const windowStart = getWindowStart(config.windowMs);

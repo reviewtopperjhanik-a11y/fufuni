@@ -29,35 +29,33 @@ import { z } from '@hono/zod-openapi';
 // COMMON SCHEMAS
 // ============================================================
 
+/** Path parameter schema for routes that accept a resource `id` (UUID). */
 export const IdParam = z.object({
-  id: z.string().uuid().openapi({ param: { name: 'id', in: 'path' }, example: '550e8400-e29b-41d4-a716-446655440000' }),
 });
 
+/** Query parameters for cursor-based paginated list endpoints. */
 export const PaginationQuery = z.object({
-  limit: z.string().optional().openapi({ param: { name: 'limit', in: 'query' }, example: '20' }),
   cursor: z.string().optional().openapi({ param: { name: 'cursor', in: 'query' } }),
 });
 
+/** Pagination metadata included in every list response body. */
 export const PaginationResponse = z.object({
-  has_more: z.boolean(),
   next_cursor: z.string().nullable(),
 });
 
+/** Standard JSON error envelope returned on all 4xx / 5xx responses. */
 export const ErrorResponse = z.object({
-  error: z.object({
     code: z.string().openapi({ example: 'invalid_request' }),
     message: z.string().openapi({ example: 'Invalid request parameters' }),
     details: z.record(z.unknown()).optional(),
-  }),
 }).openapi('Error');
 
 // ============================================================
 // VARIANT SCHEMAS
 // ============================================================
 
+/** Full variant record returned by the API (includes shipping and tax fields). */
 export const VariantResponse = z.object({
-  id: z.string().uuid(),
-  sku: z.string().openapi({ example: 'TEE-BLK-M' }),
   title: z.string().openapi({ example: 'Black / Medium' }),
   price_cents: z.number().int().openapi({ example: 2999 }),
   currency: z.string().default('USD').openapi({ example: 'USD', description: 'ISO 4217 currency code (base price currency)' }),
@@ -76,6 +74,7 @@ export const VariantResponse = z.object({
   tax_inclusive: z.boolean().default(false).openapi({ example: false, description: 'If true price is tax-included (TTC); false means HT' }),
 }).openapi('Variant');
 
+/** Request body for creating a new variant. */
 export const CreateVariantBody = z.object({
   sku: z.string().min(1).openapi({ example: 'TEE-BLK-M' }),
   title: z.string().min(1).openapi({ example: 'Black / Medium' }),
@@ -93,6 +92,7 @@ export const CreateVariantBody = z.object({
   tax_code: z.string().optional().openapi({ example: 'txcd_99999999', description: 'Stripe Tax product code' }),
 }).openapi('CreateVariant');
 
+/** Request body for partially updating a variant (all fields optional). */
 export const UpdateVariantBody = z.object({
   sku: z.string().min(1).optional(),
   title: z.string().min(1).optional(),
@@ -110,6 +110,7 @@ export const UpdateVariantBody = z.object({
   tax_code: z.string().nullable().optional(),
 }).openapi('UpdateVariant');
 
+/** Path parameters for variant-price routes: `productId / variantId / currencyId`. */
 export const VariantPriceCurrencyParam = z.object({
   id: z.string().uuid().openapi({ 
     param: { name: 'id', in: 'path' },
@@ -128,6 +129,7 @@ export const VariantPriceCurrencyParam = z.object({
   }),
 }).openapi('VariantPriceCurrencyParam');
 
+/** A single multi-currency price record for a variant. */
 export const VariantPrice = z.object({
   id: z.string().uuid(),
   variant_id: z.string().uuid(),
@@ -138,15 +140,18 @@ export const VariantPrice = z.object({
   price_cents: z.number().int().openapi({ example: 2799, description: 'Price in cents/pence/centimes' }),
 }).openapi('VariantPrice');
 
+/** List response wrapping an array of {@link VariantPrice} records. */
 export const VariantPriceListResponse = z.object({
   items: z.array(VariantPrice),
 }).openapi('VariantPriceList');
 
+/** Request body to add a new currency-specific price to a variant. */
 export const CreateVariantPriceBody = z.object({
   currency_id: z.string().uuid().openapi({ description: 'Currency ID (UUID from currencies table)' }),
   price_cents: z.number().int().min(0).openapi({ example: 2799, description: 'Price in cents' }),
 }).openapi('CreateVariantPrice');
 
+/** Single multi-currency price record response (abbreviated). */
 export const VariantPriceResponse = z.object({
   id: z.string().uuid(),
   currency_id: z.string().uuid(),
@@ -157,8 +162,10 @@ export const VariantPriceResponse = z.object({
 // PRODUCT SCHEMAS
 // ============================================================
 
+/** Allowed lifecycle status values for a product. */
 export const ProductStatus = z.enum(['active', 'draft']);
 
+/** Full product record including variants, categories, and enrichment fields. */
 export const ProductResponse = z.object({
   id: z.string().uuid(),
   title: z.string().openapi({ example: 'Classic T-Shirt' }),
@@ -174,11 +181,13 @@ export const ProductResponse = z.object({
   handle: z.string().nullable().openapi({ example: '{"en-US":"classic-cotton-t-shirt","fr-FR":"t-shirt-classique-coton"}', description: 'URL slug per locale (JSON object with locale keys)' }),
 }).openapi('Product');
 
+/** Paginated list response for GET /v1/products. */
 export const ProductListResponse = z.object({
   items: z.array(ProductResponse),
   pagination: PaginationResponse,
 }).openapi('ProductList');
 
+/** Request body for POST /v1/products. */
 export const CreateProductBody = z.object({
   title: z.string().min(1).openapi({ example: 'Classic T-Shirt' }),
   description: z.string().optional().openapi({ example: 'A comfortable cotton tee' }),
@@ -189,6 +198,7 @@ export const CreateProductBody = z.object({
   handle: z.string().optional().openapi({ example: '{"en-US":"classic-cotton-t-shirt","fr-FR":"t-shirt-classique-coton"}', description: 'URL slug per locale (JSON object with locale keys, or plain string for migration). Must be lowercase letters, numbers and hyphens.' }),
 }).openapi('CreateProduct');
 
+/** Request body for PATCH /v1/products/:id. All product fields optional. */
 export const UpdateProductBody = z.object({
   title: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
@@ -200,10 +210,12 @@ export const UpdateProductBody = z.object({
   handle: z.string().nullable().optional().openapi({ example: '{"en-US":"classic-cotton-t-shirt","fr-FR":"t-shirt-classique-coton"}', description: 'URL slug per locale (JSON object with locale keys, or plain string for migration). Must be lowercase letters, numbers and hyphens.' }),
 }).openapi('UpdateProduct');
 
+/** Query parameters for the product list endpoint. */
 export const ProductQuery = PaginationQuery.extend({
   status: ProductStatus.optional().openapi({ param: { name: 'status', in: 'query' } }),
 });
 
+/** Query parameters for the full-text search endpoint. */
 export const SearchQuery = PaginationQuery.extend({
   q: z.string().min(1).openapi({ param: { name: 'q', in: 'query' }, example: 'shirt' }),
 });
@@ -212,6 +224,7 @@ export const SearchQuery = PaginationQuery.extend({
 // INVENTORY SCHEMAS
 // ============================================================
 
+/** Global inventory record for a SKU (sum across all warehouses). */
 export const InventoryItem = z.object({
   sku: z.string().openapi({ example: 'TEE-BLK-M' }),
   on_hand: z.number().int().openapi({ example: 100 }),
@@ -219,12 +232,14 @@ export const InventoryItem = z.object({
   available: z.number().int().openapi({ example: 95 }),
 }).openapi('InventoryItem');
 
+/** Per-warehouse stock breakdown row embedded in {@link InventoryItemWithDetails}. */
 export const WarehouseInventoryDetail = z.object({
   warehouse_id: z.string().uuid().openapi({ example: 'warehouse-123' }),
   warehouse_name: z.string().openapi({ example: 'France Distribution Center' }),
   quantity: z.number().int().openapi({ example: 50 }),
 }).openapi('WarehouseInventoryDetail');
 
+/** Inventory item enriched with per-warehouse breakdown and product/variant titles. */
 export const InventoryItemWithDetails = InventoryItem.extend({
   variant_title: z.string().nullable().openapi({ example: 'Black / Medium' }),
   product_title: z.string().nullable().openapi({ example: 'Classic T-Shirt' }),
@@ -236,25 +251,31 @@ export const InventoryItemWithDetails = InventoryItem.extend({
   }),
 }).openapi('InventoryItemWithDetails');
 
+/** Paginated list response for GET /v1/inventory. */
 export const InventoryListResponse = z.object({
   items: z.array(InventoryItemWithDetails),
   pagination: PaginationResponse,
 }).openapi('InventoryList');
 
+/** Single inventory record response (alias of {@link InventoryItemWithDetails}). */
 export const InventorySingleResponse = InventoryItemWithDetails.openapi('InventorySingle');
 
+/** Query parameters for the inventory list endpoint. */
 export const InventoryQuery = PaginationQuery.extend({
   sku: z.string().optional().openapi({ param: { name: 'sku', in: 'query' }, example: 'TEE-BLK-M' }),
   low_stock: z.string().optional().openapi({ param: { name: 'low_stock', in: 'query' } }),
 });
 
+/** Allowed reason codes for global inventory adjustments. */
 export const AdjustmentReason = z.enum(['restock', 'correction', 'damaged', 'return']);
 
+/** Request body for POST /v1/inventory/:sku/adjust. */
 export const AdjustInventoryBody = z.object({
   delta: z.number().int().openapi({ example: 50, description: 'Positive to add, negative to subtract' }),
   reason: AdjustmentReason.openapi({ example: 'restock' }),
 }).openapi('AdjustInventory');
 
+/** Path parameter schema for routes that accept a variant SKU. */
 export const SkuParam = z.object({
   sku: z.string().openapi({ param: { name: 'sku', in: 'path' }, example: 'TEE-BLK-M' }),
 });
@@ -263,6 +284,7 @@ export const SkuParam = z.object({
 // CART / CHECKOUT SCHEMAS
 // ============================================================
 
+/** A single line item within a cart. */
 export const CartItem = z.object({
   sku: z.string(),
   title: z.string(),
@@ -270,6 +292,7 @@ export const CartItem = z.object({
   unit_price_cents: z.number().int(),
 });
 
+/** Aggregated monetary totals for a cart (all values in minor currency units). */
 export const CartTotals = z.object({
   subtotal_cents: z.number().int(),
   discount_cents: z.number().int(),
@@ -278,12 +301,14 @@ export const CartTotals = z.object({
   total_cents: z.number().int(),
 });
 
+/** Applied discount info on a cart, or `null` when no discount is active. */
 export const CartDiscount = z.object({
   code: z.string(),
   type: z.enum(['percentage', 'fixed_amount']),
   amount_cents: z.number().int(),
 }).nullable();
 
+/** Shipping address stored on a cart, or `null` when not yet provided. */
 export const CartShippingAddress = z.object({
   name: z.string().nullable().optional(),
   line1: z.string().nullable().optional(),
@@ -295,6 +320,7 @@ export const CartShippingAddress = z.object({
   billing_same_as_shipping: z.boolean().default(true),
 }).nullable().optional();
 
+/** Full cart response including items, totals, shipping, and checkout session. */
 export const CartResponse = z.object({
   id: z.string().uuid(),
   status: z.enum(['open', 'checked_out', 'expired']),
@@ -315,12 +341,14 @@ export const CartResponse = z.object({
   stripe_checkout_session_id: z.string().nullable().optional(),
 }).openapi('Cart');
 
+/** Request body for POST /v1/carts. */
 export const CreateCartBody = z.object({
   customer_email: z.string().email().openapi({ example: 'customer@example.com' }),
   locale: z.string().optional().openapi({ example: 'fr-FR', description: 'User preferred language for localized strings' }),
   region_id: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440000', description: 'Optional region for this cart' }),
 }).openapi('CreateCart');
 
+/** Request body for POST /v1/carts/:id/items. */
 export const AddCartItemsBody = z.object({
   items: z.array(z.object({
     sku: z.string().min(1).openapi({ example: 'TEE-BLK-M' }),
@@ -328,6 +356,7 @@ export const AddCartItemsBody = z.object({
   })).min(1),
 }).openapi('AddCartItems');
 
+/** Request body to create a Stripe Checkout session for a cart. */
 export const CheckoutBody = z.object({
   success_url: z.string().url().openapi({ example: 'https://example.com/success' }),
   cancel_url: z.string().url().openapi({ example: 'https://example.com/cancel' }),
@@ -336,15 +365,18 @@ export const CheckoutBody = z.object({
   shipping_options: z.array(z.any()).optional(),
 }).openapi('Checkout');
 
+/** Response after successfully initiating checkout. */
 export const CheckoutResponse = z.object({
   checkout_url: z.string().url(),
   stripe_checkout_session_id: z.string(),
 }).openapi('CheckoutResult');
 
+/** Request body for POST /v1/carts/:id/discounts. */
 export const ApplyDiscountBody = z.object({
   code: z.string().min(1).openapi({ example: 'SAVE10' }),
 }).openapi('ApplyDiscount');
 
+/** Response after applying a discount code — includes adjusted totals. */
 export const ApplyDiscountResponse = z.object({
   discount: z.object({
     code: z.string(),
@@ -358,6 +390,7 @@ export const ApplyDiscountResponse = z.object({
 // GAP-01 + GAP-02: SHIPPING ADDRESS & RATES
 // ============================================================
 
+/** Shipping address input schema used during cart shipping-rate selection. */
 export const ShippingAddressInput = z.object({
   name: z.string().min(1).openapi({ example: 'Jean Dupont' }),
   line1: z.string().min(1).openapi({ example: '12 rue de la Paix' }),
@@ -369,6 +402,7 @@ export const ShippingAddressInput = z.object({
   billing_same_as_shipping: z.boolean().optional().default(true),
 }).openapi('ShippingAddressInput');
 
+/** A single shipping-rate option presented to the customer during checkout. */
 export const AvailableShippingRateItem = z.object({
   id: z.string().uuid(),
   display_name: z.string().openapi({ example: 'Standard Shipping' }),
@@ -380,15 +414,18 @@ export const AvailableShippingRateItem = z.object({
   max_weight_g: z.number().int().nullable().optional(),
 }).openapi('AvailableShippingRate');
 
+/** Response for GET /v1/carts/:id/shipping-rates including cart weight. */
 export const AvailableShippingRatesResponse = z.object({
   items: z.array(AvailableShippingRateItem),
   cart_total_weight_g: z.number().int(),
 }).openapi('AvailableShippingRates');
 
+/** Request body to select a shipping rate for a cart. */
 export const SelectShippingRateBody = z.object({
   shipping_rate_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
 }).openapi('SelectShippingRate');
 
+/** Path parameter schema for routes that accept a `cartId` (UUID). */
 export const CartIdParam = z.object({
   cartId: z.string().uuid().openapi({ param: { name: 'cartId', in: 'path' } }),
 });
@@ -397,8 +434,10 @@ export const CartIdParam = z.object({
 // ORDER SCHEMAS
 // ============================================================
 
+/** Allowed lifecycle status values for an order. */
 export const OrderStatus = z.enum(['pending', 'paid', 'processing', 'shipped', 'delivered', 'refunded', 'canceled']);
 
+/** A single line item snapshot within an order. */
 export const OrderItem = z.object({
   sku: z.string(),
   title: z.string(),
@@ -406,6 +445,7 @@ export const OrderItem = z.object({
   unit_price_cents: z.number().int(),
 });
 
+/** Postal shipping address stored on an order, or `null` if not collected. */
 export const ShippingAddress = z.object({
   line1: z.string(),
   line2: z.string().nullable().optional(),
@@ -415,6 +455,7 @@ export const ShippingAddress = z.object({
   country: z.string(),
 }).nullable();
 
+/** Full order response including items, amounts, tracking, and Stripe references. */
 export const OrderResponse = z.object({
   id: z.string().uuid(),
   number: z.string().openapi({ example: 'ORD-241231-A7K2' }),
@@ -455,31 +496,37 @@ export const OrderResponse = z.object({
   created_at: z.string().datetime(),
 }).openapi('Order');
 
+/** Paginated list response for GET /v1/orders. */
 export const OrderListResponse = z.object({
   items: z.array(OrderResponse),
   pagination: PaginationResponse,
 }).openapi('OrderList');
 
+/** Query parameters for the orders list endpoint. */
 export const OrderQuery = PaginationQuery.extend({
   status: OrderStatus.optional().openapi({ param: { name: 'status', in: 'query' } }),
   email: z.string().email().optional().openapi({ param: { name: 'email', in: 'query' } }),
 });
 
+/** Request body for PATCH /v1/orders/:id. */
 export const UpdateOrderBody = z.object({
   status: OrderStatus.optional(),
   tracking_number: z.string().nullable().optional(),
   tracking_url: z.string().url().nullable().optional(),
 }).openapi('UpdateOrder');
 
+/** Request body for POST /v1/orders/:id/refund. Omit `amount_cents` for a full refund. */
 export const RefundOrderBody = z.object({
   amount_cents: z.number().int().positive().optional().openapi({ description: 'Omit for full refund' }),
 }).openapi('RefundOrder');
 
+/** Response after successfully issuing a Stripe refund. */
 export const RefundResponse = z.object({
   stripe_refund_id: z.string(),
   status: z.string(),
 }).openapi('RefundResult');
 
+/** Request body for creating a seeded/test order in dev environments. */
 export const CreateTestOrderBody = z.object({
   customer_email: z.string().email().openapi({ example: 'test@example.com' }),
   items: z.array(z.object({
@@ -504,6 +551,7 @@ export const CreateTestOrderBody = z.object({
   stripe_payment_intent_id: z.string().optional(),
 }).openapi('CreateTestOrder');
 
+/** Path parameter schema for routes that accept an `orderId` (UUID). */
 export const OrderIdParam = z.object({
   orderId: z.string().uuid().openapi({ param: { name: 'orderId', in: 'path' } }),
 });
@@ -512,6 +560,7 @@ export const OrderIdParam = z.object({
 // CUSTOMER SCHEMAS
 // ============================================================
 
+/** Customer profile record. */
 export const CustomerResponse = z.object({
   id: z.string().uuid(),
   email: z.string().email(),
@@ -529,6 +578,7 @@ export const CustomerResponse = z.object({
   updated_at: z.string().datetime(),
 }).openapi('Customer');
 
+/** Customer profile enriched with their saved address book. */
 export const CustomerWithAddresses = CustomerResponse.extend({
   addresses: z.array(z.object({
     id: z.string().uuid(),
@@ -546,15 +596,18 @@ export const CustomerWithAddresses = CustomerResponse.extend({
   })),
 }).openapi('CustomerWithAddresses');
 
+/** Paginated list response for GET /v1/customers. */
 export const CustomerListResponse = z.object({
   items: z.array(CustomerResponse),
   pagination: PaginationResponse,
 }).openapi('CustomerList');
 
+/** Query parameters for the customers list endpoint. */
 export const CustomerQuery = PaginationQuery.extend({
   search: z.string().optional().openapi({ param: { name: 'search', in: 'query' } }),
 });
 
+/** Request body for PATCH /v1/customers/:id. */
 export const UpdateCustomerBody = z.object({
   name: z.string().nullable().optional(),
   phone: z.string().nullable().optional(),
@@ -562,6 +615,7 @@ export const UpdateCustomerBody = z.object({
   metadata: z.record(z.unknown()).nullable().optional(),
 }).openapi('UpdateCustomer');
 
+/** Request body for POST /v1/customers/:id/addresses. */
 export const CreateAddressBody = z.object({
   label: z.string().optional(),
   is_default: z.boolean().optional(),
@@ -576,6 +630,7 @@ export const CreateAddressBody = z.object({
   phone: z.string().optional(),
 }).openapi('CreateAddress');
 
+/** A customer address record returned by the API. */
 export const AddressResponse = z.object({
   id: z.string().uuid(),
   label: z.string().nullable(),
@@ -591,6 +646,7 @@ export const AddressResponse = z.object({
   phone: z.string().nullable(),
 }).openapi('Address');
 
+/** Path parameters for routes that accept a customer `id` and an `addressId`. */
 export const AddressIdParam = z.object({
   id: z.string().uuid().openapi({ param: { name: 'id', in: 'path' } }),
   addressId: z.string().uuid().openapi({ param: { name: 'addressId', in: 'path' } }),
@@ -600,9 +656,12 @@ export const AddressIdParam = z.object({
 // DISCOUNT SCHEMAS
 // ============================================================
 
+/** Allowed discount calculation strategies. */
 export const DiscountType = z.enum(['percentage', 'fixed_amount']);
+/** Allowed status values for a discount record. */
 export const DiscountStatus = z.enum(['active', 'inactive']);
 
+/** Full discount record as returned by the API. */
 export const DiscountResponse = z.object({
   id: z.string().uuid(),
   code: z.string().nullable().openapi({ example: 'SAVE20' }),
@@ -620,10 +679,12 @@ export const DiscountResponse = z.object({
   updated_at: z.string().datetime().optional(),
 }).openapi('Discount');
 
+/** Flat list response for GET /v1/discounts. */
 export const DiscountListResponse = z.object({
   items: z.array(DiscountResponse),
 }).openapi('DiscountList');
 
+/** Request body for POST /v1/discounts. */
 export const CreateDiscountBody = z.object({
   code: z.string().optional().openapi({ example: 'SAVE20' }),
   type: DiscountType,
@@ -636,6 +697,7 @@ export const CreateDiscountBody = z.object({
   usage_limit_per_customer: z.number().int().positive().optional(),
 }).openapi('CreateDiscount');
 
+/** Request body for PATCH /v1/discounts/:id. All fields optional. */
 export const UpdateDiscountBody = z.object({
   status: DiscountStatus.optional(),
   code: z.string().nullable().optional(),
@@ -652,6 +714,7 @@ export const UpdateDiscountBody = z.object({
 // WEBHOOK SCHEMAS
 // ============================================================
 
+/** Allowed event type values for webhook subscriptions. */
 export const WebhookEvent = z.enum([
   'order.created',
   'order.updated',
@@ -662,8 +725,10 @@ export const WebhookEvent = z.enum([
   '*',
 ]);
 
+/** Allowed status values for a webhook endpoint. */
 export const WebhookStatus = z.enum(['active', 'disabled']);
 
+/** Webhook endpoint record (without signing secret). */
 export const WebhookResponse = z.object({
   id: z.string().uuid(),
   url: z.string().url(),
@@ -673,14 +738,17 @@ export const WebhookResponse = z.object({
   created_at: z.string().datetime(),
 }).openapi('Webhook');
 
+/** Webhook record including the signing secret — only returned immediately after creation. */
 export const WebhookWithSecret = WebhookResponse.extend({
   secret: z.string().openapi({ example: 'whsec_abc123...' }),
 }).omit({ has_secret: true }).openapi('WebhookWithSecret');
 
+/** Flat list response for GET /v1/webhooks. */
 export const WebhookListResponse = z.object({
   items: z.array(WebhookResponse),
 }).openapi('WebhookList');
 
+/** Webhook detail including recent delivery attempts. */
 export const WebhookDetailResponse = WebhookResponse.extend({
   recent_deliveries: z.array(z.object({
     id: z.string().uuid(),
@@ -693,17 +761,20 @@ export const WebhookDetailResponse = WebhookResponse.extend({
   })),
 }).openapi('WebhookDetail');
 
+/** Request body for POST /v1/webhooks. */
 export const CreateWebhookBody = z.object({
   url: z.string().url().openapi({ example: 'https://example.com/webhook' }),
   events: z.array(WebhookEvent).min(1).openapi({ example: ['order.created', 'order.shipped'] }),
 }).openapi('CreateWebhook');
 
+/** Request body for PATCH /v1/webhooks/:id. All fields optional. */
 export const UpdateWebhookBody = z.object({
   url: z.string().url().optional(),
   events: z.array(WebhookEvent).min(1).optional(),
   status: WebhookStatus.optional(),
 }).openapi('UpdateWebhook');
 
+/** A single webhook delivery attempt record with request/response details. */
 export const WebhookDeliveryResponse = z.object({
   id: z.string().uuid(),
   event_type: z.string(),
@@ -716,15 +787,18 @@ export const WebhookDeliveryResponse = z.object({
   last_attempt_at: z.string().datetime().nullable(),
 }).openapi('WebhookDelivery');
 
+/** Path parameters for webhook delivery routes: `id` (webhook ID) and `deliveryId`. */
 export const DeliveryIdParam = z.object({
   id: z.string().uuid().openapi({ param: { name: 'id', in: 'path' } }),
   deliveryId: z.string().uuid().openapi({ param: { name: 'deliveryId', in: 'path' } }),
 });
 
+/** Response after rotating a webhook signing secret. */
 export const RotateSecretResponse = z.object({
   secret: z.string(),
 }).openapi('RotateSecretResult');
 
+/** Response after triggering a manual delivery retry. */
 export const RetryResponse = z.object({
   status: z.string(),
   message: z.string(),
@@ -734,15 +808,18 @@ export const RetryResponse = z.object({
 // SETUP SCHEMAS
 // ============================================================
 
+/** Request body for POST /v1/setup/stripe. */
 export const SetupStripeBody = z.object({
   stripe_secret_key: z.string().startsWith('sk_').openapi({ example: 'sk_test_...' }),
   stripe_webhook_secret: z.string().startsWith('whsec_').optional().openapi({ example: 'whsec_...' }),
 }).openapi('SetupStripe');
 
+/** Generic success response with a boolean `ok` field. */
 export const OkResponse = z.object({
   ok: z.literal(true),
 }).openapi('Ok');
 
+/** Response returned after a successful DELETE operation. */
 export const DeletedResponse = z.object({
   deleted: z.literal(true),
 }).openapi('Deleted');
@@ -751,6 +828,7 @@ export const DeletedResponse = z.object({
 // IMAGE SCHEMAS
 // ============================================================
 
+/** Response after uploading an image to R2 object storage. */
 export const ImageUploadResponse = z.object({
   url: z.string().url(),
   key: z.string(),
@@ -761,6 +839,7 @@ export const ImageUploadResponse = z.object({
 // ============================================================
 
 // Currencies
+/** A currency record supported by the store. */
 export const CurrencyResponse = z.object({
   id: z.string().uuid(),
   code: z.string().length(3).toUpperCase().openapi({ example: 'USD' }),
@@ -772,6 +851,7 @@ export const CurrencyResponse = z.object({
   updated_at: z.string().datetime(),
 }).openapi('Currency');
 
+/** Request body for POST /v1/currencies. */
 export const CreateCurrencyBody = z.object({
   code: z.string().length(3).toUpperCase().openapi({ example: 'USD' }),
   display_name: z.string().min(1).openapi({ example: 'US Dollar' }),
@@ -779,6 +859,7 @@ export const CreateCurrencyBody = z.object({
   decimal_places: z.number().int().min(0).max(8).optional().default(2).openapi({ example: 2 }),
 }).openapi('CreateCurrency');
 
+/** Request body for PATCH /v1/currencies/:id. All fields optional. */
 export const UpdateCurrencyBody = z.object({
   display_name: z.string().min(1).optional(),
   symbol: z.string().min(1).optional(),
@@ -786,12 +867,14 @@ export const UpdateCurrencyBody = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 }).openapi('UpdateCurrency');
 
+/** Paginated list response for GET /v1/currencies. */
 export const CurrencyListResponse = z.object({
   items: z.array(CurrencyResponse),
   pagination: PaginationResponse,
 }).openapi('CurrencyList');
 
 // Countries
+/** A country record supported by the store. */
 export const CountryResponse = z.object({
   id: z.string().uuid(),
   code: z.string().length(2).toUpperCase().openapi({ example: 'US' }),
@@ -803,6 +886,7 @@ export const CountryResponse = z.object({
   updated_at: z.string().datetime(),
 }).openapi('Country');
 
+/** Request body for POST /v1/countries. */
 export const CreateCountryBody = z.object({
   code: z.string().length(2).toUpperCase().openapi({ example: 'US' }),
   display_name: z.string().min(1).openapi({ example: 'United States' }),
@@ -814,6 +898,7 @@ export const CreateCountryBody = z.object({
 // TAX RATE SCHEMAS
 // ============================================================
 
+/** A tax rate record (applied by country code or globally). */
 export const TaxRateResponse = z.object({
   id: z.string().uuid(),
   display_name: z.string().openapi({ example: '{"en-US":"VAT FR","fr-FR":"TVA FR"}', description: 'Localized tax name (JSON string)' }),
@@ -825,11 +910,13 @@ export const TaxRateResponse = z.object({
   updated_at: z.string().datetime(),
 }).openapi('TaxRate');
 
+/** Paginated list response for GET /v1/tax-rates. */
 export const TaxRateListResponse = z.object({
   items: z.array(TaxRateResponse),
   pagination: PaginationResponse,
 }).openapi('TaxRateList');
 
+/** Request body for POST /v1/tax-rates. */
 export const CreateTaxRateBody = z.object({
   display_name: z.string().min(1).openapi({ example: '{"en-US":"VAT FR","fr-FR":"TVA FR"}', description: 'Localized tax name (JSON string or plain text for migration)' }),
   country_code: z.string().length(2).toUpperCase().nullable().optional().openapi({ example: 'FR' }),
@@ -837,6 +924,7 @@ export const CreateTaxRateBody = z.object({
   rate_percentage: z.number().min(0).openapi({ example: 20.0 }),
 }).openapi('CreateTaxRate');
 
+/** Request body for PATCH /v1/tax-rates/:id. All fields optional. */
 export const UpdateTaxRateBody = z.object({
   display_name: z.string().min(1).optional(),
   country_code: z.string().length(2).toUpperCase().nullable().optional(),
@@ -845,6 +933,7 @@ export const UpdateTaxRateBody = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 }).openapi('UpdateTaxRate');
 
+/** Request body for PATCH /v1/countries/:id. All fields optional. */
 export const UpdateCountryBody = z.object({
   display_name: z.string().min(1).optional(),
   country_name: z.string().min(1).optional(),
@@ -852,12 +941,14 @@ export const UpdateCountryBody = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 }).openapi('UpdateCountry');
 
+/** Paginated list response for GET /v1/countries. */
 export const CountryListResponse = z.object({
   items: z.array(CountryResponse),
   pagination: PaginationResponse,
 }).openapi('CountryList');
 
 // Warehouses
+/** A physical warehouse location used for inventory tracking. */
 export const WarehouseResponse = z.object({
   id: z.string().uuid(),
   display_name: z.string().openapi({ example: 'Main Warehouse' }),
@@ -873,6 +964,7 @@ export const WarehouseResponse = z.object({
   updated_at: z.string().datetime(),
 }).openapi('Warehouse');
 
+/** Request body for POST /v1/warehouses. */
 export const CreateWarehouseBody = z.object({
   display_name: z.string().min(1).openapi({ example: 'Main Warehouse' }),
   address_line1: z.string().min(1).openapi({ example: '123 Main St' }),
@@ -884,6 +976,7 @@ export const CreateWarehouseBody = z.object({
   priority: z.number().int().optional().default(0).openapi({ example: 1 }),
 }).openapi('CreateWarehouse');
 
+/** Request body for PATCH /v1/warehouses/:id. All fields optional. */
 export const UpdateWarehouseBody = z.object({
   display_name: z.string().min(1).optional(),
   address_line1: z.string().min(1).optional(),
@@ -896,12 +989,14 @@ export const UpdateWarehouseBody = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 }).openapi('UpdateWarehouse');
 
+/** Paginated list response for GET /v1/warehouses. */
 export const WarehouseListResponse = z.object({
   items: z.array(WarehouseResponse),
   pagination: PaginationResponse,
 }).openapi('WarehouseList');
 
 // Shipping Classes
+/** A shipping class used to group variants with special handling requirements. */
 export const ShippingClassResponse = z.object({
   id: z.string().uuid(),
   code: z.string().openapi({ example: 'oversized' }),
@@ -913,6 +1008,7 @@ export const ShippingClassResponse = z.object({
   updated_at: z.string().datetime(),
 }).openapi('ShippingClass');
 
+/** Request body for POST /v1/shipping-classes. */
 export const CreateShippingClassBody = z.object({
   code: z.string().min(1).max(50).regex(/^[a-z0-9_-]+$/, 'Code must be lowercase letters, numbers, hyphens or underscores').openapi({ example: 'oversized' }),
   display_name: z.string().min(1).openapi({ example: 'Oversized / Freight' }),
@@ -920,6 +1016,7 @@ export const CreateShippingClassBody = z.object({
   resolution: z.enum(['exclusive', 'additive']).default('exclusive').openapi({ example: 'exclusive' }),
 }).openapi('CreateShippingClass');
 
+/** Request body for PATCH /v1/shipping-classes/:id. All fields optional. */
 export const UpdateShippingClassBody = z.object({
   display_name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
@@ -927,12 +1024,14 @@ export const UpdateShippingClassBody = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 }).openapi('UpdateShippingClass');
 
+/** Paginated list response for GET /v1/shipping-classes. */
 export const ShippingClassListResponse = z.object({
   items: z.array(ShippingClassResponse),
   pagination: PaginationResponse,
 }).openapi('ShippingClassList');
 
 // Shipping Rates
+/** A shipping rate including weight limits, delivery estimates, and class restrictions. */
 export const ShippingRateResponse = z.object({
   id: z.string().uuid(),
   display_name: z.string().openapi({ example: 'Standard Shipping' }),
@@ -948,6 +1047,7 @@ export const ShippingRateResponse = z.object({
   updated_at: z.string().datetime(),
 }).openapi('ShippingRate');
 
+/** Request body for POST /v1/shipping-rates. */
 export const CreateShippingRateBody = z.object({
   display_name: z.string().min(1).openapi({ example: 'Standard Shipping' }),
   description: z.string().optional().openapi({ example: '5-7 business days' }),
@@ -959,6 +1059,7 @@ export const CreateShippingRateBody = z.object({
   tax_inclusive: z.boolean().optional().default(false).openapi({ example: true }),
 }).openapi('CreateShippingRate');
 
+/** Request body for PATCH /v1/shipping-rates/:id. All fields optional. */
 export const UpdateShippingRateBody = z.object({
   display_name: z.string().min(1).optional(),
   description: z.string().nullable().optional(),
@@ -971,12 +1072,14 @@ export const UpdateShippingRateBody = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 }).openapi('UpdateShippingRate');
 
+/** Paginated list response for GET /v1/shipping-rates. */
 export const ShippingRateListResponse = z.object({
   items: z.array(ShippingRateResponse),
   pagination: PaginationResponse,
 }).openapi('ShippingRateList');
 
 // Regions
+/** A sales region grouping countries, warehouses, and shipping rates under a currency. */
 export const RegionResponse = z.object({
   id: z.string().uuid(),
   display_name: z.string().openapi({ example: 'North America' }),
@@ -989,6 +1092,7 @@ export const RegionResponse = z.object({
   updated_at: z.string().datetime(),
 }).openapi('Region');
 
+/** Request body for POST /v1/regions. */
 export const CreateRegionBody = z.object({
   display_name: z.string().min(1).openapi({ example: 'North America' }),
   currency_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
@@ -999,6 +1103,7 @@ export const CreateRegionBody = z.object({
   shipping_rate_ids: z.array(z.string().uuid()).optional().default([]).openapi({ example: [] }),
 }).openapi('CreateRegion');
 
+/** Request body for PATCH /v1/regions/:id. All fields optional. */
 export const UpdateRegionBody = z.object({
   display_name: z.string().min(1).optional(),
   currency_id: z.string().uuid().optional(),
@@ -1007,45 +1112,54 @@ export const UpdateRegionBody = z.object({
   status: z.enum(['active', 'inactive']).optional(),
 }).openapi('UpdateRegion');
 
+/** Request body for setting a static shipping rate on a (region, cart) combination. */
 export const SetCartShippingBody = z.object({
   shipping_rate_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
 }).openapi('SetCartShipping');
 
 // Region Associations
+/** Request body to associate a country with a region. */
 export const RegionCountryAssociationBody = z.object({
   country_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
 }).openapi('RegionCountryAssociation');
 
+/** Request body to associate a warehouse with a region. */
 export const RegionWarehouseAssociationBody = z.object({
   warehouse_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
 }).openapi('RegionWarehouseAssociation');
 
+/** Request body to associate a shipping rate with a region. */
 export const RegionShippingRateAssociationBody = z.object({
   shipping_rate_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
 }).openapi('RegionShippingRateAssociation');
 
 // Shipping Rate Pricing
+/** Request body to set a currency-specific price for a shipping rate in a region. */
 export const ShippingRatePriceBody = z.object({
   currency_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
   amount_cents: z.number().int().positive().openapi({ example: 999 }),
 }).openapi('ShippingRatePrice');
 
+/** A resolved per-currency price for a shipping rate. */
 export const ShippingRatePriceResponse = z.object({
   currency_id: z.string().uuid(),
   currency_code: z.string().openapi({ example: 'USD' }),
   amount_cents: z.number().int().openapi({ example: 999 }),
 }).openapi('ShippingRatePriceResponse');
 
+/** Flat list response for GET /v1/shipping-rates/:id/prices. */
 export const ShippingRatePriceListResponse = z.object({
   items: z.array(ShippingRatePriceResponse),
 }).openapi('ShippingRatePriceListResponse');
 
+/** Paginated list response for GET /v1/regions. */
 export const RegionListResponse = z.object({
   items: z.array(RegionResponse),
   pagination: PaginationResponse,
 }).openapi('RegionList');
 
 // Warehouse Inventory
+/** Per-warehouse inventory record for a SKU. */
 export const WarehouseInventoryItem = z.object({
   sku: z.string().openapi({ example: 'TEE-BLK-M' }),
   warehouse_id: z.string().uuid(),
@@ -1057,27 +1171,32 @@ export const WarehouseInventoryItem = z.object({
   product_title: z.string().nullable().openapi({ example: 'Classic T-Shirt' }),
 }).openapi('WarehouseInventoryItem');
 
+/** Paginated list response for GET /v1/warehouse-inventory. */
 export const WarehouseInventoryListResponse = z.object({
   items: z.array(WarehouseInventoryItem),
   pagination: PaginationResponse,
 }).openapi('WarehouseInventoryList');
 
+/** Query parameters for the warehouse-specific inventory list endpoint. */
 export const WarehouseInventoryQuery = PaginationQuery.extend({
   sku: z.string().optional().openapi({ param: { name: 'sku', in: 'query' }, example: 'TEE-BLK-M' }),
   warehouse_id: z.string().uuid().optional().openapi({ param: { name: 'warehouse_id', in: 'query' } }),
   low_stock: z.string().optional().openapi({ param: { name: 'low_stock', in: 'query' } }),
 });
 
+/** Query parameters for the regional inventory endpoint. */
 export const RegionalInventoryQuery = z.object({
   region_id: z.string().uuid().openapi({ param: { name: 'region_id', in: 'query' }, example: '550e8400-e29b-41d4-a716-446655440000' }),
 });
 
+/** Request body for POST /v1/warehouse-inventory/:sku/adjust. */
 export const AdjustWarehouseInventoryBody = z.object({
   warehouse_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
   delta: z.number().int().openapi({ example: 50, description: 'Positive to add, negative to subtract' }),
   reason: z.enum(['restock', 'correction', 'damaged', 'return', 'sale', 'release']).openapi({ example: 'restock' }),
 }).openapi('AdjustWarehouseInventory');
 
+/** Request body for DELETE /v1/warehouse-inventory/:sku (removes a SKU from a warehouse). */
 export const DeleteWarehouseInventoryBody = z.object({
   warehouse_id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
 }).openapi('DeleteWarehouseInventory');
@@ -1086,11 +1205,13 @@ export const DeleteWarehouseInventoryBody = z.object({
 // CONFIG SCHEMAS
 // ============================================================
 
+/** A single key-value configuration entry (e.g. Stripe credentials). */
 export const ConfigEntry = z.object({
   key: z.string().openapi({ example: 'stripe' }),
   value: z.string().nullable().openapi({ example: '{\"secret_key\":\"sk_...\"}' }),
 }).openapi('ConfigEntry');
 
+/** Flat list response for GET /v1/config. */
 export const ConfigListResponse = z.object({
   items: z.array(ConfigEntry),
 }).openapi('ConfigList');
@@ -1099,6 +1220,7 @@ export const ConfigListResponse = z.object({
 // CATEGORY SCHEMAS (Feature 027)
 // ============================================================
 
+/** A product category with optional hierarchy via `parent_id`. */
 export const CategoryResponse = z.object({
   id: z.string().uuid().openapi({ example: '550e8400-e29b-41d4-a716-446655440000' }),
   handle: z.string().openapi({ example: 't-shirts', description: 'URL-friendly slug' }),
@@ -1112,10 +1234,12 @@ export const CategoryResponse = z.object({
   updated_at: z.string().datetime().openapi({ example: '2026-03-27T10:00:00Z' }),
 }).openapi('Category');
 
+/** Flat list response for GET /v1/categories. */
 export const CategoryListResponse = z.object({
   items: z.array(CategoryResponse),
 }).openapi('CategoryList');
 
+/** Request body for POST /v1/categories. */
 export const CreateCategoryBody = z.object({
   handle: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/).openapi({ 
     example: 't-shirts', 
@@ -1134,6 +1258,7 @@ export const CreateCategoryBody = z.object({
   position: z.number().int().optional().default(0).openapi({ example: 0 }),
 }).openapi('CreateCategory');
 
+/** Request body for PATCH /v1/categories/:id. All fields optional. */
 export const UpdateCategoryBody = z.object({
   handle: z.string().min(1).max(100).regex(/^[a-z0-9-]+$/).optional().openapi({ example: 't-shirts' }),
   name: z.string().min(1).max(1000).optional().openapi({ 
@@ -1150,18 +1275,22 @@ export const UpdateCategoryBody = z.object({
   status: z.enum(['active', 'inactive']).optional().openapi({ example: 'active' }),
 }).openapi('UpdateCategory');
 
+/** Request body to bulk-assign products to a category. */
 export const AssignProductsToCategoryBody = z.object({
   product_ids: z.array(z.string().uuid()).openapi({ description: 'Array of product UUIDs' }),
 }).openapi('AssignProductsToCategory');
 
+/** Path parameter schema for category routes that accept a category `id`. */
 export const CategoryIdParam = z.object({
   id: z.string().uuid().openapi({ param: { name: 'id', in: 'path' } }),
 });
 
+/** Path parameter schema for category routes that accept a `handle` (URL slug). */
 export const CategoryHandleParam = z.object({
   handle: z.string().openapi({ param: { name: 'handle', in: 'path' } }),
 });
 
+/** Paginated list of products belonging to a category. */
 export const CategoryProductsResponse = z.object({
   items: z.array(ProductResponse),
   pagination: PaginationResponse,
@@ -1171,17 +1300,31 @@ export const CategoryProductsResponse = z.object({
 // TYPE EXPORTS
 // ============================================================
 
+/** TypeScript type inferred from the `ProductResponse` schema. */
 export type Product = z.infer<typeof ProductResponse>;
+/** TypeScript type inferred from the `VariantResponse` schema. */
 export type Variant = z.infer<typeof VariantResponse>;
+/** TypeScript type inferred from the `OrderResponse` schema. */
 export type Order = z.infer<typeof OrderResponse>;
+/** TypeScript type inferred from the `CustomerResponse` schema. */
 export type Customer = z.infer<typeof CustomerResponse>;
+/** TypeScript type inferred from the `DiscountResponse` schema. */
 export type Discount = z.infer<typeof DiscountResponse>;
+/** TypeScript type inferred from the `WebhookResponse` schema. */
 export type Webhook = z.infer<typeof WebhookResponse>;
+/** TypeScript type inferred from the `InventoryItem` schema. */
 export type InventoryItemType = z.infer<typeof InventoryItem>;
+/** TypeScript type inferred from the `CartResponse` schema. */
 export type CartType = z.infer<typeof CartResponse>;
+/** TypeScript type inferred from the `CurrencyResponse` schema. */
 export type CurrencyType = z.infer<typeof CurrencyResponse>;
+/** TypeScript type inferred from the `CountryResponse` schema. */
 export type CountryType = z.infer<typeof CountryResponse>;
+/** TypeScript type inferred from the `WarehouseResponse` schema. */
 export type WarehouseType = z.infer<typeof WarehouseResponse>;
+/** TypeScript type inferred from the `ShippingRateResponse` schema. */
 export type ShippingRateType = z.infer<typeof ShippingRateResponse>;
+/** TypeScript type inferred from the `RegionResponse` schema. */
 export type RegionType = z.infer<typeof RegionResponse>;
+/** TypeScript type inferred from the `WarehouseInventoryItem` schema. */
 export type WarehouseInventoryType = z.infer<typeof WarehouseInventoryItem>;

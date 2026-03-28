@@ -31,6 +31,22 @@ import { ApiError, now, type AuthRole, type HonoEnv } from '../types';
 // AUTH MIDDLEWARE
 // ============================================================
 
+/**
+ * Authentication middleware for admin/OAuth-protected routes.
+ *
+ * Accepts three token formats:
+ * 1. **Auth0 JWT** — three-part Bearer token; verified against the tenant's JWKS.
+ *    The token must carry the `admin:store` permission (or the value of
+ *    `ADMIN_STORE_PERMISSION`). Additional role bits are derived from other
+ *    permission claims.
+ * 2. **Admin API key** (`sk_` prefix) — stored in the database.
+ * 3. **OAuth key** (64-char hex) — scoped API key.
+ *
+ * On success, sets `c.var.auth` (`AuthContext`) with role, permissions, and
+ * optionally the Auth0 `sub` / `email` claims.
+ *
+ * @throws {@link ApiError} 401 / 403 on any authentication or authorization failure.
+ */
 export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
   const authHeader = c.req.header('Authorization');
 

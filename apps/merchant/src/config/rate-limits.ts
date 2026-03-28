@@ -29,11 +29,19 @@
 // Easy to update - just modify these values
 // Limits are per API key, per window
 
+/**
+ * Configuration shape for a single rate-limit window rule.
+ */
 export type RateLimitConfig = {
   requests: number; // Max requests allowed
   windowMs: number; // Time window in milliseconds
 };
 
+/**
+ * All rate-limit rules for the merchant worker.
+ * Defines defaults, per-role overrides, endpoint-specific overrides,
+ * a whitelist of identifiers to skip, and a flag to include headers.
+ */
 export const rateLimits = {
   // Default for all endpoints
   default: {
@@ -82,6 +90,15 @@ export const rateLimits = {
 } as const;
 
 // Helper to get limit for a specific request
+/**
+ * Returns the most specific {@link RateLimitConfig} that matches the given
+ * request path and optional role.
+ *
+ * Lookup order: endpoint prefix overrides → role overrides → default.
+ *
+ * @param path - The incoming request path (e.g. `"/v1/carts"`).
+ * @param role - Optional resolved role (`"admin"` | `"public"`).
+ */
 export function getLimitForRequest(path: string, role?: 'admin' | 'public'): RateLimitConfig {
   // Check endpoint-specific overrides first
   for (const [prefix, config] of Object.entries(rateLimits.endpoints)) {

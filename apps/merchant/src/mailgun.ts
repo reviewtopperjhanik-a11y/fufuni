@@ -31,6 +31,9 @@
  * - MAILGUN_BASE_URL (optional; defaults to https://api.mailgun.net)
  */
 
+/**
+ * Options for sending an email via Mailgun.
+ */
 export type SendMailOptions = {
   to: string | string[];
   subject: string;
@@ -41,6 +44,9 @@ export type SendMailOptions = {
   bcc?: string | string[];
 };
 
+/**
+ * Result returned by {@link sendMailgunEmail}.
+ */
 export type SendMailResult = {
   success: boolean;
   status: number;
@@ -50,6 +56,17 @@ export type SendMailResult = {
 
 import type { Env } from './types';
 
+/**
+ * Sends an email via the Mailgun API.
+ *
+ * Reads `MAILGUN_API_KEY`, `MAILGUN_DOMAIN`, and optionally `MAILGUN_BASE_URL`
+ * from the worker environment.
+ *
+ * @param env     - The worker environment bindings.
+ * @param options - Email headers and body content.
+ * @returns       A result object with HTTP status and the Mailgun response body.
+ * @throws        If `MAILGUN_API_KEY` or `MAILGUN_DOMAIN` are not set.
+ */
 export async function sendMailgunEmail(env: Env, options: SendMailOptions): Promise<SendMailResult> {
   const apiKey = env.MAILGUN_API_KEY;
   const domain = env.MAILGUN_DOMAIN;

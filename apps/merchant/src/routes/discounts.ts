@@ -40,6 +40,10 @@ import {
 
 type DiscountType = 'percentage' | 'fixed_amount';
 
+/**
+ * Discount record as stored in the database and returned by the API.
+ * Used internally by cart and checkout routes to validate and apply coupon codes.
+ */
 export interface Discount {
   id: string;
   code: string | null;
@@ -57,6 +61,16 @@ export interface Discount {
   stripe_promotion_code_id: string | null;
 }
 
+/**
+ * Validates that a discount code is applicable to the given cart.
+ * Throws an {@link ApiError} if the discount is inactive, expired,
+ * below the minimum purchase threshold, or usage-limited.
+ *
+ * @param db            - Database instance.
+ * @param discount      - The resolved discount record.
+ * @param subtotalCents - Cart subtotal in cents (before discount).
+ * @param customerEmail - Optional customer email for per-customer usage checks.
+ */
 export async function validateDiscount(
   db: Database,
   discount: Discount,
@@ -96,6 +110,16 @@ export async function validateDiscount(
   }
 }
 
+/**
+ * Computes the discount amount in cents for a given subtotal.
+ *
+ * - `"percentage"` discounts are capped by `max_discount_cents` when set.
+ * - `"fixed_amount"` discounts are capped at the subtotal.
+ *
+ * @param discount       - The discount record.
+ * @param subtotalCents  - Cart subtotal before discount, in cents.
+ * @returns Discount amount in cents (non-negative).
+ */
 export function calculateDiscount(discount: Discount, subtotalCents: number): number {
   switch (discount.type) {
     case 'percentage': {

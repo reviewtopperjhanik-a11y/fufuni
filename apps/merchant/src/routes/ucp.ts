@@ -830,8 +830,19 @@ ucp.delete('/ucp/v1/checkout-sessions/:id', async (c) => {
 // UCP ORDER CAPABILITY - Webhook handler for Stripe completion
 // ============================================================
 
-// This is called by Stripe webhook when checkout.session.completed
-// It completes the UCP checkout session and creates an order
+/**
+ * Handles a `checkout.session.completed` Stripe webhook for UCP checkout sessions.
+ *
+ * Looks up the internal UCP checkout session via `ucp_checkout_session_id` from
+ * the Stripe session metadata, marks it as `completed`, decrements inventory,
+ * and creates an order record.
+ *
+ * Called by the main Stripe webhook route; not exposed directly as an HTTP endpoint.
+ *
+ * @param db              - Database instance.
+ * @param stripeSessionId - The Stripe `checkout.session` ID.
+ * @param stripeSession   - The full Stripe `Checkout.Session` object from the event.
+ */
 export async function handleUCPStripeWebhook(
   db: Database,
   stripeSessionId: string,

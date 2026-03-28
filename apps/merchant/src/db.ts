@@ -24,11 +24,22 @@
 
 import { type DOStub } from './types';
 
+/**
+ * Thin database abstraction that wraps the Durable Object SQL methods.
+ * Provides `query<T>` for SELECT statements and `run` for INSERT/UPDATE/DELETE.
+ */
 export type Database = {
   query: <T = unknown>(sql: string, params?: unknown[]) => Promise<T[]>;
   run: (sql: string, params?: unknown[]) => Promise<{ changes: number }>;
 };
 
+/**
+ * Creates a {@link Database} helper from a {@link DOStub}.
+ * Routes all SQL calls through the Durable Object's `query` / `run` RPC methods.
+ *
+ * @param stub - The Durable Object stub obtained from the `MERCHANT` binding.
+ * @returns A `Database` instance ready for use in route handlers.
+ */
 export function getDb(stub: DOStub): Database {
   return {
     async query<T = unknown>(sql: string, params: unknown[] = []): Promise<T[]> {

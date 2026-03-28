@@ -153,24 +153,51 @@ export type Env = {
 
 };
 
+/**
+ * Minimal interface of the Durable Object's SQL helper methods exposed to the
+ * Hono application layer via `getDb()`.  Matches the actual DO stub API.
+ */
 export type DOStub = {
   query: <T = unknown>(sql: string, params: unknown[]) => Promise<T[]>;
   run: (sql: string, params: unknown[]) => Promise<{ changes: number }>;
   broadcast: (event: { type: string; data: unknown; timestamp: string }) => void;
 };
 
+/**
+ * Hono context variables populated by the auth middleware.
+ * Available via `c.var.db` and `c.var.auth` inside route handlers.
+ */
 export type Variables = {
   db: DOStub;
   auth: AuthContext;
 };
 
+/**
+ * Full Hono environment generic used when creating the app (`new Hono<HonoEnv>()`).
+ * Combines `Env` (Worker bindings) with the context `Variables` type.
+ */
 export type HonoEnv = {
   Bindings: Env;
   Variables: Variables;
 };
 
+/**
+ * Authentication role assigned to a request by the auth middleware.
+ * - `'public'`  — unauthenticated or public-key request
+ * - `'admin'`   — Admin API key or Auth0 token with `admin:store` permission
+ * - `'oauth'`   — OAuth API key with specific scopes
+ * - `'authadmin'`     — token with `admin:auth0` permission
+ * - `'databaseadmin'` — token with `admin:database` permission
+ * - `'aiadmin'`       — token with AI permission
+ * - `'mail'`          — token with `mail:api` permission
+ * - `'customer'`      — Auth0 token with no specific admin permission
+ */
 export type AuthRole = 'public' | 'admin' | 'oauth' | 'authadmin' | 'databaseadmin' | 'aiadmin' | 'mail' | 'customer';
 
+/**
+ * Parsed authentication context stored as `c.var.auth` after the auth
+ * middleware has successfully validated the incoming request.
+ */
 export type AuthContext = {
   role: AuthRole | AuthRole[];
   stripeSecretKey: string | null;
@@ -184,6 +211,16 @@ export type AuthContext = {
   user_metadata?: Record<string, any>;
 };
 
+/**
+ * Structured HTTP error thrown by route handlers and middleware.
+ * Hono's global error handler converts this into the standard JSON error
+ * envelope (`{ error: { code, message, details } }`) with the correct HTTP
+ * status code.
+ *
+ * @example
+ * throw ApiError.notFound('Product not found');
+ * throw ApiError.invalidRequest('sku is required', { field: 'sku' });
+ */
 export class ApiError extends Error {
   constructor(
     public code: string,
@@ -225,14 +262,28 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Generates a random UUID v4 using the Web Crypto API.
+ * @returns A new lowercase UUID string (e.g. `"550e8400-e29b-41d4-a716-446655440000"`).
+ */
 export function uuid(): string {
   return crypto.randomUUID();
 }
 
+/**
+ * Returns the current date and time as an ISO 8601 string (`YYYY-MM-DDTHH:mm:ss.sssZ`).
+ * Used for `created_at` / `updated_at` columns.
+ */
 export function now(): string {
   return new Date().toISOString();
 }
 
+/**
+ * Generates a human-readable, collision-resistant order number.
+ * Format: `ORD-YYMMDD-XXXX` where `XXXX` is a random alphanumeric suffix.
+ *
+ * @returns A string such as `"ORD-260328-AB3Z"`.
+ */
 export function generateOrderNumber(): string {
   const now = new Date();
   const datePart = now.toISOString().slice(2, 10).replace(/-/g, '');
@@ -244,6 +295,13 @@ export function generateOrderNumber(): string {
   return `ORD-${datePart}-${suffix}`;
 }
 
+/**
+ * Lightweight regex-based email format validator.
+ * Does not verify deliverability or DNS — use only as a quick sanity check.
+ *
+ * @param email - The email address string to test.
+ * @returns `true` if `email` matches the basic `local@domain.tld` pattern.
+ */
 export function isValidEmail(email: string): boolean {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);

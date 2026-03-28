@@ -25,6 +25,9 @@
 import { getDb, type Database } from '../db';
 import { uuid, now, type DOStub } from '../types';
 
+/**
+ * Union of all event type strings that can be dispatched to registered webhooks.
+ */
 export type WebhookEventType =
   | 'order.created'
   | 'order.updated'
@@ -32,6 +35,10 @@ export type WebhookEventType =
   | 'order.refunded'
   | 'inventory.low';
 
+/**
+ * The envelope object sent to webhook subscriber URLs.
+ * Matches the standard webhook payload structure.
+ */
 export type WebhookPayload = {
   id: string;
   type: WebhookEventType;
@@ -57,6 +64,10 @@ async function signPayload(payload: string, secret: string): Promise<string> {
     .join('');
 }
 
+/**
+ * Generates a cryptographically random webhook signing secret.
+ * @returns A `"whsec_"` prefixed 64-character hex string.
+ */
 export function generateWebhookSecret(): string {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
@@ -68,6 +79,16 @@ export function generateWebhookSecret(): string {
   );
 }
 
+/**
+ * Fans out a webhook event to all active subscribers that have opted in to
+ * `eventType`. For each matching webhook, creates a `webhook_deliveries` row
+ * and schedules an async delivery attempt via `ctx.waitUntil`.
+ *
+ * @param stub      - The Durable Object stub for database access.
+ * @param ctx       - The Worker `ExecutionContext` for `waitUntil`.
+ * @param eventType - The event to dispatch (e.g. `"order.created"`).
+ * @param data      - Arbitrary event payload data.
+ */
 export async function dispatchWebhooks(
   stub: DOStub,
   ctx: ExecutionContext,
@@ -196,6 +217,13 @@ async function deliverWebhook(
   );
 }
 
+/**
+ * Re-attempts delivery of a previously failed webhook delivery record.
+ *
+ * @param stub     - The Durable Object stub.
+ * @param webhook  - The target webhook configuration.
+ * @param delivery - The delivery record with its serialized payload.
+ */
 export async function retryDelivery(
   stub: DOStub,
   webhook: { id: string; url: string; secret: string },
@@ -205,6 +233,15 @@ export async function retryDelivery(
   await deliverWebhook(stub, webhook.id, webhook.url, webhook.secret, delivery.id, payload);
 }
 
+/**
+ * Dispatches an `"inventory.low"` event if the available quantity for a SKU
+ * is at or below the low-inventory threshold.
+ *
+ * @param stub      - The Durable Object stub.
+ * @param ctx       - The Worker `ExecutionContext` for `waitUntil`.
+ * @param sku       - The SKU to check.
+ * @param available - Current available quantity (on_hand − reserved).
+ */
 export async function checkLowInventory(
   stub: DOStub,
   ctx: ExecutionContext,
@@ -220,6 +257,14 @@ export async function checkLowInventory(
   }
 }
 
+/**
+ * Fetches all `failed` delivery records from the last 24 hours that have not
+ * yet exceeded `MAX_ATTEMPTS`, and retries each one via `ctx.waitUntil`.
+ *
+ * @param stub - The Durable Object stub.
+ * @param ctx  - The Worker `ExecutionContext`.
+ * @returns The number of deliveries scheduled for retry.
+ */
 export async function retryFailedDeliveries(stub: DOStub, ctx: ExecutionContext): Promise<number> {
   const db = getDb(stub);
 
