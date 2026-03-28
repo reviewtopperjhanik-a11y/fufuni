@@ -24,6 +24,7 @@ import { Select, Label, ListBox } from "@heroui/react";
 import { Table } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
+import { Checkbox } from "@heroui/react";
 import { Wand2, Image as ImageIcon } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
@@ -68,6 +69,19 @@ interface Variant {
 }
 
 /**
+ * Category with multilingual support.
+ */
+interface Category {
+  id: string;
+  handle: string;
+  name: string;
+  description?: string | null;
+  image_url?: string | null;
+  status: "active" | "inactive";
+  created_at: string;
+}
+
+/**
  * Represents a product with metadata and its variants.
  */
 interface Product {
@@ -80,6 +94,7 @@ interface Product {
   vendor?: string | null;
   tags?: string[] | null;
   handle?: string | null;
+  categories?: Category[] | null;
 }
 
 /**
@@ -117,7 +132,7 @@ const STATUS_OPTIONS = ["", "active", "draft"];
  */
 export default function ProductsPage() {
   const { t, i18n } = useTranslation();
-  const { getJson, postJson, patchJson } = useSecuredApi();
+  const { getJson, postJson, patchJson, deleteJson } = useSecuredApi();
 
   const defaultLocale =
     availableLanguages.find((l) => l.isDefault)?.code ?? "en-US";
@@ -140,6 +155,13 @@ export default function ProductsPage() {
   const [globalFilter, setGlobalFilter] = useState<string>("");
   const [shippingClasses, setShippingClasses] = useState<ShippingClass[]>([]);
   const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
+  const [allCategories, setAllCategories] = useState<Category[]>([]);
+
+  // categories modal
+  const [categoriesModal, setCategoriesModal] = useState(false);
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
+    new Set()
+  );
 
   // create / edit modal
   const [createModal, setCreateModal] = useState(false);
@@ -231,6 +253,21 @@ export default function ProductsPage() {
     loadTaxRates();
   }, []);
 
+  // load categories
+  useEffect(() => {
+    const loadCategories = async () => {
+      try {
+        const resp = await getJson(`${apiBase}/v1/categories?limit=1000`);
+
+        setAllCategories(resp.items || []);
+      } catch (err) {
+        console.error("Failed to load categories", err);
+      }
+    };
+
+    loadCategories();
+  }, []);
+
   // sync display values when locale changes
   useEffect(() => {
     setFormVendorValue(getVendorForLocale(formVendor, selectedLocale));
@@ -267,7 +304,94 @@ export default function ProductsPage() {
     setFormTagsValue("");
     setFormHandle("");
     setFormHandleValue("");
+    setSelectedCategoryIds(new Set());
     setCreateModal(true);
+  };
+
+  /**
+   * Resolve category name for the given locale.
+   */
+  const getCategoryNameForLocale = (category: Category, locale: string): string => {
+    try {
+      const parsed = JSON.parse(category.name);
+      return parsed[locale] || parsed[defaultLocale] || category.handle || category.id;
+    } catch {
+      return category.name || category.handle || category.id;
+    }
+  };
+
+  /**
+   * Open categories selection modal for current product.
+   */
+  const openCategoriesModal = () => {
+    if (editingProduct && editingProduct.categories) {
+      const ids = new Set(editingProduct.categories.map((c) => c.id));
+      setSelectedCategoryIds(ids);
+    } else {
+      setSelectedCategoryIds(new Set());
+    }
+    setCategoriesModal(true);
+  };
+
+  /**
+   * Save selected categories for the current product.
+   * Uses API endpoints: POST /v1/categories/:id/products and DELETE /v1/categories/:id/products/:productId
+   */
+  const saveCategoriesForProduct = async () => {
+    if (!editingProduct) return;
+
+    try {
+      const currentCategoryIds = new Set(
+        (editingProduct.categories || []).map((c) => c.id)
+      );
+      const newCategoryIds = selectedCategoryIds;
+
+      // Find categories to remove and add
+      const categoriesToRemove = Array.from(currentCategoryIds).filter(
+        (id) => !newCategoryIds.has(id)
+      );
+      const categoriesToAdd = Array.from(newCategoryIds).filter(
+        (id) => !currentCategoryIds.has(id)
+      );
+
+      // Remove product from categories
+      for (const categoryId of categoriesToRemove) {
+        await deleteJson(
+          `${apiBase}/v1/categories/${categoryId}/products/${editingProduct.id}`
+        );
+      }
+
+      // Add product to categories
+      for (const categoryId of categoriesToAdd) {
+        await postJson(
+          `${apiBase}/v1/categories/${categoryId}/products`,
+          { product_ids: [editingProduct.id] }
+        );
+      }
+
+      // Update local state
+      const updatedCategories = Array.from(newCategoryIds)
+        .map((id) => allCategories.find((c) => c.id === id))
+        .filter((c) => c !== undefined) as Category[];
+
+      setEditingProduct({
+        ...editingProduct,
+        categories: updatedCategories,
+      });
+
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === editingProduct.id
+            ? { ...p, categories: updatedCategories }
+            : p
+        )
+      );
+
+      setCategoriesModal(false);
+    } catch (err) {
+      console.error("Error saving categories", err);
+      alert(t("admin-products-categories-save-error") || "Error saving categories");
+    }
   };
 
   /**
@@ -292,6 +416,11 @@ export default function ProductsPage() {
         : "",
     );
     setFormHandle(p.handle || "");
+    if (p.categories) {
+      setSelectedCategoryIds(new Set(p.categories.map((c) => c.id)));
+    } else {
+      setSelectedCategoryIds(new Set());
+    }
 
     // Open the modal before the network load completes
     setCreateModal(true);
@@ -310,6 +439,9 @@ export default function ProductsPage() {
         (full as any).tags ? ((full as any).tags as string[]).join(", ") : "",
       );
       setFormHandle((full as any).handle || "");
+      if (full.categories) {
+        setSelectedCategoryIds(new Set((full.categories as Category[]).map((c) => c.id)));
+      }
     } catch (err) {
       console.error("Error loading product", err);
       setEditingProduct(p);
@@ -885,6 +1017,54 @@ export default function ProductsPage() {
                       </div>
                     </form>
 
+                    {/* Categories section */}
+                    {editingProduct && (
+                      <Card>
+                        <Card.Content className="space-y-3">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h3 className="text-sm font-semibold">
+                                {t("admin-products-categories")}
+                              </h3>
+                              <p className="text-xs text-default-500 mt-1">
+                                {selectedLocale}
+                              </p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="primary"
+                              onPress={openCategoriesModal}
+                            >
+                              {t("admin-products-btn-manage-categories")}
+                            </Button>
+                          </div>
+
+                          {/* Display current categories with scroll if > 3 */}
+                          {editingProduct.categories && editingProduct.categories.length > 0 ? (
+                            <div className={`space-y-2 ${editingProduct.categories.length > 3 ? "max-h-48 overflow-y-auto" : ""}`}>
+                              {editingProduct.categories.map((cat) => (
+                                <div
+                                  key={cat.id}
+                                  className="flex items-center justify-between p-2 rounded border bg-default-50"
+                                >
+                                  <span className="text-sm">
+                                    {getCategoryNameForLocale(cat, selectedLocale)}
+                                  </span>
+                                  <span className="text-xs text-default-500">
+                                    {cat.handle}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <p className="text-sm text-default-500">
+                              {t("admin-products-no-categories")}
+                            </p>
+                          )}
+                        </Card.Content>
+                      </Card>
+                    )}
+
                     {/* Variants section */}
                     {editingProduct && (
                       <Card>
@@ -1210,6 +1390,103 @@ export default function ProductsPage() {
                       {editingVariant
                         ? t("save")
                         : t("admin-products-btn-add-variant")}
+                    </Button>
+                  </Modal.Footer>
+                </>
+              )}
+            </Modal.Dialog>
+          </Modal.Container>
+        </Modal.Backdrop>
+      </Modal>
+
+      {/* Categories selection modal */}
+      <Modal
+        isOpen={categoriesModal}
+        onOpenChange={(open) => {
+          setCategoriesModal(open);
+          if (!open) {
+            setSelectedCategoryIds(new Set());
+          }
+        }}
+      >
+        <Modal.Backdrop>
+          <Modal.Container>
+            <Modal.Dialog>
+              {({ close }) => (
+                <>
+                  <Modal.CloseTrigger onPress={close} />
+                  <Modal.Header>
+                    {t("admin-products-modal-title-categories")}
+                  </Modal.Header>
+                  <Modal.Body>
+                    <div className="space-y-3">
+                      {allCategories.length > 0 ? (
+                        <div className="max-h-96 overflow-y-auto space-y-2">
+                          {allCategories.map((cat) => (
+                            <div
+                              key={cat.id}
+                              className="flex items-center gap-3 p-2 rounded hover:bg-default-100"
+                            >
+                              <Checkbox
+                                id={`category-${cat.id}`}
+                                isSelected={selectedCategoryIds.has(cat.id)}
+                                onChange={(isSelected) => {
+                                  const newIds = new Set(selectedCategoryIds);
+                                  if (isSelected) {
+                                    newIds.add(cat.id);
+                                  } else {
+                                    newIds.delete(cat.id);
+                                  }
+                                  setSelectedCategoryIds(newIds);
+                                }}
+                              >
+                                <Checkbox.Control>
+                                  <Checkbox.Indicator />
+                                </Checkbox.Control>
+                                <Checkbox.Content>
+                                  <Label htmlFor={`category-${cat.id}`} className="flex-1">
+                                    <div className="flex-1 min-w-0">
+                                      <p className="text-sm font-medium">
+                                        {getCategoryNameForLocale(cat, selectedLocale)}
+                                      </p>
+                                      <p className="text-xs text-default-500">
+                                        {cat.handle}
+                                      </p>
+                                    </div>
+                                  </Label>
+                                </Checkbox.Content>
+                              </Checkbox>
+                              {cat.image_url && (
+                                <img
+                                  alt={cat.handle}
+                                  className="w-8 h-8 object-cover rounded shrink-0"
+                                  src={cat.image_url}
+                                />
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="text-sm text-default-500">
+                          {t("admin-products-no-categories-available")}
+                        </p>
+                      )}
+                    </div>
+                  </Modal.Body>
+                  <Modal.Footer>
+                    <Button
+                      onPress={() => {
+                        setCategoriesModal(false);
+                        setSelectedCategoryIds(new Set());
+                      }}
+                    >
+                      {t("admin-products-btn-cancel")}
+                    </Button>
+                    <Button
+                      onPress={saveCategoriesForProduct}
+                      variant="primary"
+                    >
+                      {t("save")}
                     </Button>
                   </Modal.Footer>
                 </>
