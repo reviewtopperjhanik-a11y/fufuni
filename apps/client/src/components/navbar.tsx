@@ -25,24 +25,24 @@ import { clsx } from "clsx";
 import { Trans, useTranslation } from "react-i18next";
 import { useNavigate, Link as RouterLink } from "react-router-dom";
 import { useState } from "react";
-import { I18nIcon, LanguageSwitch } from "./language-switch";
+import { I18nIcon, LanguageSwitch } from "@/shared/ui/navigation/language-switch";
 
 import { AuthenticationGuardWithPermission, useAuth } from "@/authentication";
 import { siteConfig } from "@/config/site";
-import { ThemeSwitch } from "@/components/theme-switch";
+import { ThemeSwitch } from "@/shared/ui/navigation/theme-switch";
 import {
   TwitterIcon,
   GithubIcon,
   DiscordIcon,
   HeartFilledIcon,
   SearchIcon,
-} from "@/components/icons";
-import { Logo } from "@/components/icons";
-import { useCart } from "@/hooks/useCart";
+} from "@/shared/ui/icons";
+import { Logo } from "@/shared/ui/icons";
+import { useCart } from "@/hooks/use-cart";
 import { ShoppingCart, ChevronDown, ShieldCheck } from "lucide-react";
 import { availableLanguages } from "@/i18n";
-import { LoginModal } from '../modals/LoginModal';
-import { UserListsMenu } from "./user-lists-menu";
+import { LoginModal } from "@/features/auth/components/login-modal";
+import { UserListsMenu } from "@/components/user-lists-menu";
 
 export const Navbar = () => {
   const { t } = useTranslation();
@@ -118,7 +118,7 @@ export const Navbar = () => {
               </Button>
             </li>
           )}
-          <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+          <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)}/>
           <AuthenticationGuardWithPermission permission="admin:store">
             <li className="hidden lg:block">
               <Dropdown>

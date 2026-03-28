@@ -21,7 +21,7 @@ import {
   AuthGuardProps,
 } from "./auth-provider";
 
-import { getLocalJwkSet } from "@/authentication/utils/jwks";
+import { getLocalJwkSet } from "@/features/auth/utils/jwks";
 
 /**
  * Auth0 implementation of the AuthProvider interface

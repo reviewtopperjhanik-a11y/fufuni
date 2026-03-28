@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useAuth } from '@/authentication/providers/use-auth';
+import { useAuth } from '@/authentication';
 import {
   Modal,
   Button,
@@ -27,7 +27,7 @@ import {
 } from '@heroui/react';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import FufuniLogo from '../assets/fufuni_logo_02.svg';
+import FufuniLogo from '@/assets/fufuni_logo_02.svg';
 
 interface LoginModalProps {
   isOpen: boolean;
@@ -98,6 +98,18 @@ export function LoginModal({ isOpen: _isOpen, onClose: _onClose, returnTo, pendi
     window.location.origin,
   ).toString();
 
+  // if returnTo is not provided contsruct it from the current location path minus the base URL (to avoid redirecting to the root of the app after login)
+  if (!returnTo) {
+    const currentPath = window.location.pathname;
+    const baseUrl = import.meta.env.BASE_URL || "/";
+    if (currentPath.startsWith(baseUrl)) {
+      returnTo = currentPath.slice(baseUrl.length) || "/";
+    } else {
+      returnTo = returnTo; // fallback to full path if it doesn't start with base URL
+    }
+  }
+
+  // console.log("LoginModal rendered with props:", { _isOpen,redirectUri, returnTo, pendingWishlistProduct, baseUrl: import.meta.env.BASE_URL });
   if (isAuthenticated) {
     // Already logged in: no need to show login modal
     return null;
@@ -114,7 +126,7 @@ export function LoginModal({ isOpen: _isOpen, onClose: _onClose, returnTo, pendi
           redirect_uri: redirectUri,
         },
         appState: {
-          returnTo: returnTo || window.location.pathname,
+          returnTo: returnTo ,
           pendingWishlistProduct,
         },
       });

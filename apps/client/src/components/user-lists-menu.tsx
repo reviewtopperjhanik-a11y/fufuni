@@ -10,17 +10,17 @@ import {
   Badge,
   Header,
 } from "@heroui/react";
-import { useAuth } from "@/authentication/providers/use-auth";
+import { useAuth } from "@/authentication";
 import { useTranslation } from "react-i18next";
 import { useQuery } from "@tanstack/react-query";
 import { Heart, Bookmark, User as UserIcon } from "lucide-react";
-import { useWishlist } from "@/hooks/useWishlist";
-import { useSavedCarts, type SavedCartSnapshot } from "@/hooks/useSavedCarts";
+import { useWishlist } from "@/hooks/use-wishlist";
+import { useSavedCarts, type SavedCartSnapshot } from "@/hooks/use-saved-carts";
 import { useNavigate } from "react-router-dom";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitle } from "@/utils/description";
 import { getProduct, type StoreProduct } from "@/lib/store-api";
-import { SavedCartModal } from "@/modals/saved-cart-modal";
+import { SavedCartModal } from "@/features/saved-carts/components/saved-cart-modal";
 
 export function UserListsMenu() {
   const { t, i18n } = useTranslation();

@@ -7,7 +7,7 @@ import type {
   Auth0ManagementTokenApiResponse,
   Auth0User,
   Auth0Permission,
-} from "../types/auth0.types";
+} from "@/types/auth0.types";
 
 import { FC, ReactNode, useEffect, useState } from "react";
 import { Button } from "@heroui/react";
@@ -15,13 +15,13 @@ import { Tooltip } from "@heroui/react";
 import { Link } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
-import { SiteLoading } from "../components/site-loading";
+import { SiteLoading } from "@/shared/ui/feedback/site-loading";
 
 import {
   useAuth,
   getNameWithFallback,
   withAuthentication,
-} from "./providers/use-auth";
+} from "../providers/use-auth";
 
 /**
  * Renders the user's profile name with a tooltip showing their username.

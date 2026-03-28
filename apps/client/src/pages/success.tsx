@@ -21,7 +21,7 @@ import { useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
 import DefaultLayout from "@/layouts/default";
-import { useCart } from "@/hooks/useCart";
+import { useCart } from "@/hooks/use-cart";
 import { resolveTaxName } from "@/utils/description";
 
 // Shape of the order returned by GET /v1/orders/lookup

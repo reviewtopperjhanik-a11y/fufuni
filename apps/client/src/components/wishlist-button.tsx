@@ -5,12 +5,12 @@
 
 import { Button, Tooltip } from '@heroui/react';
 import { Heart } from 'lucide-react';
-import { useWishlist } from '@/hooks/useWishlist';
-import { useAuth } from '@/authentication/providers/use-auth';
+import { useWishlist } from '@/hooks/use-wishlist';
+import { useAuth } from '@/authentication';
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
-import { LoginModal } from '../modals/LoginModal';
+import { LoginModal } from '@/features/auth/components/login-modal';
 
 interface WishlistButtonProps {
   productId: string;

@@ -39,7 +39,7 @@ import {
 } from '@/utils/description';
 import { translateWithAi, type AiParams } from '@/utils/ai-client';
 
-import './RichDescriptionEditor.css';
+import './rich-description-editor.css';
 
 interface RichDescriptionEditorProps {
   /** Raw value from the DB: plain HTML legacy or LocalizedDesc JSON */

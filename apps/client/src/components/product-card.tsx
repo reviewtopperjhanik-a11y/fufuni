@@ -21,7 +21,7 @@ import { useNavigate } from "react-router-dom";
 import { Button } from "@heroui/react";
 import { StoreProduct } from "@/lib/store-api";
 import { useTranslation } from "react-i18next";
-import { useCart } from "@/hooks/useCart";
+import { useCart } from "@/hooks/use-cart";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitle } from "@/utils/description";
 

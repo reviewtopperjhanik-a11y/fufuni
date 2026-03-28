@@ -4,7 +4,7 @@
  */
 
 import { useCallback } from "react";
-import { useAuth } from "@/authentication/providers/use-auth";
+import { useAuth } from "@/authentication";
 
 export const TOKEN_REFRESHED_EVENT = "fufuni:token-refreshed";
 

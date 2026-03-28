@@ -21,7 +21,7 @@ import { Auth0Provider } from "@auth0/auth0-react";
 import { useNavigate } from "react-router-dom";
 
 import { AuthProviderWrapper } from "./providers/use-auth";
-import { AutoPermissionProvisioner } from "./auth-components";
+import { AutoPermissionProvisioner } from "./components/auth-components";
 
 // Provider types we support
 export type AuthenticationType = "auth0" | "dex";

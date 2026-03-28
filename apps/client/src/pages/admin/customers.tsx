@@ -31,7 +31,7 @@ import {
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
-import { SearchIcon } from "@/components/icons";
+import { SearchIcon } from "@/shared/ui/icons";
 import { formatMoney } from "@/utils/currency";
 
 // --- typings -------------------------------------------------------------

@@ -29,12 +29,12 @@ import { Wand2, Image as ImageIcon } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
-import { SearchIcon } from "@/components/icons";
-import { ImageUploadInput } from "@/components/ImageUploadInput";
+import { SearchIcon } from "@/shared/ui/icons";
+import { ImageUploadInput } from "@/components/image-upload-input";
 import { formatMoney } from "@/utils/currency";
-import { VariantPrices } from "@/components/VariantPrices";
-import { RichDescriptionEditor } from "@/components/RichDescriptionEditor";
-import { LocalizedTitleInput } from "@/components/LocalizedTitleInput";
+import { VariantPrices } from "@/components/variant-prices";
+import { RichDescriptionEditor } from "@/components/rich-description-editor";
+import { LocalizedTitleInput } from "@/components/localized-title-input";
 import {
   resolveTitle,
   titleMatchesTerm,

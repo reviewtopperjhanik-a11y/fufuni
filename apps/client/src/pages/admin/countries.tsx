@@ -32,7 +32,7 @@ import {
 } from "@heroui/react";
 import { Plus, Edit2, Trash2 } from "lucide-react";
 
-import { SearchIcon } from "@/components/icons";
+import { SearchIcon } from "@/shared/ui/icons";
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 

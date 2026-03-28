@@ -18,7 +18,7 @@
 
 import { useTranslation } from "react-i18next";
 
-import { title } from "@/components/primitives";
+import { title } from "@/shared/ui/primitives";
 import DefaultLayout from "@/layouts/default";
 
 export default function DocsPage() {

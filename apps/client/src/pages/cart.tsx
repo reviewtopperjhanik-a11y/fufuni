@@ -1,6 +1,6 @@
 import { useTranslation } from "react-i18next";
 import DefaultLayout from "@/layouts/default";
-import { useCart } from "@/hooks/useCart";
+import { useCart } from "@/hooks/use-cart";
 import { createCart, addItemsToCart, checkoutCart } from "@/lib/store-api";
 import { Input } from "@heroui/react";
 import { Card} from "@heroui/react";
@@ -8,10 +8,10 @@ import { Button } from "@heroui/react";
 import { useState } from "react";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitleWithVariant } from "@/utils/description";
-import ShippingAddressForm from "@/components/ShippingAddressForm";
-import ShippingRateSelector from "@/components/ShippingRateSelector";
-import { useAuth } from "@/authentication/providers/use-auth";
-import { SaveCartButton } from "@/components/SaveCartButton";
+import ShippingAddressForm from "@/components/shipping-address-form";
+import ShippingRateSelector from "@/components/shipping-rate-selector";
+import { useAuth } from "@/authentication";
+import { SaveCartButton } from "@/components/save-cart-button";
 
 type CheckoutStep = "initial" | "shipping-address" | "shipping-rate" | "processing";
 

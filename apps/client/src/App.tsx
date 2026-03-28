@@ -19,7 +19,7 @@
 import { Route, Routes } from "react-router-dom";
 import { Suspense } from "react";
 
-import { SiteLoading } from "./components/site-loading";
+import { SiteLoading } from "@/shared/ui/feedback/site-loading";
 import { PageNotFound } from "./pages/404";
 import { AuthenticationGuard, AuthenticationGuardWithPermission, useAuth } from "./authentication";
 
@@ -46,12 +46,12 @@ import CartPage from "@/pages/cart";
 import ProductPage from "@/pages/product";
 import SuccessPage from "@/pages/success";
 import OrderPage from "@/pages/order";
-import AccountLayout from "@/pages/account/AccountLayout";
-import Dashboard from "@/pages/account/Dashboard";
-import OrderHistory from "@/pages/account/OrderHistory";
-import OrderDetail from "@/pages/account/OrderDetail";
-import Addresses from "@/pages/account/Addresses";
-import Preferences from "@/pages/account/Preferences";
+import AccountLayout from "@/pages/account/account-layout";
+import Dashboard from "@/pages/account/dashboard";
+import OrderHistory from "@/pages/account/order-history";
+import OrderDetail from "@/pages/account/order-detail";
+import Addresses from "@/pages/account/addresses";
+import Preferences from "@/pages/account/preferences";
 import LoginPage from "@/pages/Login";
 import CategoriesPage from "./pages/admin/categories";
 

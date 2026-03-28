@@ -13,8 +13,8 @@ import {
   useOverlayState,
   Table,
   Link as HeroUILink} from "@heroui/react";
-import { useSavedCarts } from "@/hooks/useSavedCarts";
-import { SavedCartSnapshot } from "@/hooks/useSavedCarts";
+import { useSavedCarts } from "@/hooks/use-saved-carts";
+import { SavedCartSnapshot } from "@/hooks/use-saved-carts";
 import { formatMoney } from "@/utils/currency";
 
 /**

@@ -13,7 +13,7 @@ import {
   Link as HeroUILink,
 } from "@heroui/react";
 
-import { useAuth } from "../../authentication/providers/use-auth";
+import { useAuth } from "@/authentication";
 
 import DefaultLayout from "@/layouts/default";
 

@@ -18,7 +18,7 @@
 
 import type React from "react";
 import { Toast } from "@heroui/react";
-import { CartProvider } from "@/hooks/useCart";
+import { CartProvider } from "@/hooks/use-cart";
 
 export function Provider({ children }: { children: React.ReactNode }) {
   return (

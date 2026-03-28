@@ -21,7 +21,7 @@ import { clsx } from "clsx";
 import { useTranslation } from "react-i18next";
 
 import { useTheme } from "@/hooks/use-theme";
-import { SunFilledIcon, MoonFilledIcon } from "@/components/icons";
+import { SunFilledIcon, MoonFilledIcon } from "@/shared/ui/icons";
 
 export interface ThemeSwitchProps {
   className?: string;

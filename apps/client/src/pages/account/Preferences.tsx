@@ -18,7 +18,7 @@ import {
   Separator,
 } from "@heroui/react";
 
-import { useAuth } from "../../authentication/providers/use-auth";
+import { useAuth } from "@/authentication";
 
 import { availableLanguages } from "@/i18n";
 

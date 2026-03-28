@@ -21,13 +21,13 @@ export {
   useAuth,
   getNameWithFallback,
   withAuthentication,
-} from "./providers/use-auth";
+} from "@/features/auth/providers/use-auth";
 export {
   useAuth0Provider,
   withAuth0Authentication,
-} from "./providers/auth0-provider";
-// export { useDexProvider } from './providers/dex-provider';
-export { AuthenticationProvider, type AuthenticationType } from "./auth-root";
+} from "@/features/auth/providers/auth0-provider";
+// export { useDexProvider } from '@/features/auth/providers/dex-provider';
+export { AuthenticationProvider, type AuthenticationType } from "@/features/auth/auth-root";
 
 // Export interfaces
 export type {
@@ -39,7 +39,7 @@ export type {
   AuthProviderConfig,
   AuthGuardProps,
   AuthPermissionGuardProps,
-} from "./providers/auth-provider";
+} from "@/features/auth/providers/auth-provider";
 
 // Export UI components
 export {
@@ -53,4 +53,4 @@ export {
   AuthenticationGuard,
   AuthenticationGuardWithPermission,
   useSecuredApi,
-} from "./auth-components";
+} from "@/features/auth/components/auth-components";

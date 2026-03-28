@@ -8,7 +8,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { Card, Spinner, Button, Chip, Separator, Table } from "@heroui/react";
 
-import { useAuth } from "../../authentication/providers/use-auth";
+import { useAuth } from "@/authentication";
 import { downloadInvoicePdf } from "../../utils/invoice-pdf";
 
 interface OrderItem {

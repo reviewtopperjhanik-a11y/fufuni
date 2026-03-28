@@ -5,7 +5,7 @@
 
 import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useAuth } from '../authentication/providers/use-auth';
+import { useAuth } from '@/authentication';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { TextField, Label, Input, Card, Button } from '@heroui/react';
 import { X } from 'lucide-react';
@@ -68,7 +68,7 @@ export default function LoginPage() {
 
   if (sent) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
         <Card className="w-full max-w-md">
           <Card.Header className="flex gap-3 justify-center">
             <div className="text-center">
@@ -111,7 +111,7 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-linear-to-br from-blue-50 to-indigo-100 p-4">
       <Card className="w-full max-w-md">
         <Card.Header className="flex gap-3 flex-col justify-center">
           <div className="text-center">

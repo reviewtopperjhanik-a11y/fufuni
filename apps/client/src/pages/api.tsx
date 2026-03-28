@@ -20,7 +20,7 @@ import { Trans, useTranslation } from "react-i18next";
 import { useEffect, useState } from "react";
 import { Button, Tooltip } from "@heroui/react";
 
-import { title } from "@/components/primitives";
+import { title } from "@/shared/ui/primitives";
 import DefaultLayout from "@/layouts/default";
 import { useAuth, useSecuredApi } from "@/authentication";
 

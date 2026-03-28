@@ -9,7 +9,7 @@ import {
   Button,
   Link as HeroUILink,
   Input} from "@heroui/react";
-import { useWishlist } from "@/hooks/useWishlist";
+import { useWishlist } from "@/hooks/use-wishlist";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 

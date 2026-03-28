@@ -8,7 +8,7 @@
 
 import { useTranslation } from "react-i18next";
 
-import { CategoryAdmin } from "@/components/CategoryAdmin";
+import { CategoryAdmin } from "@/components/category-admin";
 import { AuthenticationGuardWithPermission } from "@/authentication";
 import DefaultLayout from "@/layouts/default";
 

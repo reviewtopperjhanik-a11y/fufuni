@@ -5,8 +5,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { decodeJwt } from 'jose';
-import { useAuth } from '@/authentication/providers/use-auth';
-import { useTokenRefresh } from '@/hooks/useTokenRefresh';
+import { useAuth } from '@/authentication';
+import { useTokenRefresh } from '@/hooks/use-token-refresh';
 import { getStoreMetadata } from '@/lib/store-metadata';
 
 export interface UseWishlistReturn {

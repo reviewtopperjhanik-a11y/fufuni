@@ -5,9 +5,9 @@
 
 import { Button } from '@heroui/react';
 import { Bookmark } from 'lucide-react';
-import { useAuth } from '@/authentication/providers/use-auth';
+import { useAuth } from '@/authentication';
 import { useTranslation } from 'react-i18next';
-import { useSavedCarts } from '@/hooks/useSavedCarts';
+import { useSavedCarts } from '@/hooks/use-saved-carts';
 import { useState } from 'react';
 
 interface SaveCartButtonProps {

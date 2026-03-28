@@ -26,7 +26,7 @@ import {
     AlertDialog,
     ListBoxItemIndicator,
 } from '@heroui/react';
-import { useCategories, type Category } from '@/hooks/useCategories';
+import { useCategories, type Category } from '@/hooks/use-categories';
 import { useSecuredApi } from '@/authentication';
 import {
     resolveTitle,
@@ -38,7 +38,7 @@ import {
 } from '@/utils/description';
 import { availableLanguages } from '@/i18n';
 import { translateWithAi, type AiParams } from '@/utils/ai-client';
-import { ImageUploadInput } from './ImageUploadInput';
+import { ImageUploadInput } from './image-upload-input';
 
 
 /**

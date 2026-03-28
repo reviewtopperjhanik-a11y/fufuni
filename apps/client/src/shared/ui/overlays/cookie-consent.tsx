@@ -25,9 +25,9 @@ import {
   useOverlayState,
 } from "@heroui/react";
 
-import { useCookieConsent } from "../contexts/cookie-consent-context";
+import { useCookieConsent } from "@/contexts/cookie-consent-context";
 
-import { buttonGradient } from "./primitives";
+import { buttonGradient } from "@/shared/ui/primitives";
 
 import { siteConfig } from "@/config/site";
 

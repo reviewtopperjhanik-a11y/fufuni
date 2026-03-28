@@ -22,8 +22,8 @@ import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { useAuth } from "@/authentication";
 import { LoginButton, LogoutButton } from "@/authentication";
 import { siteConfig } from "@/config/site";
-import { title, subtitle } from "@/components/primitives";
-import { GithubIcon } from "@/components/icons";
+import { title, subtitle } from "@/shared/ui/primitives";
+import { GithubIcon } from "@/shared/ui/icons";
 import DefaultLayout from "@/layouts/default";
 
 import { useState } from "react";
@@ -88,7 +88,7 @@ export default function IndexPage() {
             href={siteConfig().links.docs}
             target="_blank"
             rel="noopener noreferrer"
-            className="px-6 py-2 bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-full font-semibold hover:opacity-90 shadow-lg transition-opacity"
+            className="px-6 py-2 bg-linear-to-r from-purple-500 to-purple-600 text-white rounded-full font-semibold hover:opacity-90 shadow-lg transition-opacity"
           >
             <Trans i18nKey="documentation" />
           </a>

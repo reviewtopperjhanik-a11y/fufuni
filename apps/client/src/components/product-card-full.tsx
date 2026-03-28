@@ -19,11 +19,11 @@
 import React, { useState } from "react";
 import { StoreProduct } from "@/lib/store-api";
 import { useTranslation } from "react-i18next";
-import { useCart } from "@/hooks/useCart";
+import { useCart } from "@/hooks/use-cart";
 import { formatMoney } from "@/utils/currency";
 import { resolveDescription, resolveTitle, resolveVendor, resolveTags, resolveHandle, getTaxNameForLocale } from "@/utils/description";
 import { Button } from "@heroui/react";
-import { WishlistButton } from "./WishlistButton";
+import { WishlistButton } from "./wishlist-button";
 
 interface Props {
   product: StoreProduct;

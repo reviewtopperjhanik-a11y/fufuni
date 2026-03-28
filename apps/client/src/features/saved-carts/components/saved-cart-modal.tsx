@@ -12,8 +12,8 @@ import {
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 import { Trash2 } from "lucide-react";
-import { useCart } from "@/hooks/useCart";
-import type { SavedCartSnapshot } from "@/hooks/useSavedCarts";
+import { useCart } from "@/hooks/use-cart";
+import type { SavedCartSnapshot } from "@/hooks/use-saved-carts";
 import { formatMoney } from "@/utils/currency";
 
 interface SavedCartModalProps {

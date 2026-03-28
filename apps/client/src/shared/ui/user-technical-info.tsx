@@ -28,9 +28,9 @@ import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
 import type { User } from "@auth0/auth0-react";
 
-import { CopyButton } from "@/components/copy-button";
+import { CopyButton } from "@/shared/ui/buttons/copy-button";
 import { AuthenticationGuardWithPermission } from "@/authentication";
-import { useTokenRefresh } from "@/hooks/useTokenRefresh";
+import { useTokenRefresh } from "@/hooks/use-token-refresh";
 
 interface UserTechnicalInfoModalProps {
   isOpen: boolean;

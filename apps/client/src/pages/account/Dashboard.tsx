@@ -17,10 +17,10 @@ import {
 } from "@heroui/react";
 import { Link } from "react-router-dom";
 
-import { useAuth } from "../../authentication/providers/use-auth";
+import { useAuth } from "@/authentication";
 
-import { useWishlist } from "@/hooks/useWishlist";
-import { useSavedCarts } from "@/hooks/useSavedCarts";
+import { useWishlist } from "@/hooks/use-wishlist";
+import { useSavedCarts } from "@/hooks/use-saved-carts";
 import { SavedCartsManager } from "@/components/saved-carts-manager";
 import { WishlistManager } from "@/components/wishlist-manager";
 import { formatMoney } from "@/utils/currency";

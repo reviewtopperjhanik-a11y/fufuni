@@ -24,11 +24,11 @@ import { useAuth0 } from "@auth0/auth0-react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import { JWTPayload, jwtVerify } from "jose";
 
-import { getLocalJwkSet } from "@/authentication/utils/jwks";
+import { getLocalJwkSet } from "@/features/auth/utils/jwks";
 import { Navbar } from "@/components/navbar";
-import { UserTechnicalInfoModal } from "@/modals/user-technical-info";
+import { UserTechnicalInfoModal } from "@/shared/ui/user-technical-info";
 import { LoginLogoutLink } from "@/authentication";
-import { TOKEN_REFRESHED_EVENT } from "@/hooks/useTokenRefresh";
+import { TOKEN_REFRESHED_EVENT } from "@/hooks/use-token-refresh";
 
 export default function DefaultLayout({
   children,

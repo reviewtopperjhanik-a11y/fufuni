@@ -14,7 +14,7 @@ import { Plus, Edit2, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
-import { LocalizedTaxNameInput } from "@/components/LocalizedTaxNameInput";
+import { LocalizedTaxNameInput } from "@/components/localized-tax-name-input";
 import { getTaxNameForLocale } from "@/utils/description";
 import { availableLanguages } from "@/i18n";
 

@@ -9,7 +9,7 @@
 import { useTranslation } from 'react-i18next';
 import { Card, Link, Skeleton, Badge, ScrollShadow } from '@heroui/react';
 import { useNavigate } from 'react-router-dom';
-import { useCategoryTree } from '@/hooks/useCategories';
+import { useCategoryTree } from '@/hooks/use-categories';
 
 export interface CategoryNavProps {
   showImages?: boolean;
