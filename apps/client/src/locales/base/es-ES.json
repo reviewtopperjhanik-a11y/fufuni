@@ -674,5 +674,9 @@
   "admin-image-url-hint": "Ingrese una URL pública o un URI de datos. Soporta http(s), Cloudinary y otros CDN",
   "admin-image-storage-local": "Almacenado localmente en la base de datos (codificado en base64)",
   "admin-image-storage-r2": "Almacenado en bucket R2 (optimizado para CDN)",
-  "admin-image-storage-url": "Referencia de URL externa (CDN externo o servicio)"
+  "admin-image-storage-url": "Referencia de URL externa (CDN externo o servicio)",
+  "admin-inventory-filter-placeholder": "Buscar inventario por SKU o nombre de producto...",
+  "admin-regions-filter-placeholder": "Buscar regiones...",
+  "admin-tax-rates-filter-placeholder": "Buscar tasas impositivas por código de país o código impositivo...",
+  "admin-warehouses-filter-placeholder": "Buscar almacenes..."
 }

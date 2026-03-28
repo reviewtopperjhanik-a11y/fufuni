@@ -675,5 +675,8 @@
   "admin-image-url-hint": "הזן כתובת URL ציבורית או URI נתונים. תומך בـ http(s), Cloudinary ו-CDN אחרים",
   "admin-image-storage-local": "מאוחסן באופן מקומי בבסיס הנתונים (קידוד base64)",
   "admin-image-storage-r2": "מאוחסן בדלי R2 (מיטוב עבור CDN)",
-  "admin-image-storage-url": "הפניות URL חיצוניות (CDN חיצוני או שירות)"
+  "admin-image-storage-url": "הפניות URL חיצוניות (CDN חיצוני או שירות)",
+  "admin-inventory-filter-placeholder": "חפש מלאי לפי מק\"ט או שם מוצר...",
+  "admin-regions-filter-placeholder": "חפש אזורים...",
+  "admin-tax-rates-filter-placeholder": "חפש שיעורי מס לפי קוד מדינה או קוד מס..."
 }

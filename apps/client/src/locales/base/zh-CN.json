@@ -225,12 +225,14 @@
   "admin-products-field-variant-title-placeholder": "例如 黑色/中号",
   "admin-products-field-price-placeholder": "价格以美分为单位（例如 2999 表示 $29.99）",
   "admin-products-image-upload-error": "上传图像失败",
-  "admin-products-variant-save-error": "保存变体失败",  "admin-products-categories": "分类",
+  "admin-products-variant-save-error": "保存变体失败",
+  "admin-products-categories": "分类",
   "admin-products-btn-manage-categories": "管理分类",
   "admin-products-no-categories": "未分配任何分类",
   "admin-products-modal-title-categories": "分配分类",
   "admin-products-no-categories-available": "暂无可用的分类",
-  "admin-products-categories-save-error": "保存分类失败",  "admin-webhooks-attempt": "{{count}} 次尝试",
+  "admin-products-categories-save-error": "保存分类失败",
+  "admin-webhooks-attempt": "{{count}} 次尝试",
   "admin-webhooks-attempt_plural": "{{count}} 次尝试",
   "admin-webhooks-btn-add": "添加网络钩子",
   "admin-webhooks-btn-create": "创建网络钩子",
@@ -673,5 +675,8 @@
   "admin-image-url-hint": "输入公共 URL 或数据 URI。支持 http(s)、Cloudinary 和其他 CDN",
   "admin-image-storage-local": "在数据库中本地存储（base64 编码）",
   "admin-image-storage-r2": "存储在 R2 bucket（CDN 优化）",
-  "admin-image-storage-url": "外部 URL 参考（外部 CDN 或服务）"
+  "admin-image-storage-url": "外部 URL 参考（外部 CDN 或服务）",
+  "admin-inventory-filter-placeholder": "按 SKU 或产品名称搜索库存...",
+  "admin-regions-filter-placeholder": "搜索区域...",
+  "admin-tax-rates-filter-placeholder": "按国家代码或税码搜索税率..."
 }

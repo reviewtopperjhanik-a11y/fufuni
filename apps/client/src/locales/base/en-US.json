@@ -670,5 +670,8 @@
   "admin-image-url-hint": "Enter a public URL or data URI. Supports http(s), Cloudinary, and other CDNs",
   "admin-image-storage-local": "Stored locally in database (base64 encoded)",
   "admin-image-storage-r2": "Stored in R2 cloud bucket (CDN optimized)",
-  "admin-image-storage-url": "External URL reference (external CDN or service)"
+  "admin-image-storage-url": "External URL reference (external CDN or service)",
+  "admin-inventory-filter-placeholder": "Search inventory by SKU or product name...",
+  "admin-regions-filter-placeholder": "Search regions...",
+  "admin-tax-rates-filter-placeholder": "Search tax rates by country code or tax code..."
 }
