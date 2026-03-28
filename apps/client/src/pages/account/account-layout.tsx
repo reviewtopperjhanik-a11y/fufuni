@@ -14,7 +14,6 @@ import {
 } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
-
 import DefaultLayout from "@/layouts/default";
 
 /**

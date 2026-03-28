@@ -1,13 +1,13 @@
 /**
  * Copyright (c) 2026 Ronan LE MEILLAT
  * License: AGPL-3.0-or-later
- * 
+ *
  * Client-side invoice PDF generation using jsPDF.
  * All data comes from the order details fetched from the API.
  * No sensitive data is sent to any server — the PDF is generated entirely in the browser.
  */
 
-import jsPDF from 'jspdf';
+import jsPDF from "jspdf";
 
 interface OrderItem {
   product_title: string;
@@ -36,10 +36,11 @@ interface InvoiceData {
 /**
  * Formats a price in cents to a currency string
  */
-function formatPrice(cents: number, currency: string = 'EUR'): string {
+function formatPrice(cents: number, currency: string = "EUR"): string {
   const amount = cents / 100;
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
+
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
     currency: currency,
     minimumFractionDigits: 2,
   }).format(amount);
@@ -47,9 +48,9 @@ function formatPrice(cents: number, currency: string = 'EUR'): string {
 
 /**
  * Generates a PDF invoice and triggers a browser download.
- * 
+ *
  * @param data - Invoice data containing order, customer, and item details
- * 
+ *
  * @example
  * ```tsx
  * const invoiceData: InvoiceData = {
@@ -67,18 +68,18 @@ function formatPrice(cents: number, currency: string = 'EUR'): string {
  *   customerEmail: 'john@example.com',
  *   storeAddress: 'My Store, 123 Main St, Paris, France',
  * };
- * 
+ *
  * generateInvoice(invoiceData);
  * ```
  */
 export function generateInvoice(data: InvoiceData): void {
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const doc = new jsPDF({ unit: "mm", format: "a4" });
 
   // Document properties
   doc.setProperties({
     title: `Invoice ${data.orderNumber}`,
     subject: `Order ${data.orderNumber}`,
-    author: 'Fufuni',
+    author: "Fufuni",
   });
 
   const pageHeight = doc.internal.pageSize.getHeight();
@@ -90,11 +91,11 @@ export function generateInvoice(data: InvoiceData): void {
 
   // ─── Header / Store Info ───────────────────────────────────
   doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('INVOICE', margin, yPosition);
+  doc.setFont("helvetica", "bold");
+  doc.text("INVOICE", margin, yPosition);
 
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont("helvetica", "normal");
   yPosition += 10;
 
   if (data.storeAddress) {
@@ -105,21 +106,25 @@ export function generateInvoice(data: InvoiceData): void {
   // ─── Invoice Details (Order Number, Date) ──────────────────
   yPosition += 2;
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont("helvetica", "bold");
   doc.text(`Order: ${data.orderNumber}`, margin, yPosition);
   yPosition += 6;
 
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Date: ${new Date(data.orderDate).toLocaleDateString()}`, margin, yPosition);
+  doc.setFont("helvetica", "normal");
+  doc.text(
+    `Date: ${new Date(data.orderDate).toLocaleDateString()}`,
+    margin,
+    yPosition,
+  );
   yPosition += 8;
 
   // ─── Customer Info ─────────────────────────────────────────
   yPosition += 2;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Bill To:', margin, yPosition);
+  doc.setFont("helvetica", "bold");
+  doc.text("Bill To:", margin, yPosition);
   yPosition += 6;
 
-  doc.setFont('helvetica', 'normal');
+  doc.setFont("helvetica", "normal");
   doc.text(data.customerName, margin, yPosition);
   yPosition += 5;
   doc.text(data.customerEmail, margin, yPosition);
@@ -127,7 +132,11 @@ export function generateInvoice(data: InvoiceData): void {
   if (data.billingAddress) {
     yPosition += 5;
     // Word wrap billing address
-    const billingLines = doc.splitTextToSize(data.billingAddress, contentWidth - 10);
+    const billingLines = doc.splitTextToSize(
+      data.billingAddress,
+      contentWidth - 10,
+    );
+
     doc.text(billingLines, margin, yPosition);
     yPosition += billingLines.length * 5;
   }
@@ -136,14 +145,15 @@ export function generateInvoice(data: InvoiceData): void {
 
   // ─── Shipping Address ──────────────────────────────────────
   if (data.shippingAddress) {
-    doc.setFont('helvetica', 'bold');
-    doc.text('Ship To:', pageWidth / 2 + 5, yPosition - 8);
+    doc.setFont("helvetica", "bold");
+    doc.text("Ship To:", pageWidth / 2 + 5, yPosition - 8);
 
-    doc.setFont('helvetica', 'normal');
+    doc.setFont("helvetica", "normal");
     const shippingLines = doc.splitTextToSize(
       data.shippingAddress,
-      contentWidth / 2 - 10
+      contentWidth / 2 - 10,
     );
+
     doc.text(shippingLines, pageWidth / 2 + 5, yPosition - 3);
     yPosition += Math.max(shippingLines.length * 5, 10);
   }
@@ -156,20 +166,23 @@ export function generateInvoice(data: InvoiceData): void {
   const colX = [margin, margin + 80, margin + 105, margin + 135];
 
   // Table header
-  doc.setFont('helvetica', 'normal');
+  doc.setFont("helvetica", "normal");
   doc.setFillColor(240, 240, 240);
-  doc.rect(margin - 2, tableTop - 5, contentWidth + 4, 8, 'F');
-  doc.text('Product', colX[0], tableTop);
-  doc.text('Qty', colX[1], tableTop);
-  doc.text('Unit Price', colX[2], tableTop);
-  doc.text('Total', colX[3], tableTop);
+  doc.rect(margin - 2, tableTop - 5, contentWidth + 4, 8, "F");
+  doc.text("Product", colX[0], tableTop);
+  doc.text("Qty", colX[1], tableTop);
+  doc.text("Unit Price", colX[2], tableTop);
+  doc.text("Total", colX[3], tableTop);
 
   // Table rows
-  doc.setFont('helvetica', 'normal');
+  doc.setFont("helvetica", "normal");
   yPosition = tableTop + 8;
 
   data.items.forEach((item) => {
-    const productLines = doc.splitTextToSize(item.product_title, colWidths[0] - 2);
+    const productLines = doc.splitTextToSize(
+      item.product_title,
+      colWidths[0] - 2,
+    );
     const lineHeight = productLines.length * 5;
 
     // Wrap if approaching page end
@@ -180,10 +193,15 @@ export function generateInvoice(data: InvoiceData): void {
 
     // Draw item row
     let itemY = yPosition;
+
     doc.text(productLines, colX[0], itemY);
     doc.text(String(item.quantity), colX[1], itemY);
     doc.text(formatPrice(item.unit_price_cents, item.currency), colX[2], itemY);
-    doc.text(formatPrice(item.total_price_cents, item.currency), colX[3], itemY);
+    doc.text(
+      formatPrice(item.total_price_cents, item.currency),
+      colX[3],
+      itemY,
+    );
 
     yPosition += lineHeight + 2;
   });
@@ -193,35 +211,55 @@ export function generateInvoice(data: InvoiceData): void {
   // ─── Totals Section ────────────────────────────────────────
   const totalsX = margin + 110;
 
-  doc.setFont('helvetica', 'normal');
-  doc.text('Subtotal:', totalsX, yPosition);
-  doc.text(formatPrice(data.subtotal_cents, data.currency), pageWidth - margin - 10, yPosition, { align: 'right' });
+  doc.setFont("helvetica", "normal");
+  doc.text("Subtotal:", totalsX, yPosition);
+  doc.text(
+    formatPrice(data.subtotal_cents, data.currency),
+    pageWidth - margin - 10,
+    yPosition,
+    { align: "right" },
+  );
 
   yPosition += 6;
-  doc.text('Tax:', totalsX, yPosition);
-  doc.text(formatPrice(data.tax_cents, data.currency), pageWidth - margin - 10, yPosition, { align: 'right' });
+  doc.text("Tax:", totalsX, yPosition);
+  doc.text(
+    formatPrice(data.tax_cents, data.currency),
+    pageWidth - margin - 10,
+    yPosition,
+    { align: "right" },
+  );
 
   yPosition += 6;
-  doc.text('Shipping:', totalsX, yPosition);
-  doc.text(formatPrice(data.shipping_cents, data.currency), pageWidth - margin - 10, yPosition, { align: 'right' });
+  doc.text("Shipping:", totalsX, yPosition);
+  doc.text(
+    formatPrice(data.shipping_cents, data.currency),
+    pageWidth - margin - 10,
+    yPosition,
+    { align: "right" },
+  );
 
   yPosition += 8;
-  doc.setFont('helvetica', 'bold');
+  doc.setFont("helvetica", "bold");
   doc.setFontSize(12);
-  doc.text('TOTAL:', totalsX, yPosition);
-  doc.text(formatPrice(data.total_cents, data.currency), pageWidth - margin - 10, yPosition, { align: 'right' });
+  doc.text("TOTAL:", totalsX, yPosition);
+  doc.text(
+    formatPrice(data.total_cents, data.currency),
+    pageWidth - margin - 10,
+    yPosition,
+    { align: "right" },
+  );
 
   yPosition += 10;
 
   // ─── Footer ────────────────────────────────────────────────
   yPosition += 5;
   doc.setFontSize(8);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont("helvetica", "normal");
   doc.setDrawColor(180, 180, 180);
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
   yPosition += 5;
-  doc.text('Thank you for your purchase!', pageWidth / 2, yPosition, {
-    align: 'center',
+  doc.text("Thank you for your purchase!", pageWidth / 2, yPosition, {
+    align: "center",
   });
 
   // ─── Download the PDF ──────────────────────────────────────

@@ -17,7 +17,6 @@ import {
 import { Link } from "react-router-dom";
 
 import { useAuth } from "@/authentication";
-
 import { useWishlist } from "@/hooks/use-wishlist";
 import { useSavedCarts } from "@/hooks/use-saved-carts";
 import { SavedCartsManager } from "@/components/saved-carts-manager";

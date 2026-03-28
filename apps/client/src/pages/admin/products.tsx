@@ -159,7 +159,7 @@ export default function ProductsPage() {
   // categories modal
   const [categoriesModal, setCategoriesModal] = useState(false);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
-    new Set()
+    new Set(),
   );
 
   // create / edit modal
@@ -310,10 +310,19 @@ export default function ProductsPage() {
   /**
    * Resolve category name for the given locale.
    */
-  const getCategoryNameForLocale = (category: Category, locale: string): string => {
+  const getCategoryNameForLocale = (
+    category: Category,
+    locale: string,
+  ): string => {
     try {
       const parsed = JSON.parse(category.name);
-      return parsed[locale] || parsed[defaultLocale] || category.handle || category.id;
+
+      return (
+        parsed[locale] ||
+        parsed[defaultLocale] ||
+        category.handle ||
+        category.id
+      );
     } catch {
       return category.name || category.handle || category.id;
     }
@@ -325,6 +334,7 @@ export default function ProductsPage() {
   const openCategoriesModal = () => {
     if (editingProduct && editingProduct.categories) {
       const ids = new Set(editingProduct.categories.map((c) => c.id));
+
       setSelectedCategoryIds(ids);
     } else {
       setSelectedCategoryIds(new Set());
@@ -341,31 +351,30 @@ export default function ProductsPage() {
 
     try {
       const currentCategoryIds = new Set(
-        (editingProduct.categories || []).map((c) => c.id)
+        (editingProduct.categories || []).map((c) => c.id),
       );
       const newCategoryIds = selectedCategoryIds;
 
       // Find categories to remove and add
       const categoriesToRemove = Array.from(currentCategoryIds).filter(
-        (id) => !newCategoryIds.has(id)
+        (id) => !newCategoryIds.has(id),
       );
       const categoriesToAdd = Array.from(newCategoryIds).filter(
-        (id) => !currentCategoryIds.has(id)
+        (id) => !currentCategoryIds.has(id),
       );
 
       // Remove product from categories
       for (const categoryId of categoriesToRemove) {
         await deleteJson(
-          `${apiBase}/v1/categories/${categoryId}/products/${editingProduct.id}`
+          `${apiBase}/v1/categories/${categoryId}/products/${editingProduct.id}`,
         );
       }
 
       // Add product to categories
       for (const categoryId of categoriesToAdd) {
-        await postJson(
-          `${apiBase}/v1/categories/${categoryId}/products`,
-          { product_ids: [editingProduct.id] }
-        );
+        await postJson(`${apiBase}/v1/categories/${categoryId}/products`, {
+          product_ids: [editingProduct.id],
+        });
       }
 
       // Update local state
@@ -382,14 +391,16 @@ export default function ProductsPage() {
         prev.map((p) =>
           p.id === editingProduct.id
             ? { ...p, categories: updatedCategories }
-            : p
-        )
+            : p,
+        ),
       );
 
       setCategoriesModal(false);
     } catch (err) {
       console.error("Error saving categories", err);
-      alert(t("admin-products-categories-save-error") || "Error saving categories");
+      alert(
+        t("admin-products-categories-save-error") || "Error saving categories",
+      );
     }
   };
 
@@ -439,7 +450,9 @@ export default function ProductsPage() {
       );
       setFormHandle((full as any).handle || "");
       if (full.categories) {
-        setSelectedCategoryIds(new Set((full.categories as Category[]).map((c) => c.id)));
+        setSelectedCategoryIds(
+          new Set((full.categories as Category[]).map((c) => c.id)),
+        );
       }
     } catch (err) {
       console.error("Error loading product", err);
@@ -1039,15 +1052,21 @@ export default function ProductsPage() {
                           </div>
 
                           {/* Display current categories with scroll if > 3 */}
-                          {editingProduct.categories && editingProduct.categories.length > 0 ? (
-                            <div className={`space-y-2 ${editingProduct.categories.length > 3 ? "max-h-48 overflow-y-auto" : ""}`}>
+                          {editingProduct.categories &&
+                          editingProduct.categories.length > 0 ? (
+                            <div
+                              className={`space-y-2 ${editingProduct.categories.length > 3 ? "max-h-48 overflow-y-auto" : ""}`}
+                            >
                               {editingProduct.categories.map((cat) => (
                                 <div
                                   key={cat.id}
                                   className="flex items-center justify-between p-2 rounded border bg-default-50"
                                 >
                                   <span className="text-sm">
-                                    {getCategoryNameForLocale(cat, selectedLocale)}
+                                    {getCategoryNameForLocale(
+                                      cat,
+                                      selectedLocale,
+                                    )}
                                   </span>
                                   <span className="text-xs text-default-500">
                                     {cat.handle}
@@ -1431,6 +1450,7 @@ export default function ProductsPage() {
                                 isSelected={selectedCategoryIds.has(cat.id)}
                                 onChange={(isSelected) => {
                                   const newIds = new Set(selectedCategoryIds);
+
                                   if (isSelected) {
                                     newIds.add(cat.id);
                                   } else {
@@ -1443,10 +1463,16 @@ export default function ProductsPage() {
                                   <Checkbox.Indicator />
                                 </Checkbox.Control>
                                 <Checkbox.Content>
-                                  <Label htmlFor={`category-${cat.id}`} className="flex-1">
+                                  <Label
+                                    className="flex-1"
+                                    htmlFor={`category-${cat.id}`}
+                                  >
                                     <div className="flex-1 min-w-0">
                                       <p className="text-sm font-medium">
-                                        {getCategoryNameForLocale(cat, selectedLocale)}
+                                        {getCategoryNameForLocale(
+                                          cat,
+                                          selectedLocale,
+                                        )}
                                       </p>
                                       <p className="text-xs text-default-500">
                                         {cat.handle}
@@ -1482,8 +1508,8 @@ export default function ProductsPage() {
                       {t("admin-products-btn-cancel")}
                     </Button>
                     <Button
-                      onPress={saveCategoriesForProduct}
                       variant="primary"
+                      onPress={saveCategoriesForProduct}
                     >
                       {t("save")}
                     </Button>

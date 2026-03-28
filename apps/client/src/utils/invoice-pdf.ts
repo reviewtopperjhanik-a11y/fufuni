@@ -6,8 +6,8 @@
  * Runs entirely in the browser — no server call required.
  */
 
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 export interface OrderForPdf {
   number: string;
@@ -40,16 +40,17 @@ export interface OrderForPdf {
 function formatCurrency(cents: number, currency: string): string {
   const amount = cents / 100;
   const symbols: Record<string, string> = {
-    USD: '$',
-    EUR: '€',
-    GBP: '£',
-    CAD: 'C$',
-    CHF: 'CHF ',
-    AUD: 'A$',
-    JPY: '¥',
-    CNY: '¥',
+    USD: "$",
+    EUR: "€",
+    GBP: "£",
+    CAD: "C$",
+    CHF: "CHF ",
+    AUD: "A$",
+    JPY: "¥",
+    CNY: "¥",
   };
-  const symbol = symbols[currency] || currency + ' ';
+  const symbol = symbols[currency] || currency + " ";
+
   return `${symbol}${amount.toFixed(2)}`;
 }
 
@@ -63,26 +64,26 @@ function formatCurrency(cents: number, currency: string): string {
  */
 export function downloadInvoicePdf(
   order: OrderForPdf,
-  storeName: string = 'Fufuni Store',
-  locale: string = 'en-US'
+  storeName: string = "Fufuni Store",
+  locale: string = "en-US",
 ): void {
   const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // ---- Header ----
   doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont("helvetica", "bold");
   doc.text(storeName, 14, 20);
 
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont("helvetica", "normal");
   doc.setTextColor(100);
-  doc.text('Invoice', pageWidth - 14, 20, { align: 'right' });
+  doc.text("Invoice", pageWidth - 14, 20, { align: "right" });
 
   // ---- Order metadata ----
   doc.setFontSize(10);
@@ -91,7 +92,7 @@ export function downloadInvoicePdf(
   doc.text(
     `Date: ${new Date(order.created_at).toLocaleDateString(locale)}`,
     14,
-    40
+    40,
   );
   doc.text(`Email: ${order.email}`, 14, 46);
 
@@ -117,16 +118,13 @@ export function downloadInvoicePdf(
       item.title,
       item.qty.toString(),
       formatCurrency(item.unit_price_cents, order.currency),
-      formatCurrency(
-        item.qty * item.unit_price_cents,
-        order.currency
-      ),
+      formatCurrency(item.qty * item.unit_price_cents, order.currency),
     ]);
   }
 
   autoTable(doc, {
     startY,
-    head: [['Item', 'Qty', 'Unit Price', 'Total']],
+    head: [["Item", "Qty", "Unit Price", "Total"]],
     body: tableBody,
     headStyles: { fillColor: [37, 99, 235] }, // Tailwind blue-600
     margin: { left: 14, right: 14 },
@@ -134,12 +132,13 @@ export function downloadInvoicePdf(
       // Footer
       const pageSize = doc.internal.pageSize;
       const pageHeight = pageSize.getHeight();
+
       doc.setFontSize(8);
       doc.setTextColor(150);
       doc.text(
         `Generated on ${new Date().toLocaleDateString(locale)} — ${storeName}`,
         14,
-        pageHeight - 10
+        pageHeight - 10,
       );
     },
   });
@@ -152,49 +151,48 @@ export function downloadInvoicePdf(
   const addTotalLine = (
     label: string,
     amountCents: number,
-    bold: boolean = false
+    bold: boolean = false,
   ) => {
     if (bold) {
-      doc.setFont('helvetica', 'bold');
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
     } else {
-      doc.setFont('helvetica', 'normal');
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
     }
 
     doc.text(label, 14, currentY);
     doc.text(formatCurrency(amountCents, order.currency), right, currentY, {
-      align: 'right',
+      align: "right",
     });
     currentY += 6;
   };
 
-  addTotalLine('Subtotal', order.subtotal_cents);
+  addTotalLine("Subtotal", order.subtotal_cents);
 
   if (order.discount_amount_cents) {
-    addTotalLine('Discount', -order.discount_amount_cents);
+    addTotalLine("Discount", -order.discount_amount_cents);
   }
 
-  addTotalLine('Shipping', order.shipping_cents);
-  addTotalLine('Tax', order.tax_cents);
+  addTotalLine("Shipping", order.shipping_cents);
+  addTotalLine("Tax", order.tax_cents);
 
   // Draw a line before the total
   doc.setDrawColor(200);
   doc.line(14, currentY - 1, right, currentY - 1);
 
-  addTotalLine('TOTAL', order.total_cents, true);
+  addTotalLine("TOTAL", order.total_cents, true);
 
   // ---- Additional Info ----
   if (order.tracking_url) {
     currentY += 4;
     doc.setFontSize(8);
     doc.setTextColor(66, 133, 244); // Blue
-    doc.textWithLink(
-      'Track Your Shipment',
-      14,
-      currentY,
-      { pageNumber: 1, x: 0, y: 0 }
-    );
+    doc.textWithLink("Track Your Shipment", 14, currentY, {
+      pageNumber: 1,
+      x: 0,
+      y: 0,
+    });
     doc.setDrawColor(66, 133, 244);
     doc.line(14, currentY + 0.5, 45, currentY + 0.5);
   }
@@ -212,26 +210,26 @@ export function downloadInvoicePdf(
  */
 export function openInvoicePdf(
   order: OrderForPdf,
-  storeName: string = 'Fufuni Store',
-  locale: string = 'en-US'
+  storeName: string = "Fufuni Store",
+  locale: string = "en-US",
 ): void {
   const doc = new jsPDF({
-    orientation: 'portrait',
-    unit: 'mm',
-    format: 'a4',
+    orientation: "portrait",
+    unit: "mm",
+    format: "a4",
   });
 
   const pageWidth = doc.internal.pageSize.getWidth();
 
   // ---- Header ----
   doc.setFontSize(20);
-  doc.setFont('helvetica', 'bold');
+  doc.setFont("helvetica", "bold");
   doc.text(storeName, 14, 20);
 
   doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
+  doc.setFont("helvetica", "normal");
   doc.setTextColor(100);
-  doc.text('Invoice', pageWidth - 14, 20, { align: 'right' });
+  doc.text("Invoice", pageWidth - 14, 20, { align: "right" });
 
   // ---- Order metadata ----
   doc.setFontSize(10);
@@ -240,7 +238,7 @@ export function openInvoicePdf(
   doc.text(
     `Date: ${new Date(order.created_at).toLocaleDateString(locale)}`,
     14,
-    40
+    40,
   );
   doc.text(`Email: ${order.email}`, 14, 46);
 
@@ -250,6 +248,7 @@ export function openInvoicePdf(
 
   // ---- Items table ----
   const tableBody: any[] = [];
+
   for (const item of order.items) {
     tableBody.push([
       item.title,
@@ -261,7 +260,7 @@ export function openInvoicePdf(
 
   autoTable(doc, {
     startY: 62,
-    head: [['Item', 'Qty', 'Unit Price', 'Total']],
+    head: [["Item", "Qty", "Unit Price", "Total"]],
     body: tableBody,
     headStyles: { fillColor: [37, 99, 235] },
     margin: { left: 14, right: 14 },
@@ -275,35 +274,35 @@ export function openInvoicePdf(
   const addTotalLine = (
     label: string,
     amountCents: number,
-    bold: boolean = false
+    bold: boolean = false,
   ) => {
     if (bold) {
-      doc.setFont('helvetica', 'bold');
+      doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
     } else {
-      doc.setFont('helvetica', 'normal');
+      doc.setFont("helvetica", "normal");
       doc.setFontSize(10);
     }
 
     doc.text(label, 14, currentY);
     doc.text(formatCurrency(amountCents, order.currency), right, currentY, {
-      align: 'right',
+      align: "right",
     });
     currentY += 6;
   };
 
-  addTotalLine('Subtotal', order.subtotal_cents);
+  addTotalLine("Subtotal", order.subtotal_cents);
   if (order.discount_amount_cents) {
-    addTotalLine('Discount', -order.discount_amount_cents);
+    addTotalLine("Discount", -order.discount_amount_cents);
   }
-  addTotalLine('Shipping', order.shipping_cents);
-  addTotalLine('Tax', order.tax_cents);
+  addTotalLine("Shipping", order.shipping_cents);
+  addTotalLine("Tax", order.tax_cents);
 
   doc.setDrawColor(200);
   doc.line(14, currentY - 1, right, currentY - 1);
 
-  addTotalLine('TOTAL', order.total_cents, true);
+  addTotalLine("TOTAL", order.total_cents, true);
 
   // ---- Open in new window ----
-  window.open(doc.output('bloburi'));
+  window.open(doc.output("bloburi"));
 }

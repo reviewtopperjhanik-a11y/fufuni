@@ -5,7 +5,7 @@
  * 3. External URL: Direct URL references (Cloudinary, etc.)
  */
 
-export type ImageStorageMethod = 'base64' | 'r2' | 'url';
+export type ImageStorageMethod = "base64" | "r2" | "url";
 
 export interface ImageUploadResult {
   url: string;
@@ -23,9 +23,13 @@ const FILE_SIZE_LIMIT = 5 * 1024 * 1024; // 5MB for file uploads
  * @param fileSize - Size of the file in bytes
  * @param forceR2 - If true, always use R2 regardless of file size
  */
-function getOptimalStorageMethod(fileSize: number, forceR2 = false): ImageStorageMethod {
-  if (forceR2) return 'r2';
-  return fileSize <= BASE64_SIZE_LIMIT ? 'base64' : 'r2';
+function getOptimalStorageMethod(
+  fileSize: number,
+  forceR2 = false,
+): ImageStorageMethod {
+  if (forceR2) return "r2";
+
+  return fileSize <= BASE64_SIZE_LIMIT ? "base64" : "r2";
 }
 
 /**
@@ -40,22 +44,23 @@ export async function uploadImageFile(
   file: File,
   apiBaseUrl: string,
   postForm: PostFormFunction,
-  forceR2 = false
+  forceR2 = false,
 ): Promise<ImageUploadResult> {
   // Validate file
-  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+  const allowedTypes = ["image/jpeg", "image/png", "image/webp", "image/gif"];
+
   if (!allowedTypes.includes(file.type)) {
-    throw new Error('File must be jpeg, png, webp, or gif');
+    throw new Error("File must be jpeg, png, webp, or gif");
   }
 
   if (file.size > FILE_SIZE_LIMIT) {
-    throw new Error('File must be under 5MB');
+    throw new Error("File must be under 5MB");
   }
 
   // Choose storage method based on file size (unless forceR2 is set)
   const method = getOptimalStorageMethod(file.size, forceR2);
 
-  if (method === 'base64') {
+  if (method === "base64") {
     return uploadAsBase64(file);
   } else {
     return uploadToR2(file, apiBaseUrl, postForm);
@@ -71,14 +76,15 @@ async function uploadAsBase64(file: File): Promise<ImageUploadResult> {
 
     reader.onload = () => {
       const dataUrl = reader.result as string;
+
       resolve({
         url: dataUrl,
-        method: 'base64',
+        method: "base64",
       });
     };
 
     reader.onerror = () => {
-      reject(new Error('Failed to read file'));
+      reject(new Error("Failed to read file"));
     };
 
     reader.readAsDataURL(file);
@@ -92,16 +98,17 @@ async function uploadAsBase64(file: File): Promise<ImageUploadResult> {
 async function uploadToR2(
   file: File,
   apiBaseUrl: string,
-  postForm: PostFormFunction
+  postForm: PostFormFunction,
 ): Promise<ImageUploadResult> {
   const formData = new FormData();
-  formData.append('file', file);
+
+  formData.append("file", file);
 
   const result = await postForm(`${apiBaseUrl}/v1/images`, formData);
 
   return {
     url: result.url || `${apiBaseUrl}/v1/images/${result.key}`,
-    method: 'r2',
+    method: "r2",
     key: result.key,
   };
 }
@@ -112,6 +119,7 @@ async function uploadToR2(
 export async function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = reject;
     reader.readAsDataURL(file);
@@ -124,13 +132,14 @@ export async function fileToBase64(file: File): Promise<string> {
 export function isValidImageUrl(url: string): boolean {
   try {
     const urlObj = new URL(url);
+
     return (
-      urlObj.protocol === 'http:' ||
-      urlObj.protocol === 'https:' ||
-      url.startsWith('data:image/')
+      urlObj.protocol === "http:" ||
+      urlObj.protocol === "https:" ||
+      url.startsWith("data:image/")
     );
   } catch {
-    return url.startsWith('data:image/');
+    return url.startsWith("data:image/");
   }
 }
 
@@ -138,13 +147,14 @@ export function isValidImageUrl(url: string): boolean {
  * Detects image storage method from URL
  */
 export function detectImageMethod(url: string): ImageStorageMethod {
-  if (url.startsWith('data:image/')) {
-    return 'base64';
+  if (url.startsWith("data:image/")) {
+    return "base64";
   }
-  if (url.includes('/v1/images/')) {
-    return 'r2';
+  if (url.includes("/v1/images/")) {
+    return "r2";
   }
-  return 'url';
+
+  return "url";
 }
 
 /**
@@ -152,8 +162,10 @@ export function detectImageMethod(url: string): ImageStorageMethod {
  */
 export function estimateBase64Size(dataUrl: string): number {
   // Remove data URL prefix and estimate size
-  const base64 = dataUrl.split(',')[1];
+  const base64 = dataUrl.split(",")[1];
+
   if (!base64) return 0;
+
   // Account for base64 encoding overhead (~1.33x)
   return Math.ceil((base64.length * 3) / 4);
 }

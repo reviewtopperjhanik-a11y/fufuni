@@ -16,6 +16,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { User } from "@auth0/auth0-react";
+
 import { memo, useState, useEffect } from "react";
 import { Modal } from "@heroui/react";
 import { Chip } from "@heroui/react";
@@ -26,7 +28,6 @@ import { Tooltip } from "@heroui/react";
 import { JWTPayload } from "jose";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
-import type { User } from "@auth0/auth0-react";
 
 import { CopyButton } from "@/shared/ui/buttons/copy-button";
 import { AuthenticationGuardWithPermission } from "@/authentication";
@@ -119,10 +120,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
     const isExpiringSoon = secondsLeft < 120;
 
     return (
-      <Modal
-        isOpen={isModalOpen}
-        onOpenChange={handleOpenChange}
-      >
+      <Modal isOpen={isModalOpen} onOpenChange={handleOpenChange}>
         <Modal.Backdrop>
           <Modal.Container placement="bottom">
             <Modal.Dialog>
@@ -189,7 +187,9 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                               </svg>
                             </Button>
                           </Tooltip.Trigger>
-                          <Tooltip.Content>{t("nav-user-dropdown-refresh-token")}</Tooltip.Content>
+                          <Tooltip.Content>
+                            {t("nav-user-dropdown-refresh-token")}
+                          </Tooltip.Content>
                         </Tooltip>
                       </div>
                       {tokenPayload?.exp ? (
@@ -229,18 +229,18 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                             Permissions
                           </p>
                           <div className="flex flex-wrap gap-1.5">
-
                             {permissions.map((perm) => {
                               if (
                                 perm ===
-                                (import.meta.env.ADMIN_AUTH0_PERMISSION as string)
+                                (import.meta.env
+                                  .ADMIN_AUTH0_PERMISSION as string)
                               ) {
-
                                 return (
                                   <AuthenticationGuardWithPermission
                                     key={perm}
                                     permission={
-                                      import.meta.env.ADMIN_AUTH0_PERMISSION as string
+                                      import.meta.env
+                                        .ADMIN_AUTH0_PERMISSION as string
                                     }
                                   >
                                     <Chip

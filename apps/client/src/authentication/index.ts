@@ -27,7 +27,10 @@ export {
   withAuth0Authentication,
 } from "@/features/auth/providers/auth0-provider";
 // export { useDexProvider } from '@/features/auth/providers/dex-provider';
-export { AuthenticationProvider, type AuthenticationType } from "@/features/auth/auth-root";
+export {
+  AuthenticationProvider,
+  type AuthenticationType,
+} from "@/features/auth/auth-root";
 
 // Export interfaces
 export type {

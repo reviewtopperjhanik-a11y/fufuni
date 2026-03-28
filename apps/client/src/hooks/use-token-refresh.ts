@@ -4,6 +4,7 @@
  */
 
 import { useCallback } from "react";
+
 import { useAuth } from "@/authentication";
 
 export const TOKEN_REFRESHED_EVENT = "fufuni:token-refreshed";
@@ -23,16 +24,16 @@ export const useTokenRefresh = (options?: UseTokenRefreshOptions) => {
   const refreshToken = useCallback(async () => {
     try {
       const newToken = await auth.refreshAccessToken();
-      
+
       if (newToken) {
         if (options?.onTokenRefreshed) {
           await options.onTokenRefreshed(newToken);
         }
         window.dispatchEvent(
-          new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: newToken })
+          new CustomEvent(TOKEN_REFRESHED_EVENT, { detail: newToken }),
         );
       }
-      
+
       return newToken;
     } catch (error) {
       console.error("[useTokenRefresh] Error refreshing token:", error);

@@ -355,7 +355,9 @@ export default function UsersAndPermissionsPage() {
           <Table aria-label="Auth0 Users">
             <Table.Content selectionMode="none">
               <Table.Header>
-                <Table.Column>{t("admin-users-col-user")}</Table.Column>
+                <Table.Column isRowHeader>
+                  {t("admin-users-col-user")}
+                </Table.Column>
                 <Table.Column>{t("admin-users-col-email")}</Table.Column>
                 <Table.Column>{t("admin-users-col-logins")}</Table.Column>
                 <Table.Column>{t("admin-users-col-actions")}</Table.Column>

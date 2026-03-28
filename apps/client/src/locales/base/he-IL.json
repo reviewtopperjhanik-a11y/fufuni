@@ -678,5 +678,6 @@
   "admin-image-storage-url": "הפניות URL חיצוניות (CDN חיצוני או שירות)",
   "admin-inventory-filter-placeholder": "חפש מלאי לפי מק\"ט או שם מוצר...",
   "admin-regions-filter-placeholder": "חפש אזורים...",
-  "admin-tax-rates-filter-placeholder": "חפש שיעורי מס לפי קוד מדינה או קוד מס..."
+  "admin-tax-rates-filter-placeholder": "חפש שיעורי מס לפי קוד מדינה או קוד מס...",
+  "admin-currencies-filter-placeholder": "חפש מטבעות..."
 }

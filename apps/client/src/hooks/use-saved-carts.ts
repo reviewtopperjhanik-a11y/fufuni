@@ -3,13 +3,14 @@
  * License: AGPL-3.0-or-later
  */
 
-import { useCallback } from 'react';
-import { decodeJwt } from 'jose';
-import { useAuth } from '@/authentication';
-import { useTokenRefresh } from '@/hooks/use-token-refresh';
-import { getStoreMetadata } from '@/lib/store-metadata';
-import { useTokenUserData } from '@/hooks/use-token-user-data';
-import { getApiBase } from '@/lib/api-base';
+import { useCallback } from "react";
+import { decodeJwt } from "jose";
+
+import { useAuth } from "@/authentication";
+import { useTokenRefresh } from "@/hooks/use-token-refresh";
+import { getStoreMetadata } from "@/lib/store-metadata";
+import { useTokenUserData } from "@/hooks/use-token-user-data";
+import { getApiBase } from "@/lib/api-base";
 
 /**
  * SavedCartSnapshot — Complete cart snapshot stored in Auth0 user_metadata
@@ -32,7 +33,7 @@ export interface SavedCartSnapshot {
   };
   currency: string;
   customer_email: string;
-  status: 'open' | 'checked_out' | 'expired';
+  status: "open" | "checked_out" | "expired";
   expires_at: string;
   saved_at: string;
 }
@@ -46,7 +47,7 @@ export interface UseSavedCartsReturn {
   getSavedCart: (cartId: string) => SavedCartSnapshot | undefined;
 }
 
-const SAVED_CARTS_UPDATED_EVENT = 'fufuni:saved-carts-updated';
+const SAVED_CARTS_UPDATED_EVENT = "fufuni:saved-carts-updated";
 
 /**
  * Lightweight token parser function.
@@ -54,11 +55,13 @@ const SAVED_CARTS_UPDATED_EVENT = 'fufuni:saved-carts-updated';
  */
 const STORE_URL = import.meta.env.STORE_URL;
 
-export function getSavedCartsFromToken(token: string | null): (SavedCartSnapshot | string)[] {
+export function getSavedCartsFromToken(
+  token: string | null,
+): (SavedCartSnapshot | string)[] {
   if (!token) return [];
   try {
     const payload = decodeJwt(token) as any;
-    const userMetadata = payload['extra_user_info/user_metadata'];
+    const userMetadata = payload["extra_user_info/user_metadata"];
     const storeMetadata = getStoreMetadata(userMetadata, STORE_URL);
 
     // Support both new snapshot format and legacy string ID format
@@ -73,14 +76,18 @@ export function getSavedCartsFromToken(token: string | null): (SavedCartSnapshot
 
     return [];
   } catch (error) {
-    console.error('[useSavedCarts] Error decoding token for saved carts:', error);
+    console.error(
+      "[useSavedCarts] Error decoding token for saved carts:",
+      error,
+    );
+
     return [];
   }
 }
 
 /**
  * Custom React hook to manage the user's saved carts.
- * 
+ *
  * Features:
  * - Extremely lightweight: 100% derived from the JWT user_metadata
  * - Stores complete cart snapshots (items, totals) for offline reconstruction
@@ -102,12 +109,16 @@ export function useSavedCarts(): UseSavedCartsReturn {
   const toggleSavedCart = useCallback(
     async (cartId: string) => {
       if (!auth.isAuthenticated) {
-        console.warn('[useSavedCarts] Attempted to toggle without authentication');
+        console.warn(
+          "[useSavedCarts] Attempted to toggle without authentication",
+        );
+
         return;
       }
 
-      const saved = savedCarts.some(sc => {
-        if (typeof sc === 'string') return sc === cartId;
+      const saved = savedCarts.some((sc) => {
+        if (typeof sc === "string") return sc === cartId;
+
         return (sc as SavedCartSnapshot).id === cartId;
       });
 
@@ -122,28 +133,34 @@ export function useSavedCarts(): UseSavedCartsReturn {
         const newSavedCarts = getSavedCartsFromToken(newToken || null);
 
         setSavedCarts(newSavedCarts);
-        window.dispatchEvent(new CustomEvent(SAVED_CARTS_UPDATED_EVENT, { detail: newSavedCarts }));
+        window.dispatchEvent(
+          new CustomEvent(SAVED_CARTS_UPDATED_EVENT, { detail: newSavedCarts }),
+        );
       } catch (error) {
-        console.error('[useSavedCarts] Mutation error:', error);
+        console.error("[useSavedCarts] Mutation error:", error);
       }
     },
-    [auth, refreshToken, savedCarts, apiBase]
+    [auth, refreshToken, savedCarts, apiBase],
   );
 
   const isSaved = useCallback(
-    (cartId: string) => savedCarts.some(sc => {
-      if (typeof sc === 'string') return sc === cartId;
-      return (sc as SavedCartSnapshot).id === cartId;
-    }),
-    [savedCarts]
+    (cartId: string) =>
+      savedCarts.some((sc) => {
+        if (typeof sc === "string") return sc === cartId;
+
+        return (sc as SavedCartSnapshot).id === cartId;
+      }),
+    [savedCarts],
   );
 
   const getSavedCart = useCallback(
-    (cartId: string) => savedCarts.find(sc => {
-      if (typeof sc === 'string') return false;
-      return (sc as SavedCartSnapshot).id === cartId;
-    }) as SavedCartSnapshot | undefined,
-    [savedCarts]
+    (cartId: string) =>
+      savedCarts.find((sc) => {
+        if (typeof sc === "string") return false;
+
+        return (sc as SavedCartSnapshot).id === cartId;
+      }) as SavedCartSnapshot | undefined,
+    [savedCarts],
   );
 
   return {

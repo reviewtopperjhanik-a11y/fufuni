@@ -24,7 +24,12 @@ export type LocalizedDesc = Record<string, string>;
 // Fallback chain: order in which locales are tried when the requested
 // locale is missing from the stored JSON.
 export const DESCRIPTION_FALLBACK = [
-  'en-US', 'fr-FR', 'es-ES', 'zh-CN', 'ar-SA', 'he-IL',
+  "en-US",
+  "fr-FR",
+  "es-ES",
+  "zh-CN",
+  "ar-SA",
+  "he-IL",
 ] as const;
 
 /**
@@ -32,15 +37,17 @@ export const DESCRIPTION_FALLBACK = [
  * Returns the parsed object or the original string.
  */
 export function parseDescription(raw: string): LocalizedDesc | string {
-  if (!raw) return '';
+  if (!raw) return "";
   const trimmed = raw.trimStart();
-  if (trimmed.startsWith('{')) {
+
+  if (trimmed.startsWith("{")) {
     try {
       return JSON.parse(raw) as LocalizedDesc;
     } catch {
       // Malformed JSON: treat as plain HTML
     }
   }
+
   return raw;
 }
 
@@ -52,13 +59,15 @@ export function parseDescription(raw: string): LocalizedDesc | string {
  */
 export function resolveDescription(raw: string, locale: string): string {
   const parsed = parseDescription(raw);
-  if (typeof parsed === 'string') return parsed;
+
+  if (typeof parsed === "string") return parsed;
 
   // Exact match first, then fallback chain
   for (const lang of [locale, ...DESCRIPTION_FALLBACK]) {
     if (parsed[lang]) return parsed[lang];
   }
-  return '';
+
+  return "";
 }
 
 /**
@@ -66,17 +75,15 @@ export function resolveDescription(raw: string, locale: string): string {
  * - If raw is plain HTML: migrates it to JSON using the provided locale as key.
  * - If raw is already JSON: updates or adds the locale key.
  */
-export function mergeLocale(
-  raw: string,
-  locale: string,
-  html: string
-): string {
+export function mergeLocale(raw: string, locale: string, html: string): string {
   const parsed = parseDescription(raw);
-  if (typeof parsed === 'string') {
+
+  if (typeof parsed === "string") {
     // First call ever: migrate from plain HTML.
     // The plain HTML becomes the content for the current locale.
     return JSON.stringify({ [locale]: html });
   }
+
   return JSON.stringify({ ...parsed, [locale]: html });
 }
 
@@ -91,7 +98,9 @@ export function mergeLocale(
  */
 export function getEditorContent(raw: string, locale: string): string {
   const parsed = parseDescription(raw);
-  if (typeof parsed === 'string') return parsed;
+
+  if (typeof parsed === "string") return parsed;
+
   return resolveDescription(raw, locale);
 }
 
@@ -99,7 +108,7 @@ export function getEditorContent(raw: string, locale: string): string {
  * Returns true if the raw value is already a LocalizedDesc JSON object.
  */
 export function isLocalized(raw: string): boolean {
-  return typeof parseDescription(raw) === 'object';
+  return typeof parseDescription(raw) === "object";
 }
 
 // ─── Plain-text title helpers (same logic, HTML-free) ─────────────────────────
@@ -112,9 +121,9 @@ export function stripHtml(input: string): string {
   // First remove obvious HTML-like tags, then escape any remaining
   // angle brackets so they cannot form actual HTML elements.
   return input
-    .replace(/<[^>]*>/g, '')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
+    .replace(/<[^>]*>/g, "")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
     .trim();
 }
 
@@ -123,13 +132,14 @@ export function stripHtml(input: string): string {
  * Identical to parseDescription but strips HTML from all values as a guard.
  */
 export function parseTitle(raw: string): LocalizedDesc | string {
-  if (!raw) return '';
+  if (!raw) return "";
   const parsed = parseDescription(raw);
-  if (typeof parsed === 'string') return stripHtml(parsed);
+
+  if (typeof parsed === "string") return stripHtml(parsed);
 
   // Strip HTML from every locale value (safety guard)
   return Object.fromEntries(
-    Object.entries(parsed).map(([k, v]) => [k, stripHtml(v)])
+    Object.entries(parsed).map(([k, v]) => [k, stripHtml(v)]),
   ) as LocalizedDesc;
 }
 
@@ -139,12 +149,14 @@ export function parseTitle(raw: string): LocalizedDesc | string {
  */
 export function resolveTitle(raw: string, locale: string): string {
   const parsed = parseTitle(raw);
-  if (typeof parsed === 'string') return parsed;
+
+  if (typeof parsed === "string") return parsed;
 
   for (const lang of [locale, ...DESCRIPTION_FALLBACK]) {
     if (parsed[lang]) return parsed[lang];
   }
-  return '';
+
+  return "";
 }
 
 /**
@@ -152,21 +164,23 @@ export function resolveTitle(raw: string, locale: string): string {
  * - Legacy plain string → migrates to JSON on first write.
  * - Existing JSON → updates or adds the locale key.
  * HTML is stripped before storing.
- * 
+ *
  * IMPORTANT: When migrating from plain text, we preserve the original content
  * in the default locale (en-US) as a fallback, so other locales can inherit it.
  */
 export function mergeTitleLocale(
   raw: string,
   locale: string,
-  text: string
+  text: string,
 ): string {
   const safe = stripHtml(text);
   const parsed = parseTitle(raw);
-  if (typeof parsed === 'string') {
+
+  if (typeof parsed === "string") {
     // Migration: when converting plain text to JSON,
     // preserve the original text as fallback in en-US
-    const defaultLocale = 'en-US';
+    const defaultLocale = "en-US";
+
     if (locale === defaultLocale) {
       // We're editing the default locale directly
       return JSON.stringify({ [locale]: safe });
@@ -175,6 +189,7 @@ export function mergeTitleLocale(
       return JSON.stringify({ [defaultLocale]: parsed, [locale]: safe });
     }
   }
+
   return JSON.stringify({ ...parsed, [locale]: safe });
 }
 
@@ -191,7 +206,7 @@ export function getTitleForLocale(raw: string, locale: string): string {
  * Returns true if the raw title is stored as LocalizedDesc JSON.
  */
 export function isTitleLocalized(raw: string): boolean {
-  return typeof parseTitle(raw) === 'object';
+  return typeof parseTitle(raw) === "object";
 }
 
 /**
@@ -201,7 +216,9 @@ export function isTitleLocalized(raw: string): boolean {
 export function titleMatchesTerm(raw: string, term: string): boolean {
   const parsed = parseTitle(raw);
   const lower = term.toLowerCase();
-  if (typeof parsed === 'string') return parsed.toLowerCase().includes(lower);
+
+  if (typeof parsed === "string") return parsed.toLowerCase().includes(lower);
+
   return Object.values(parsed).some((v) => v.toLowerCase().includes(lower));
 }
 
@@ -211,15 +228,17 @@ export function titleMatchesTerm(raw: string, term: string): boolean {
  * Parses vendor string: plain text (legacy) or LocalizedDesc JSON.
  */
 export function parseVendor(raw: string): LocalizedDesc | string {
-  if (!raw) return '';
+  if (!raw) return "";
   const trimmed = raw.trimStart();
-  if (trimmed.startsWith('{')) {
+
+  if (trimmed.startsWith("{")) {
     try {
       return JSON.parse(raw) as LocalizedDesc;
     } catch {
       return stripHtml(raw);
     }
   }
+
   return stripHtml(raw);
 }
 
@@ -228,11 +247,13 @@ export function parseVendor(raw: string): LocalizedDesc | string {
  */
 export function resolveVendor(raw: string, locale: string): string {
   const parsed = parseVendor(raw);
-  if (typeof parsed === 'string') return parsed;
+
+  if (typeof parsed === "string") return parsed;
   for (const lang of [locale, ...DESCRIPTION_FALLBACK]) {
     if (parsed[lang]) return parsed[lang];
   }
-  return '';
+
+  return "";
 }
 
 /**
@@ -243,24 +264,29 @@ export function resolveVendor(raw: string, locale: string): string {
 export function mergeVendorLocale(
   raw: string,
   locale: string,
-  text: string
+  text: string,
 ): string {
   const safe = stripHtml(text);
   const parsed = parseVendor(raw);
-  if (typeof parsed === 'string') {
+
+  if (typeof parsed === "string") {
     // Migration from plain text to JSON
     const result: LocalizedDesc = { [locale]: safe };
+
     // If editing a non-default locale and parsed is non-empty, use it as fallback for en-US
-    if (locale !== 'en-US' && parsed) {
-      result['en-US'] = parsed;
+    if (locale !== "en-US" && parsed) {
+      result["en-US"] = parsed;
     }
+
     return JSON.stringify(result);
   }
   // Already JSON: update and ensure en-US exists
   const result = { ...parsed, [locale]: safe };
-  if (!result['en-US'] && safe) {
-    result['en-US'] = safe; // Use current value as fallback for en-US
+
+  if (!result["en-US"] && safe) {
+    result["en-US"] = safe; // Use current value as fallback for en-US
   }
+
   return JSON.stringify(result);
 }
 
@@ -277,15 +303,17 @@ export function getVendorForLocale(raw: string, locale: string): string {
  * Parses tags: plain comma-separated (legacy) or LocalizedDesc JSON with comma-separated values.
  */
 export function parseTags(raw: string): LocalizedDesc | string {
-  if (!raw) return '';
+  if (!raw) return "";
   const trimmed = raw.trimStart();
-  if (trimmed.startsWith('{')) {
+
+  if (trimmed.startsWith("{")) {
     try {
       return JSON.parse(raw) as LocalizedDesc;
     } catch {
       return raw;
     }
   }
+
   return raw;
 }
 
@@ -294,11 +322,13 @@ export function parseTags(raw: string): LocalizedDesc | string {
  */
 export function resolveTags(raw: string, locale: string): string {
   const parsed = parseTags(raw);
-  if (typeof parsed === 'string') return parsed;
+
+  if (typeof parsed === "string") return parsed;
   for (const lang of [locale, ...DESCRIPTION_FALLBACK]) {
     if (parsed[lang]) return parsed[lang];
   }
-  return '';
+
+  return "";
 }
 
 /**
@@ -307,23 +337,28 @@ export function resolveTags(raw: string, locale: string): string {
 export function mergeTagsLocale(
   raw: string,
   locale: string,
-  tags: string
+  tags: string,
 ): string {
   const safe = tags.trim();
   const parsed = parseTags(raw);
-  if (typeof parsed === 'string') {
+
+  if (typeof parsed === "string") {
     // Migration from plain text to JSON
     const result: LocalizedDesc = { [locale]: safe };
-    if (locale !== 'en-US' && parsed) {
-      result['en-US'] = parsed;
+
+    if (locale !== "en-US" && parsed) {
+      result["en-US"] = parsed;
     }
+
     return JSON.stringify(result);
   }
   // Already JSON: update and ensure en-US exists
   const result = { ...parsed, [locale]: safe };
-  if (!result['en-US'] && safe) {
-    result['en-US'] = safe;
+
+  if (!result["en-US"] && safe) {
+    result["en-US"] = safe;
   }
+
   return JSON.stringify(result);
 }
 
@@ -340,18 +375,24 @@ export function getTagsForLocale(raw: string, locale: string): string {
  * Parses handle: plain text (legacy) or LocalizedDesc JSON.
  */
 export function parseHandle(raw: string): LocalizedDesc | string {
-  if (!raw) return '';
+  if (!raw) return "";
   const trimmed = raw.trimStart();
-  if (trimmed.startsWith('{')) {
+
+  if (trimmed.startsWith("{")) {
     try {
       const parsed = JSON.parse(raw) as LocalizedDesc;
+
       return Object.fromEntries(
-        Object.entries(parsed).map(([k, v]) => [k, (v as string).toLowerCase()])
+        Object.entries(parsed).map(([k, v]) => [
+          k,
+          (v as string).toLowerCase(),
+        ]),
       ) as LocalizedDesc;
     } catch {
       return raw.toLowerCase();
     }
   }
+
   return raw.toLowerCase();
 }
 
@@ -360,11 +401,13 @@ export function parseHandle(raw: string): LocalizedDesc | string {
  */
 export function resolveHandle(raw: string, locale: string): string {
   const parsed = parseHandle(raw);
-  if (typeof parsed === 'string') return parsed;
+
+  if (typeof parsed === "string") return parsed;
   for (const lang of [locale, ...DESCRIPTION_FALLBACK]) {
     if (parsed[lang]) return parsed[lang];
   }
-  return '';
+
+  return "";
 }
 
 /**
@@ -373,23 +416,28 @@ export function resolveHandle(raw: string, locale: string): string {
 export function mergeHandleLocale(
   raw: string,
   locale: string,
-  handle: string
+  handle: string,
 ): string {
   const safe = handle.toLowerCase().trim();
   const parsed = parseHandle(raw);
-  if (typeof parsed === 'string') {
+
+  if (typeof parsed === "string") {
     // Migration from plain text to JSON
     const result: LocalizedDesc = { [locale]: safe };
-    if (locale !== 'en-US' && parsed) {
-      result['en-US'] = parsed;
+
+    if (locale !== "en-US" && parsed) {
+      result["en-US"] = parsed;
     }
+
     return JSON.stringify(result);
   }
   // Already JSON: update and ensure en-US exists
   const result = { ...parsed, [locale]: safe };
-  if (!result['en-US'] && safe) {
-    result['en-US'] = safe;
+
+  if (!result["en-US"] && safe) {
+    result["en-US"] = safe;
   }
+
   return JSON.stringify(result);
 }
 
@@ -402,14 +450,14 @@ export function getHandleForLocale(raw: string, locale: string): string {
 
 /**
  * Resolves a title that combines product title and variant title.
- * 
+ *
  * Format in cart: "Product Title - Variant Title"
  * OR: "Product Title" (no variant)
  * OR: JSON for product title, plain text for variant
  *
  * This function extracts both parts, resolves the product title to the correct locale,
  * and recombines them.
- * 
+ *
  * Examples:
  * - Input: '{"en-US": "Cap", "fr-FR": "Casquette"} - Red', locale 'fr-FR'
  *   Output: 'Casquette - Red'
@@ -417,10 +465,10 @@ export function getHandleForLocale(raw: string, locale: string): string {
  *   Output: 'Cap - Red'
  */
 export function resolveTitleWithVariant(raw: string, locale: string): string {
-  if (!raw) return '';
+  if (!raw) return "";
 
   // Try to split by ' - ' (the separator used in addItem)
-  const parts = raw.split(' - ');
+  const parts = raw.split(" - ");
 
   if (parts.length === 1) {
     // No variant separator, just use resolveTitle
@@ -430,7 +478,7 @@ export function resolveTitleWithVariant(raw: string, locale: string): string {
   // parts[0] is the product title (may be JSON)
   // parts[1..] are the variant parts (concatenate them back in case variant has ' - ')
   const productTitleRaw = parts[0];
-  const variantTitle = parts.slice(1).join(' - '); // rejoin in case variant contains ' - '
+  const variantTitle = parts.slice(1).join(" - "); // rejoin in case variant contains ' - '
 
   // Resolve the product title for the locale
   const resolvedProductTitle = resolveTitle(productTitleRaw, locale);
@@ -444,15 +492,17 @@ export function resolveTitleWithVariant(raw: string, locale: string): string {
  * Parses tax name: plain text (legacy) or LocalizedDesc JSON.
  */
 export function parseTaxName(raw: string): LocalizedDesc | string {
-  if (!raw) return '';
+  if (!raw) return "";
   const trimmed = raw.trimStart();
-  if (trimmed.startsWith('{')) {
+
+  if (trimmed.startsWith("{")) {
     try {
       return JSON.parse(raw) as LocalizedDesc;
     } catch {
       return stripHtml(raw);
     }
   }
+
   return stripHtml(raw);
 }
 
@@ -461,11 +511,13 @@ export function parseTaxName(raw: string): LocalizedDesc | string {
  */
 export function resolveTaxName(raw: string, locale: string): string {
   const parsed = parseTaxName(raw);
-  if (typeof parsed === 'string') return parsed;
+
+  if (typeof parsed === "string") return parsed;
   for (const lang of [locale, ...DESCRIPTION_FALLBACK]) {
     if (parsed[lang]) return parsed[lang];
   }
-  return '';
+
+  return "";
 }
 
 /**
@@ -474,23 +526,28 @@ export function resolveTaxName(raw: string, locale: string): string {
 export function mergeTaxNameLocale(
   raw: string,
   locale: string,
-  text: string
+  text: string,
 ): string {
   const safe = stripHtml(text);
   const parsed = parseTaxName(raw);
-  if (typeof parsed === 'string') {
+
+  if (typeof parsed === "string") {
     // Migration from plain text to JSON
     const result: LocalizedDesc = { [locale]: safe };
-    if (locale !== 'en-US' && parsed) {
-      result['en-US'] = parsed;
+
+    if (locale !== "en-US" && parsed) {
+      result["en-US"] = parsed;
     }
+
     return JSON.stringify(result);
   }
   // Already JSON: update and ensure en-US exists
   const result = { ...parsed, [locale]: safe };
-  if (!result['en-US'] && safe) {
-    result['en-US'] = safe;
+
+  if (!result["en-US"] && safe) {
+    result["en-US"] = safe;
   }
+
   return JSON.stringify(result);
 }
 

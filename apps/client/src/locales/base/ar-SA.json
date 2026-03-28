@@ -678,5 +678,6 @@
   "admin-image-storage-url": "مرجع URL خارجي (CDN خارجي أو خدمة)",
   "admin-inventory-filter-placeholder": "البحث في المخزون عن طريق SKU أو اسم المنتج...",
   "admin-regions-filter-placeholder": "مناطق البحث...",
-  "admin-tax-rates-filter-placeholder": "البحث عن معدلات الضرائب حسب رمز البلد أو رمز الضريبة..."
+  "admin-tax-rates-filter-placeholder": "البحث عن معدلات الضرائب حسب رمز البلد أو رمز الضريبة...",
+  "admin-currencies-filter-placeholder": "بحث عن العملات..."
 }

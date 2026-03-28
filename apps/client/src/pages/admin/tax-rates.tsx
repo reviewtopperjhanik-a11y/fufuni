@@ -173,16 +173,15 @@ export default function TaxRatesPage() {
   return (
     <DefaultLayout>
       <AdminCrudLayout
-        title={t("admin-tax-rates-title")}
         addLabel={t("admin-tax-rates-add")}
-        onAdd={handleOpenCreate}
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
         filterPlaceholder={t("admin-tax-rates-filter-placeholder")}
+        globalFilter={globalFilter}
         statusFilter={statusFilter || ""}
+        title={t("admin-tax-rates-title")}
+        onAdd={handleOpenCreate}
+        onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={(v) => setStatusFilter(v || "")}
       >
-
         <Card>
           <Card.Content>
             <Table aria-label="Tax Rates Table">

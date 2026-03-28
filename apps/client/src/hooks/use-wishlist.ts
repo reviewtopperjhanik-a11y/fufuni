@@ -3,13 +3,14 @@
  * License: AGPL-3.0-or-later
  */
 
-import { useCallback } from 'react';
-import { decodeJwt } from 'jose';
-import { useAuth } from '@/authentication';
-import { useTokenRefresh } from '@/hooks/use-token-refresh';
-import { getStoreMetadata } from '@/lib/store-metadata';
-import { useTokenUserData } from '@/hooks/use-token-user-data';
-import { getApiBase } from '@/lib/api-base';
+import { useCallback } from "react";
+import { decodeJwt } from "jose";
+
+import { useAuth } from "@/authentication";
+import { useTokenRefresh } from "@/hooks/use-token-refresh";
+import { getStoreMetadata } from "@/lib/store-metadata";
+import { useTokenUserData } from "@/hooks/use-token-user-data";
+import { getApiBase } from "@/lib/api-base";
 
 export interface UseWishlistReturn {
   wishlist: string[];
@@ -19,7 +20,7 @@ export interface UseWishlistReturn {
   isFavorite: (productId: string) => boolean;
 }
 
-const WISHLIST_UPDATED_EVENT = 'fufuni:wishlist-updated';
+const WISHLIST_UPDATED_EVENT = "fufuni:wishlist-updated";
 
 /**
  * Lightweight token parser function.
@@ -31,7 +32,7 @@ export function getWishlistFromToken(token: string | null): string[] {
   if (!token) return [];
   try {
     const payload = decodeJwt(token) as any;
-    const userMetadata = payload['extra_user_info/user_metadata'];
+    const userMetadata = payload["extra_user_info/user_metadata"];
     const storeMetadata = getStoreMetadata(userMetadata, STORE_URL);
 
     if (Array.isArray(storeMetadata?.wishlist)) {
@@ -45,14 +46,15 @@ export function getWishlistFromToken(token: string | null): string[] {
 
     return [];
   } catch (error) {
-    console.error('[useWishlist] Error decoding token for wishlist:', error);
+    console.error("[useWishlist] Error decoding token for wishlist:", error);
+
     return [];
   }
 }
 
 /**
  * Custom React hook to manage the user's wishlist (favorites).
- * 
+ *
  * Features:
  * - Extremely lightweight: 100% derived from the JWT user_metadata
  * - Uses `useTokenRefresh` to keep JWT synced after mutations
@@ -73,7 +75,10 @@ export function useWishlist(): UseWishlistReturn {
   const toggle = useCallback(
     async (productId: string) => {
       if (!auth.isAuthenticated) {
-        console.warn('[useWishlist] Attempted to toggle without authentication');
+        console.warn(
+          "[useWishlist] Attempted to toggle without authentication",
+        );
+
         return;
       }
 
@@ -90,17 +95,19 @@ export function useWishlist(): UseWishlistReturn {
         const newWishlist = getWishlistFromToken(newToken || null);
 
         setWishlist(newWishlist);
-        window.dispatchEvent(new CustomEvent(WISHLIST_UPDATED_EVENT, { detail: newWishlist }));
+        window.dispatchEvent(
+          new CustomEvent(WISHLIST_UPDATED_EVENT, { detail: newWishlist }),
+        );
       } catch (error) {
-        console.error('[useWishlist] Mutation error:', error);
+        console.error("[useWishlist] Mutation error:", error);
       }
     },
-    [auth, refreshToken, wishlist, apiBase]
+    [auth, refreshToken, wishlist, apiBase],
   );
 
   const isFavorite = useCallback(
     (productId: string) => wishlist.includes(productId),
-    [wishlist]
+    [wishlist],
   );
 
   return {

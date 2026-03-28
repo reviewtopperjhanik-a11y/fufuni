@@ -58,12 +58,16 @@ export const AuthenticationProvider: React.FC<AuthenticationProviderProps> = ({
       // Store pendingWishlistProduct in sessionStorage if present
       // This allows the WishlistButton to detect and execute the pending action
       if (appState?.pendingWishlistProduct) {
-        sessionStorage.setItem('pendingWishlistProduct', appState.pendingWishlistProduct);
+        sessionStorage.setItem(
+          "pendingWishlistProduct",
+          appState.pendingWishlistProduct,
+        );
       }
 
       if (appState?.returnTo) {
         console.log("Redirecting to:", appState.returnTo);
         const target = appState?.returnTo || window.location.pathname;
+
         navigate(target, { replace: true });
       }
     };

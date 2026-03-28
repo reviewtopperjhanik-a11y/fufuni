@@ -255,16 +255,15 @@ export default function WarehousesPage() {
   return (
     <DefaultLayout>
       <AdminCrudLayout
-        title={t("admin-warehouses-title")}
         addLabel={t("admin-warehouses-add")}
-        onAdd={handleOpenCreate}
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
         filterPlaceholder={t("admin-warehouses-filter-placeholder")}
+        globalFilter={globalFilter}
         statusFilter={statusFilter || ""}
+        title={t("admin-warehouses-title")}
+        onAdd={handleOpenCreate}
+        onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={(v) => setStatusFilter(v || "")}
       >
-
         <Card>
           <Card.Content>
             <Table>

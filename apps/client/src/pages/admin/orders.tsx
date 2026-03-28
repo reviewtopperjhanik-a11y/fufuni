@@ -327,37 +327,40 @@ export default function OrdersPage() {
                     className="min-w-full"
                   >
                     <Table.Header>
-                      {table.getHeaderGroups()[0]?.headers.map((header) => (
-                        <Table.Column
-                          key={header.id}
-                          className={clsx(
-                            header.column.getCanSort() &&
-                              "cursor-pointer select-none",
-                          )}
-                          onClick={header.column.getToggleSortingHandler()}
-                        >
-                          <div className="flex items-center gap-2">
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
+                      {table
+                        .getHeaderGroups()[0]
+                        ?.headers.map((header, index) => (
+                          <Table.Column
+                            key={header.id}
+                            className={clsx(
+                              header.column.getCanSort() &&
+                                "cursor-pointer select-none",
                             )}
-                            {header.column.getCanSort() && (
-                              <span>
-                                {header.column.getIsSorted() === "asc" ? (
-                                  <ChevronUp size={14} />
-                                ) : header.column.getIsSorted() === "desc" ? (
-                                  <ChevronDown size={14} />
-                                ) : (
-                                  <ChevronsUpDown
-                                    className="opacity-30"
-                                    size={14}
-                                  />
-                                )}
-                              </span>
-                            )}
-                          </div>
-                        </Table.Column>
-                      ))}
+                            isRowHeader={index === 0}
+                            onClick={header.column.getToggleSortingHandler()}
+                          >
+                            <div className="flex items-center gap-2">
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+                              {header.column.getCanSort() && (
+                                <span>
+                                  {header.column.getIsSorted() === "asc" ? (
+                                    <ChevronUp size={14} />
+                                  ) : header.column.getIsSorted() === "desc" ? (
+                                    <ChevronDown size={14} />
+                                  ) : (
+                                    <ChevronsUpDown
+                                      className="opacity-30"
+                                      size={14}
+                                    />
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          </Table.Column>
+                        ))}
                     </Table.Header>
                     <Table.Body>
                       {table.getRowModel().rows.map((row) => (

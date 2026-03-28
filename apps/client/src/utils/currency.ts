@@ -39,7 +39,7 @@
 export function formatMoney(
   cents: number,
   currency: string = "",
-  locale?: string
+  locale?: string,
 ): string {
   // Si pas de devise, utilise le format nombre simple
   if (!currency) {
@@ -76,7 +76,7 @@ export function formatMoneyFixed(
   cents: number,
   currency: string,
   decimals = 2,
-  locale?: string
+  locale?: string,
 ): string {
   return new Intl.NumberFormat(locale ?? navigator.language, {
     style: "currency",
@@ -100,14 +100,16 @@ export function formatMoneyFixed(
  * currencySymbol("GBP", "en-GB") // "£"
  */
 export function currencySymbol(currency: string, locale?: string): string {
-  return new Intl.NumberFormat(locale ?? navigator.language, {
-    style: "currency",
-    currency: currency.toUpperCase(),
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-    .formatToParts(0)
-    .find((p) => p.type === "currency")?.value ?? currency;
+  return (
+    new Intl.NumberFormat(locale ?? navigator.language, {
+      style: "currency",
+      currency: currency.toUpperCase(),
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    })
+      .formatToParts(0)
+      .find((p) => p.type === "currency")?.value ?? currency
+  );
 }
 
 /**
@@ -126,7 +128,7 @@ export function currencySymbol(currency: string, locale?: string): string {
 export function formatAmount(
   cents: number,
   _currency: string,
-  locale?: string
+  locale?: string,
 ): string {
   return new Intl.NumberFormat(locale ?? navigator.language, {
     style: "decimal",

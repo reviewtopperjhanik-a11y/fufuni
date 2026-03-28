@@ -231,13 +231,13 @@ export default function RegionsPage() {
   return (
     <DefaultLayout>
       <AdminCrudLayout
-        title={t("admin-regions-title")}
         addLabel={t("admin-regions-add")}
-        onAdd={handleOpenCreate}
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
         filterPlaceholder={t("admin-regions-filter-placeholder")}
+        globalFilter={globalFilter}
         statusFilter={statusFilter}
+        title={t("admin-regions-title")}
+        onAdd={handleOpenCreate}
+        onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={setStatusFilter}
       >
         <Card>

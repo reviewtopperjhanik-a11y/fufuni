@@ -18,7 +18,6 @@ import {
 } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
-
 import { availableLanguages } from "@/i18n";
 import { getApiBase } from "@/lib/api-base";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";

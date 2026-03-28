@@ -4,6 +4,7 @@
  */
 
 import { useState, useEffect } from "react";
+
 import { useAuth } from "@/authentication";
 
 /**
@@ -47,11 +48,13 @@ export function useTokenUserData<T>(
           setData(parseFromToken(null));
           setIsLoading(false);
         }
+
         return;
       }
 
       try {
         const token = await auth.getAccessToken();
+
         if (isMounted) {
           setData(parseFromToken(token));
           setIsLoading(false);
@@ -69,14 +72,16 @@ export function useTokenUserData<T>(
     return () => {
       isMounted = false;
     };
-  }, [auth.isAuthenticated, auth.getAccessToken]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [auth.isAuthenticated, auth.getAccessToken]);
 
   // ── Cross-component sync via CustomEvent ─────────────────────────────
   useEffect(() => {
     const handleSync = (e: Event) => {
       setData((e as CustomEvent<T>).detail);
     };
+
     window.addEventListener(eventName, handleSync);
+
     return () => window.removeEventListener(eventName, handleSync);
   }, [eventName]);
 

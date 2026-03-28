@@ -22,6 +22,8 @@ import {
   Button,
   Input,
   TextField,
+  Select,
+  ListBox,
   Label,
   Table,
   Modal,
@@ -221,16 +223,15 @@ export default function CurrenciesPage() {
   return (
     <DefaultLayout>
       <AdminCrudLayout
-        title={t("admin-currencies-title")}
         addLabel={t("admin-currencies-add")}
-        onAdd={handleOpenCreate}
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
         filterPlaceholder={t("admin-currencies-filter-placeholder")}
+        globalFilter={globalFilter}
         statusFilter={statusFilter || ""}
+        title={t("admin-currencies-title")}
+        onAdd={handleOpenCreate}
+        onGlobalFilterChange={setGlobalFilter}
         onStatusFilterChange={(v) => setStatusFilter(v || "")}
       >
-
         <Card>
           <Card.Content>
             <Table>

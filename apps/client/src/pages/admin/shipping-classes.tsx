@@ -27,6 +27,7 @@ import { Chip } from "@heroui/react";
 import { Edit2, Trash2, Package } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
+import { useSecuredApi } from "@/authentication";
 import {
   ShippingClass,
   getShippingClasses,
@@ -40,6 +41,7 @@ import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
 
 export default function ShippingClassesPage() {
   const { t } = useTranslation();
+  const securedApi = useSecuredApi();
 
   // List state
   const [classes, setClasses] = useState<ShippingClass[]>([]);
@@ -62,7 +64,7 @@ export default function ShippingClassesPage() {
 
   const loadData = async () => {
     try {
-      const resp = await getShippingClasses(100);
+      const resp = await getShippingClasses(100, undefined, securedApi);
 
       setClasses(resp.items ?? []);
     } catch (err) {
@@ -125,12 +127,16 @@ export default function ShippingClassesPage() {
   const handleSave = async () => {
     try {
       if (isEditMode && editingClass) {
-        const updated = await updateShippingClass(editingClass.id, {
-          display_name: formData.display_name,
-          description: formData.description || null,
-          resolution: formData.resolution,
-          status: formData.status,
-        });
+        const updated = await updateShippingClass(
+          editingClass.id,
+          {
+            display_name: formData.display_name,
+            description: formData.description || null,
+            resolution: formData.resolution,
+            status: formData.status,
+          },
+          securedApi,
+        );
 
         if (updated) {
           setClasses((prev) =>
@@ -140,12 +146,15 @@ export default function ShippingClassesPage() {
           await loadData();
         }
       } else {
-        const created = await createShippingClass({
-          code: formData.code,
-          display_name: formData.display_name,
-          description: formData.description || undefined,
-          resolution: formData.resolution,
-        });
+        const created = await createShippingClass(
+          {
+            code: formData.code,
+            display_name: formData.display_name,
+            description: formData.description || undefined,
+            resolution: formData.resolution,
+          },
+          securedApi,
+        );
 
         if (created) {
           setClasses((prev) => [...prev, created]);
@@ -162,7 +171,7 @@ export default function ShippingClassesPage() {
   const handleDelete = async (id: string) => {
     if (!confirm(t("admin-shipping-classes-confirm-delete"))) return;
     try {
-      await deleteShippingClass(id);
+      await deleteShippingClass(id, securedApi);
       await loadData();
     } catch (err) {
       console.error("Failed to delete shipping class", err);
@@ -174,20 +183,9 @@ export default function ShippingClassesPage() {
   return (
     <DefaultLayout>
       <AdminCrudLayout
-        title={t("admin-shipping-classes-title")}
-        subtitle={t("admin-shipping-classes-subtitle")}
-        icon={<Package className="w-8 h-8 text-primary" />}
         addLabel={t("admin-shipping-classes-btn-new")}
-        onAdd={handleOpenCreate}
-        globalFilter={globalFilter}
-        onGlobalFilterChange={setGlobalFilter}
         filterPlaceholder={t("admin-shipping-classes-filter-placeholder")}
-        statusFilter={statusFilter}
-        onStatusFilterChange={setStatusFilter}
-        statusLabel={t("admin-shipping-classes-status")}
-        statusAllLabel={t("admin-shipping-classes-filter-status")}
-        statusActiveLabel={t("admin-shipping-classes-active")}
-        statusInactiveLabel={t("admin-shipping-classes-inactive")}
+        globalFilter={globalFilter}
         headerExtra={
           <Card className="mb-6 border-l-4 border-blue-400">
             <Card.Content className="py-3">
@@ -212,6 +210,17 @@ export default function ShippingClassesPage() {
             </Card.Content>
           </Card>
         }
+        icon={<Package className="w-8 h-8 text-primary" />}
+        statusActiveLabel={t("admin-shipping-classes-active")}
+        statusAllLabel={t("admin-shipping-classes-filter-status")}
+        statusFilter={statusFilter}
+        statusInactiveLabel={t("admin-shipping-classes-inactive")}
+        statusLabel={t("admin-shipping-classes-status")}
+        subtitle={t("admin-shipping-classes-subtitle")}
+        title={t("admin-shipping-classes-title")}
+        onAdd={handleOpenCreate}
+        onGlobalFilterChange={setGlobalFilter}
+        onStatusFilterChange={setStatusFilter}
       >
         <Card>
           <Card.Content>

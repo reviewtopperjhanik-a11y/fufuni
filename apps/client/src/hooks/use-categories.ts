@@ -3,8 +3,8 @@
  * License: MIT
  */
 
-import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
+import { useQuery } from "@tanstack/react-query";
+import { useTranslation } from "react-i18next";
 
 export interface Category {
   id: string;
@@ -13,7 +13,7 @@ export interface Category {
   parent_id: string | null;
   position: number;
   image_url: string | null;
-  status: 'active' | 'inactive';
+  status: "active" | "inactive";
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -28,7 +28,7 @@ export interface CategoryTree extends Category {
  */
 function buildCategoryTree(categories: Category[]): CategoryTree[] {
   const map = new Map<string, CategoryTree>();
-  
+
   // Create tree nodes
   for (const cat of categories) {
     map.set(cat.id, { ...cat, children: [] });
@@ -36,12 +36,15 @@ function buildCategoryTree(categories: Category[]): CategoryTree[] {
 
   // Build parent-child relationships
   const roots: CategoryTree[] = [];
+
   for (const cat of categories) {
     const node = map.get(cat.id)!;
+
     if (!cat.parent_id) {
       roots.push(node);
     } else {
       const parent = map.get(cat.parent_id);
+
       if (parent) {
         parent.children.push(node);
       }
@@ -51,8 +54,9 @@ function buildCategoryTree(categories: Category[]): CategoryTree[] {
   // Sort by position
   const sortByPosition = (items: CategoryTree[]) => {
     items.sort((a, b) => a.position - b.position);
-    items.forEach(item => sortByPosition(item.children));
+    items.forEach((item) => sortByPosition(item.children));
   };
+
   sortByPosition(roots);
 
   return roots;
@@ -65,14 +69,17 @@ export const useCategories = () => {
   const { t } = useTranslation();
 
   return useQuery<Category[], Error>({
-    queryKey: ['categories'],
+    queryKey: ["categories"],
     queryFn: async () => {
       const res = await fetch(`${import.meta.env.API_BASE_URL}/v1/categories`);
+
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
-        throw new Error(error.error?.message || t('error-loading-categories'));
+
+        throw new Error(error.error?.message || t("error-loading-categories"));
       }
       const data = await res.json();
+
       return data.items || [];
     },
     staleTime: 60 * 60 * 1000, // 1 hour
@@ -87,13 +94,17 @@ export const useCategoryProducts = (handle: string | null, limit = 20) => {
   const { t } = useTranslation();
 
   return useQuery({
-    queryKey: ['category-products', handle],
+    queryKey: ["category-products", handle],
     queryFn: async () => {
       if (!handle) return null;
-      const res = await fetch(`${import.meta.env.API_BASE_URL}/v1/categories/${handle}/products?limit=${limit}`);
+      const res = await fetch(
+        `${import.meta.env.API_BASE_URL}/v1/categories/${handle}/products?limit=${limit}`,
+      );
+
       if (!res.ok) {
-        throw new Error(t('error-loading-products'));
+        throw new Error(t("error-loading-products"));
       }
+
       return res.json();
     },
     enabled: !!handle,
@@ -112,7 +123,8 @@ export const useCategoryTree = () => {
   const flatList = categories || [];
 
   const rootCategories = flatList.filter((c) => !c.parent_id);
-  const getChildren = (parentId: string) => flatList.filter((c) => c.parent_id === parentId);
+  const getChildren = (parentId: string) =>
+    flatList.filter((c) => c.parent_id === parentId);
 
   return {
     tree,

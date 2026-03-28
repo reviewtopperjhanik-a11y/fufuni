@@ -673,5 +673,6 @@
   "admin-image-storage-url": "External URL reference (external CDN or service)",
   "admin-inventory-filter-placeholder": "Search inventory by SKU or product name...",
   "admin-regions-filter-placeholder": "Search regions...",
-  "admin-tax-rates-filter-placeholder": "Search tax rates by country code or tax code..."
+  "admin-tax-rates-filter-placeholder": "Search tax rates by country code or tax code...",
+  "admin-currencies-filter-placeholder": "Search currencies..."
 }

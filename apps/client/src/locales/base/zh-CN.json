@@ -678,5 +678,6 @@
   "admin-image-storage-url": "外部 URL 参考（外部 CDN 或服务）",
   "admin-inventory-filter-placeholder": "按 SKU 或产品名称搜索库存...",
   "admin-regions-filter-placeholder": "搜索区域...",
-  "admin-tax-rates-filter-placeholder": "按国家代码或税码搜索税率..."
+  "admin-tax-rates-filter-placeholder": "按国家代码或税码搜索税率...",
+  "admin-currencies-filter-placeholder": "搜索货币..."
 }
