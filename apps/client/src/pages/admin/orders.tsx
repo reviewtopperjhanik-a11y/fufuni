@@ -39,7 +39,15 @@ import {
 } from "lucide-react";
 import clsx from "clsx";
 import { useTranslation } from "react-i18next";
-import { Modal, Card, Separator, Label, Button, Chip, Table } from "@heroui/react";
+import {
+  Modal,
+  Card,
+  Separator,
+  Label,
+  Button,
+  Chip,
+  Table,
+} from "@heroui/react";
 
 import { formatMoney } from "@/utils/currency";
 import { useSecuredApi } from "@/authentication";
@@ -306,10 +314,7 @@ export default function OrdersPage() {
             {/* Table */}
             {isLoading ? (
               <div className="py-12 flex items-center justify-center">
-                <Loader2
-                  className="animate-spin text-default-400"
-                  size={20}
-                />
+                <Loader2 className="animate-spin text-default-400" size={20} />
               </div>
             ) : orders.length === 0 ? (
               <div className="py-12 text-center text-sm text-default-400">
@@ -318,7 +323,10 @@ export default function OrdersPage() {
             ) : (
               <Table className="w-full">
                 <Table.ScrollContainer>
-                  <Table.Content aria-label="Orders table" className="min-w-full">
+                  <Table.Content
+                    aria-label="Orders table"
+                    className="min-w-full"
+                  >
                     <Table.Header>
                       {table.getHeaderGroups()[0]?.headers.map((header) => (
                         <Table.Column
@@ -359,7 +367,10 @@ export default function OrdersPage() {
                           className="cursor-pointer hover:bg-default-100"
                         >
                           {row.getVisibleCells().map((cell) => (
-                            <Table.Cell key={cell.id} onClick={() => setSelectedOrder(row.original)}>
+                            <Table.Cell
+                              key={cell.id}
+                              onClick={() => setSelectedOrder(row.original)}
+                            >
                               {flexRender(
                                 cell.column.columnDef.cell,
                                 cell.getContext(),

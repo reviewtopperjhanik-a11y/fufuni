@@ -76,7 +76,7 @@ publicApp.openapi(listCategoriesRoute, async (c) => {
   const db = getDb(c.var.db);
   try {
     const rows = await db.query<any>(
-      `SELECT id, handle, name, parent_id, position, image_url, status, created_at, updated_at
+      `SELECT id, handle, name, description, parent_id, position, image_url, status, created_at, updated_at
        FROM categories WHERE status = 'active'
        ORDER BY position ASC, name ASC`
     );

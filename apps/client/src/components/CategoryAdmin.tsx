@@ -7,17 +7,12 @@
  * Supports multilingual names and descriptions using JSON storage
  */
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { Wand2 } from 'lucide-react';
+import { Wand2, Edit, Trash2 } from 'lucide-react';
+import { Table } from '@heroui/react';
 import {
-  Table,
-  TableHeader,
-  TableColumn,
-  TableBody,
-  TableRow,
-  TableCell,
   Button,
   Modal,
   Input,
@@ -43,7 +38,6 @@ import {
 import { availableLanguages } from '@/i18n';
 import { translateWithAi, type AiParams } from '@/utils/ai-client';
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? '/v1';
 
 /**
  * Category delete confirmation dialog
@@ -146,39 +140,95 @@ function CategoryFormModal({
       .catch(() => setCanUseAi(false));
   }, [hasPermission]);
 
-  const [formData, setFormData] = useState(() =>
-    category
-      ? {
-          handle: category.handle,
-          name: category.name,
-          nameValue: getTitleForLocale(category.name, selectedLocale),
-          description: category.description || '',
-          descriptionValue: getEditorContent(category.description || '', selectedLocale),
-          parent_id: category.parent_id || '',
-          image_url: category.image_url || '',
-          position: String(category.position || 0),
-          status: category.status,
-        }
-      : {
-          handle: '',
-          name: '',
-          nameValue: '',
-          description: '',
-          descriptionValue: '',
-          parent_id: '',
-          image_url: '',
-          position: '0',
-          status: 'active',
-        }
-  );
+  const [formData, setFormData] = useState<{
+    handle: string;
+    name: string;
+    nameValue: string;
+    description: string;
+    descriptionValue: string;
+    parent_id: string;
+    image_url: string;
+    position: string;
+    status: 'active' | 'inactive';
+  }>({
+    handle: '',
+    name: '',
+    nameValue: '',
+    description: '',
+    descriptionValue: '',
+    parent_id: '',
+    image_url: '',
+    position: '0',
+    status: 'active',
+  });
 
-  // Sync display values when locale changes
+  const isFirstMountRef = useRef(true);
+
+  // Initialize/update formData when category prop changes (edit vs create)
   useEffect(() => {
-    setFormData((prev) => ({
-      ...prev,
-      nameValue: getTitleForLocale(prev.name, selectedLocale),
-      descriptionValue: getEditorContent(prev.description, selectedLocale),
-    }));
+    if (category) {
+      setFormData({
+        handle: category.handle,
+        name: category.name,
+        nameValue: getTitleForLocale(category.name, selectedLocale),
+        description: category.description || '',
+        descriptionValue: getEditorContent(category.description || '', selectedLocale),
+        parent_id: category.parent_id || '',
+        image_url: category.image_url || '',
+        position: String(category.position || 0),
+        status: category.status,
+      });
+    } else {
+      setFormData({
+        handle: '',
+        name: '',
+        nameValue: '',
+        description: '',
+        descriptionValue: '',
+        parent_id: '',
+        image_url: '',
+        position: '0',
+        status: 'active',
+      });
+    }
+  }, [category]);
+
+  // Sync display values when locale changes & auto-migrate to JSON if needed
+  useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
+
+    setFormData((prev) => {
+      // Parse the name and description to check if they're plain text or JSON
+      const parsedName = parseTitle(prev.name);
+      const parsedDesc = parseTitle(prev.description);
+
+      // If name is plain text and we have content, migrate to JSON
+      let updatedName = prev.name;
+      if (typeof parsedName === 'string' && prev.nameValue.trim()) {
+        updatedName = mergeTitleLocale(prev.name, selectedLocale, prev.nameValue);
+      }
+
+      // If description is plain text and we have content, migrate to JSON
+      let updatedDesc = prev.description;
+      if (typeof parsedDesc === 'string' && prev.descriptionValue.trim()) {
+        updatedDesc = mergeLocale(prev.description, selectedLocale, prev.descriptionValue);
+      }
+
+      // Now get the display value for the new locale
+      const nameValue = getTitleForLocale(updatedName, selectedLocale);
+      const descriptionValue = getEditorContent(updatedDesc, selectedLocale);
+
+      return {
+        ...prev,
+        name: updatedName,
+        description: updatedDesc,
+        nameValue,
+        descriptionValue,
+      };
+    });
   }, [selectedLocale]);
 
   const handleNameChange = (value: string) => {
@@ -215,7 +265,7 @@ function CategoryFormModal({
     setIsTranslatingName(true);
     try {
       // 1. Fetch AI configuration
-      const params = await getJson(`${(import.meta as any).env?.API_BASE_URL}/v1/ai/parameters`) as AiParams;
+      const params = await getJson(`${import.meta.env.API_BASE_URL}/v1/ai/parameters`) as AiParams;
 
       // 2. Find best source to translate from
       const FALLBACK = ['en-US', 'fr-FR', 'es-ES', 'zh-CN', 'ar-SA', 'he-IL'];
@@ -225,8 +275,15 @@ function CategoryFormModal({
       if (typeof parsed === 'string') {
         sourceText = parsed;
       } else {
-        const sourceLang = FALLBACK.find((l) => l !== selectedLocale && !!parsed[l]);
+        const sourceLang = FALLBACK.find(
+          (l) => l !== selectedLocale && !!parsed[l]
+        );
         sourceText = sourceLang ? parsed[sourceLang] : '';
+      }
+
+      // If we still don't have source, try the default language
+      if (!sourceText && typeof parsed === 'object') {
+        sourceText = parsed[FALLBACK[0]] || '';
       }
 
       if (!sourceText) {
@@ -244,15 +301,14 @@ function CategoryFormModal({
 
       if (result.content) {
         const translated = result.content.trim();
-        setFormData((prev) => ({
-          ...prev,
-          nameValue: translated,
-        }));
-        const updated = mergeTitleLocale(formData.name, selectedLocale, translated);
-        setFormData((prev) => ({
-          ...prev,
-          name: updated,
-        }));
+        setFormData((prev) => {
+          const updated = mergeTitleLocale(prev.name, selectedLocale, translated);
+          return {
+            ...prev,
+            nameValue: translated,
+            name: updated,
+          };
+        });
       }
     } catch (err) {
       console.error('AI name translation failed', err);
@@ -266,12 +322,11 @@ function CategoryFormModal({
     setIsTranslatingDesc(true);
     try {
       // 1. Fetch AI configuration
-      const params = await getJson(`${(import.meta as any).env?.API_BASE_URL }/v1/ai/parameters`) as AiParams;
+      const params = await getJson(`${import.meta.env.API_BASE_URL}/v1/ai/parameters`) as AiParams;
 
       // 2. Find best source to translate from
       const FALLBACK = ['en-US', 'fr-FR', 'es-ES', 'zh-CN', 'ar-SA', 'he-IL'];
-      const currentDesc = formData.description || '';
-      const parsed = parseTitle(currentDesc); // parseTitle works for both titles and descriptions structured in the same way
+      const parsed = parseTitle(formData.description);
 
       let sourceText = '';
       if (typeof parsed === 'string') {
@@ -281,6 +336,11 @@ function CategoryFormModal({
           (l) => l !== selectedLocale && !!parsed[l]
         );
         sourceText = sourceLang ? parsed[sourceLang] : '';
+      }
+
+      // If we still don't have source, try the default language
+      if (!sourceText && typeof parsed === 'object') {
+        sourceText = parsed[FALLBACK[0]] || '';
       }
 
       if (!sourceText) {
@@ -298,15 +358,14 @@ function CategoryFormModal({
 
       if (result.content) {
         const translated = result.content.trim();
-        setFormData((prev) => ({
-          ...prev,
-          descriptionValue: translated,
-        }));
-        const updated = mergeLocale(formData.description, selectedLocale, translated);
-        setFormData((prev) => ({
-          ...prev,
-          description: updated,
-        }));
+        setFormData((prev) => {
+          const updated = mergeLocale(prev.description, selectedLocale, translated);
+          return {
+            ...prev,
+            descriptionValue: translated,
+            description: updated,
+          };
+        });
       }
     } catch (err) {
       console.error('AI description translation failed', err);
@@ -532,7 +591,7 @@ function CategoryFormModal({
                     onSelectionChange={(key) =>
                       setFormData({
                         ...formData,
-                        status: key ? String(key) : 'active',
+                        status: (key as 'active' | 'inactive') || 'active',
                       })
                     }
                     isDisabled={isLoading}
@@ -609,9 +668,9 @@ export function CategoryAdmin() {
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
       if (selectedCategory) {
-        return patchJson(`${API_BASE}/categories/${selectedCategory.id}`, data);
+        return patchJson(`${import.meta.env.API_BASE_URL}/v1/categories/${selectedCategory.id}`, data);
       } else {
-        return postJson(`${API_BASE}/categories`, data);
+        return postJson(`${import.meta.env.API_BASE_URL}/v1/categories`, data);
       }
     },
     onSuccess: () => {
@@ -623,7 +682,7 @@ export function CategoryAdmin() {
 
   const deleteMutation = useMutation({
     mutationFn: async (id: string) => {
-      return deleteJson(`${API_BASE}/categories/${id}`);
+      return deleteJson(`${import.meta.env.API_BASE_URL}/v1/categories/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -676,64 +735,73 @@ export function CategoryAdmin() {
         </div>
       ) : (
         <Table>
-          <TableHeader>
-            <TableColumn>{t('name')}</TableColumn>
-            <TableColumn>{t('handle')}</TableColumn>
-            <TableColumn>{t('parent-category')}</TableColumn>
-            <TableColumn>{t('status')}</TableColumn>
-            <TableColumn className="text-center">{t('actions')}</TableColumn>
-          </TableHeader>
-          <TableBody>
-            {categories.map((category) => {
-              const parent = categories.find((c) => c.id === category.parent_id);
-              const displayName = resolveTitle(category.name, i18n.language);
-              const parentDisplayName = parent
-                ? resolveTitle(parent.name, i18n.language)
-                : '—';
+          <Table.Content>
+            <Table.Header>
+              <Table.Column isRowHeader>{t('name')}</Table.Column>
+              <Table.Column>{t('handle')}</Table.Column>
+              <Table.Column>{t('parent-category')}</Table.Column>
+              <Table.Column>{t('status')}</Table.Column>
+              <Table.Column className="text-center">{t('actions')}</Table.Column>
+            </Table.Header>
+            <Table.Body>
+              {categories.map((category) => {
+                const parent = categories.find((c) => c.id === category.parent_id);
+                const displayName = resolveTitle(category.name, i18n.language);
+                const parentDisplayName = parent
+                  ? resolveTitle(parent.name, i18n.language)
+                  : '—';
 
-              return (
-                <TableRow key={category.id}>
-                  <TableCell className="font-medium">{displayName}</TableCell>
-                  <TableCell>
-                    <code className="text-xs bg-gray-100 px-2 py-1 rounded">
-                      {category.handle}
-                    </code>
-                  </TableCell>
-                  <TableCell>{parentDisplayName}</TableCell>
-                  <TableCell>
-                    <Chip
-                      size="sm"
-                      className={
-                        category.status === 'active'
-                          ? 'bg-green-100 text-green-700'
-                          : 'bg-orange-100 text-orange-700'
-                      }
-                    >
-                      {t(category.status)}
-                    </Chip>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex justify-center gap-2">
-                      <button
-                        onClick={() => handleEdit(category)}
-                        className="text-sm px-2 py-1 hover:bg-gray-100 rounded"
-                        title={t('edit')}
+                return (
+                  <Table.Row key={category.id}>
+                    <Table.Cell className="font-medium">{displayName}</Table.Cell>
+                    <Table.Cell>
+                      <code className="text-xs bg-gray-100 px-2 py-1 rounded">
+                        {category.handle}
+                      </code>
+                    </Table.Cell>
+                    <Table.Cell>{parentDisplayName}</Table.Cell>
+                    <Table.Cell>
+                      <Chip
+                        size="sm"
+                        className={
+                          category.status === 'active'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-orange-100 text-orange-700'
+                        }
                       >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleDeleteClick(category)}
-                        className="text-sm px-2 py-1 hover:bg-red-100 rounded text-red-600"
-                        title={t('delete')}
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              );
-            })}
-          </TableBody>
+                        {t(category.status)}
+                      </Chip>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <div className="flex justify-center gap-2">
+                        <div title={t('edit')}>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="ghost"
+                            onPress={() => handleEdit(category)}
+                          >
+                            <Edit className="w-4 h-4" />
+                          </Button>
+                        </div>
+                        <div title={t('delete')}>
+                          <Button
+                            isIconOnly
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:bg-red-100"
+                            onPress={() => handleDeleteClick(category)}
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    </Table.Cell>
+                  </Table.Row>
+                );
+              })}
+            </Table.Body>
+          </Table.Content>
         </Table>
       )}
 

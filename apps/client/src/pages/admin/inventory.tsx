@@ -346,21 +346,32 @@ export default function InventoryPage() {
                         <Table.Row
                           key={item.sku}
                           className="cursor-pointer odd:bg-default-50"
-                          
                         >
-                          <Table.Cell className=" text-sm" onClick={() => handleOpenItem(item)}>
+                          <Table.Cell
+                            className=" text-sm"
+                            onClick={() => handleOpenItem(item)}
+                          >
                             {item.sku}
                           </Table.Cell>
-                          <Table.Cell className=" text-sm" onClick={() => handleOpenItem(item)}>
+                          <Table.Cell
+                            className=" text-sm"
+                            onClick={() => handleOpenItem(item)}
+                          >
                             {resolveTitle(
                               item.product_title || "-",
                               i18n.language,
                             )}
                           </Table.Cell>
-                          <Table.Cell className=" text-sm" onClick={() => handleOpenItem(item)}>
+                          <Table.Cell
+                            className=" text-sm"
+                            onClick={() => handleOpenItem(item)}
+                          >
                             {item.on_hand}
                           </Table.Cell>
-                          <Table.Cell className=" text-sm" onClick={() => handleOpenItem(item)}>
+                          <Table.Cell
+                            className=" text-sm"
+                            onClick={() => handleOpenItem(item)}
+                          >
                             {item.reserved}
                           </Table.Cell>
                           <Table.Cell

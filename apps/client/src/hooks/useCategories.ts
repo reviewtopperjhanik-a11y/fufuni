@@ -23,8 +23,6 @@ export interface CategoryTree extends Category {
   children: CategoryTree[];
 }
 
-const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL ?? '/v1';
-
 /**
  * Build a hierarchical tree from flat category list
  */
@@ -69,7 +67,7 @@ export const useCategories = () => {
   return useQuery<Category[], Error>({
     queryKey: ['categories'],
     queryFn: async () => {
-      const res = await fetch(`${API_BASE}/categories`);
+      const res = await fetch(`${import.meta.env.API_BASE_URL}/v1/categories`);
       if (!res.ok) {
         const error = await res.json().catch(() => ({}));
         throw new Error(error.error?.message || t('error-loading-categories'));
@@ -92,7 +90,7 @@ export const useCategoryProducts = (handle: string | null, limit = 20) => {
     queryKey: ['category-products', handle],
     queryFn: async () => {
       if (!handle) return null;
-      const res = await fetch(`${API_BASE}/categories/${handle}/products?limit=${limit}`);
+      const res = await fetch(`${import.meta.env.API_BASE_URL}/v1/categories/${handle}/products?limit=${limit}`);
       if (!res.ok) {
         throw new Error(t('error-loading-products'));
       }

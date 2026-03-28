@@ -43,6 +43,7 @@ Visitors see an attractive landing page with a Log in button and direct links to
 - [API Reference](#api-reference)
   - [Authentication](#authentication)
   - [Products & Variants](#products--variants)
+  - [Categories](#categories)
   - [Inventory](#inventory)
   - [Cart & Checkout](#cart--checkout)
   - [Shipping](#shipping)
@@ -86,6 +87,16 @@ Visitors see an attractive landing page with a Log in button and direct links to
 - Inventory management across **multiple warehouses**
 - Product **shipping class** assignment (per product or per variant override)
 - Per-variant weight (`weightg`) used for automatic cart weight calculation
+
+### 📂 Categories
+- **Hierarchical product categories** with optional parent-child relationships
+- **Multilingual category names** — JSON per locale with fallback resolution
+- **Multilingual descriptions** — rich HTML or JSON per locale
+- **One-click AI translation** for names and descriptions across all locales
+- Category image URLs for storefront display
+- Position-based sorting for custom category ordering
+- Public read-only catalog endpoints, admin CRUD operations
+- Real-time permission checking for AI translation features
 
 ### 💳 Payments & Orders
 - **Stripe Checkout** integration with full webhook reconciliation
@@ -409,6 +420,79 @@ Authorization: Bearer <key_or_jwt>
 | `DELETE` | `/v1/products/:id/variants/:variantId/prices/:currencyId` | `admin:store` | Remove a currency price |
 
 > `shippingclassid` can be set on **both** the product (default for all variants) and per-variant (overrides product).
+
+---
+
+### Categories
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/v1/categories` | **public** | List all active categories (flat list ready for tree building) |
+| `POST` | `/v1/categories` | `admin:store` | Create category |
+| `GET` | `/v1/categories/:handle` | **public** | Get a category by handle with full details |
+| `GET` | `/v1/categories/:handle/products` | **public** | List products in a category (`?limit`, `?cursor`) |
+| `PATCH` | `/v1/categories/:id` | `admin:store` | Update category (`handle`, `name`, `description`, `parent_id`, `image_url`, `position`, `status`) |
+| `DELETE` | `/v1/categories/:id` | `admin:store` | Delete category |
+| `POST` | `/v1/categories/:id/products` | `admin:store` | Assign products to category (`product_ids: [...]`) |
+| `DELETE` | `/v1/categories/:id/products/:productId` | `admin:store` | Remove product from category |
+
+**Category data structure:**
+
+```json
+{
+  "id": "uuid",
+  "handle": "t-shirts",
+  "name": "{\"en-US\":\"T-Shirts\",\"fr-FR\":\"T-Shirts\"}",
+  "description": "{\"en-US\":\"Collection of classic tees\"}",
+  "parent_id": null,
+  "position": 0,
+  "image_url": "https://r2.example.com/category-tees.jpg",
+  "status": "active",
+  "created_at": "2026-03-28T08:01:31.772Z",
+  "updated_at": "2026-03-28T08:01:31.778Z"
+}
+```
+
+**Multilingual storage:**
+
+Category `name` and `description` fields support two formats:
+
+1. **Plain text** (for single-locale categories):
+   ```json
+   { "name": "T-Shirts" }
+   ```
+
+2. **JSON per-locale** (for multilingual catalogs):
+   ```json
+   {
+     "name": "{\"en-US\":\"T-Shirts\",\"fr-FR\":\"T-Shirts\",\"es-ES\":\"Camisetas\"}",
+     "description": "{\"en-US\":\"Classic tee collection by season\",\"fr-FR\":\"...\"}"
+   }
+   ```
+
+The admin UI automatically **migrates** from plain text to JSON when switching locales, preserving all existing translations and allowing per-locale AI translation.
+
+**AI Translation:**
+
+The CategoryAdmin component includes one-click AI translation buttons for category names and descriptions. This feature:
+- Requires the `AI_PERMISSION` claim (`ai:api` by default)
+- Uses the same AI provider configured for product translations
+- Automatically detects the source language from fallback locales
+- Preserves HTML markup in descriptions via `isHtml` mode
+- Updates form state atomically (both display value and JSON structure)
+
+**Admin panel:**
+
+Access category management at `/admin/categories` (requires `admin:store` permission).
+Features include:
+- Full CRUD with parent category support for hierarchies
+- Multilingual name and description editor
+- Locale switcher with auto-migration
+- One-click AI translation (when user has `ai:api` permission)
+- Image URL assignment
+- Position-based ordering
+- Status (active/inactive) toggle
+- Delete confirmation dialog
 
 ---
 

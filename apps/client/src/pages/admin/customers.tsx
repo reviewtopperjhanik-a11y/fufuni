@@ -238,10 +238,10 @@ export default function CustomersPage() {
                     className="cursor-pointer hover:bg-default-100 transition-colors"
                   >
                     <Table.Cell onClick={() => openCustomer(c)}>
-                        {c.name || "-"}
+                      {c.name || "-"}
                     </Table.Cell>
                     <Table.Cell onClick={() => openCustomer(c)}>
-                        {c.email}
+                      {c.email}
                     </Table.Cell>
                     <Table.Cell onClick={() => openCustomer(c)}>
                       {c.stats.order_count}
