@@ -23,6 +23,7 @@ import { useTranslation } from "react-i18next";
 import { useTheme } from "@/hooks/use-theme";
 import { SunFilledIcon, MoonFilledIcon } from "@/shared/ui/icons";
 
+/** Props for the {@link ThemeSwitch} component. */
 export interface ThemeSwitchProps {
   className?: string;
 }
@@ -32,6 +33,11 @@ const themes = [
   { key: "dark", Icon: SunFilledIcon, i18nKey: "switch-to-light-mode" },
 ] as const;
 
+/**
+ * Toggle button that switches between `"light"` and `"dark"` themes.
+ * Uses {@link useTheme} for state management and avoids a hydration mismatch
+ * by deferring render until after mount.
+ */
 export const ThemeSwitch: FC<ThemeSwitchProps> = ({ className }) => {
   const { t } = useTranslation();
   const [isMounted, setIsMounted] = useState(false);

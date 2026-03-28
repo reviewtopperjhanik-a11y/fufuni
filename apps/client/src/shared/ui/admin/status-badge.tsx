@@ -8,6 +8,7 @@ import { Chip } from "@heroui/react";
 type StatusValue = "active" | "inactive" | string;
 type ChipColor = "default" | "success" | "warning" | "danger" | "accent";
 
+/** Props for the {@link StatusBadge} component. */
 interface StatusBadgeProps {
   status: StatusValue;
   /**

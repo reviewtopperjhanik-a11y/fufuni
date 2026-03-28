@@ -7,6 +7,7 @@ import { Button, Tooltip } from "@heroui/react";
 import { Edit2, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+/** Props for the {@link RowActions} component. */
 interface RowActionsProps {
   onEdit: () => void;
   onDelete: () => void;

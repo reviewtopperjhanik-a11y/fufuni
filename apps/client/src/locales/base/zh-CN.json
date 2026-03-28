@@ -679,5 +679,8 @@
   "admin-inventory-filter-placeholder": "按 SKU 或产品名称搜索库存...",
   "admin-regions-filter-placeholder": "搜索区域...",
   "admin-tax-rates-filter-placeholder": "按国家代码或税码搜索税率...",
-  "admin-currencies-filter-placeholder": "搜索货币..."
+  "admin-currencies-filter-placeholder": "搜索货币...",
+  "admin-products-field-barcode": "条码",
+  "admin-products-field-compare-at-price": "比较价格（分）",
+  "admin-products-field-tax-code": "税码"
 }

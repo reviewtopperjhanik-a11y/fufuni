@@ -38,6 +38,20 @@ async function fetchJwksJson(domain: string) {
   return (await resp.json()) as any;
 }
 
+/**
+ * Returns a `jose` `JWKSet` verifier for the given Auth0 domain.
+ *
+ * Uses a two-level cache to minimise network round-trips:
+ * 1. **In-memory** — survives within the same page session.
+ * 2. **`sessionStorage`** — survives soft navigations; entries expire after
+ *    `AUTH0_CACHE_DURATION_S` seconds (default: 300).
+ *
+ * Concurrent calls for the same domain are de-duplicated via a single
+ * in-flight promise map so the JWKS endpoint is never hit twice at once.
+ *
+ * @param domain - Auth0 tenant domain (e.g. `\"fufuni.eu.auth0.com\"`).
+ * @returns A `jose` local JWK set ready to be passed to `jwtVerify`.
+ */
 export async function getLocalJwkSet(domain: string) {
   if (inMemoryCache.has(domain)) return inMemoryCache.get(domain)!;
   if (inFlightFetches.has(domain)) return await inFlightFetches.get(domain)!;

@@ -679,5 +679,8 @@
   "admin-inventory-filter-placeholder": "البحث في المخزون عن طريق SKU أو اسم المنتج...",
   "admin-regions-filter-placeholder": "مناطق البحث...",
   "admin-tax-rates-filter-placeholder": "البحث عن معدلات الضرائب حسب رمز البلد أو رمز الضريبة...",
-  "admin-currencies-filter-placeholder": "بحث عن العملات..."
+  "admin-currencies-filter-placeholder": "بحث عن العملات...",
+  "admin-products-field-barcode": "الباركود",
+  "admin-products-field-compare-at-price": "قارن بالسعر (سنتا)",
+  "admin-products-field-tax-code": "قانون الضرائب"
 }

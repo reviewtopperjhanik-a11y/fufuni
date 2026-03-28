@@ -16,10 +16,28 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+/**
+ * Inferred type of the object returned by {@link siteConfig}.
+ * Use this type when you need to type a variable holding the site configuration.
+ */
 export type SiteConfig = typeof siteConfig;
 
 import i18next from "../i18n";
 
+/**
+ * Returns the reactive site configuration object.
+ * The function is called on each render so that translated labels pick up
+ * the currently-active language without requiring a page reload.
+ *
+ * @returns The full site configuration including name, description, nav items,
+ *   nav menu items, and social links.
+ *
+ * @example
+ * ```tsx
+ * const config = siteConfig();
+ * console.log(config.name); // e.g. "Fufuni"
+ * ```
+ */
 export const siteConfig = () => ({
   name: i18next.t("vite-heroui"),
   needCookieConsent: true, // Set to false if you don't need cookie consent

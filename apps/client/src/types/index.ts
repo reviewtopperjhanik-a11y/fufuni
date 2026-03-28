@@ -18,12 +18,29 @@
 
 import { SVGProps } from "react";
 
+/**
+ * Common props for SVG icon components.
+ * Extends the standard SVGSVGElement props with an optional `size` shorthand.
+ */
 export type IconSvgProps = SVGProps<SVGSVGElement> & {
   size?: number;
 };
 
+/**
+ * Array of permission identifiers injected at build time via `import.meta.env.PERMISSIONS`.
+ * Populated from the Vite environment configuration.
+ */
 export const PermissionEnumValues = import.meta.env.PERMISSIONS as string[];
 
+/**
+ * Identity map of all application permissions, keyed and valued by the permission string.
+ * Allows type-safe permission references without hard-coding strings.
+ *
+ * @example
+ * ```ts
+ * if (hasPermission(Permission['read:orders'])) { ... }
+ * ```
+ */
 export const Permission = PermissionEnumValues.reduce(
   (acc, key) => {
     acc[key] = key;

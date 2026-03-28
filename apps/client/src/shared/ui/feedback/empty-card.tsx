@@ -5,6 +5,7 @@
 
 import { Card, Button, Link as HeroUILink } from "@heroui/react";
 
+/** Props for the {@link EmptyCard} component. */
 interface EmptyCardProps {
   emoji?: string;
   title: string;

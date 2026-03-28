@@ -31,6 +31,11 @@ import { buttonGradient } from "@/shared/ui/primitives";
 
 import { siteConfig } from "@/config/site";
 
+/**
+ * Cookie consent modal that is shown automatically when the user's consent
+ * status is `"pending"` and `siteConfig().needCookieConsent` is `true`.
+ * Reads and updates state via {@link useCookieConsent}.
+ */
 export const CookieConsent: React.FC = () => {
   const { t } = useTranslation();
   const { cookieConsent, acceptCookies, rejectCookies } = useCookieConsent();

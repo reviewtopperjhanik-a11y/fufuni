@@ -26,6 +26,7 @@ import {
 import { type AvailableLanguage, availableLanguages as defaultAvailableLanguages } from "@/i18n";
 import { type IconSvgProps } from "@/types";
 
+/** Props for the {@link LanguageSwitch} component. */
 interface LanguageSwitchProps {
   /**
    * The available languages
@@ -39,6 +40,7 @@ interface LanguageSwitchProps {
   icon?: FC<IconSvgProps>;
 }
 
+/** Globe / translate icon used as the default trigger for {@link LanguageSwitch}. */
 export const I18nIcon: FC<IconSvgProps> = ({
   size = 24,
   width,

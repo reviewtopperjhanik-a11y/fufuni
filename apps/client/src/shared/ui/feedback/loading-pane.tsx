@@ -6,6 +6,7 @@
 import { Spinner } from "@heroui/react";
 import { useTranslation } from "react-i18next";
 
+/** Props for the {@link LoadingPane} component. */
 interface LoadingPaneProps {
   /** Tailwind padding utility class, e.g. "py-12" or "py-24". Defaults to "py-12". */
   className?: string;

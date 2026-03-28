@@ -22,6 +22,11 @@ import { useSecuredApi } from "@/authentication";
 import { type LocalizedDesc } from "@/utils/description";
 import { translateWithAi, type AiParams } from "@/utils/ai-client";
 
+/**
+ * Options accepted by the {@link useLocalizedTextInput} hook.
+ * The three function parameters decouple the hook from any specific
+ * localized-string format (title, tax name, description, …).
+ */
 export interface UseLocalizedTextInputOptions {
   /** Raw value from the DB (plain string legacy or LocalizedDesc JSON) */
   value: string;
@@ -37,6 +42,9 @@ export interface UseLocalizedTextInputOptions {
   getFn: (raw: string, locale: string) => string;
 }
 
+/**
+ * Values returned by the {@link useLocalizedTextInput} hook.
+ */
 export interface UseLocalizedTextInputResult {
   /** Current display value in the input */
   inputValue: string;
@@ -52,6 +60,33 @@ export interface UseLocalizedTextInputResult {
   handleAiTranslate: () => Promise<void>;
 }
 
+/**
+ * Shared hook for plain-text localized input fields.
+ *
+ * Manages the controlled input display value, auto-migrates legacy plain-text
+ * values to the JSON localized format on locale switch, checks whether the
+ * current user may invoke the AI translation feature, and exposes a
+ * `handleAiTranslate` callback that calls the `/v1/ai/parameters` endpoint
+ * and {@link translateWithAi} under the hood.
+ *
+ * @param options - Configuration including the raw value, onChange callback,
+ *   the active locale, and three format-specific helpers (parseFn, mergeFn,
+ *   getFn).
+ * @returns Stable callbacks and derived state for rendering the input UI.
+ *
+ * @example
+ * ```tsx
+ * const { inputValue, isTranslating, canUseAi, isRTL, handleInputChange, handleAiTranslate } =
+ *   useLocalizedTextInput({
+ *     value: rawDbString,
+ *     onChange: setRawDbString,
+ *     selectedLocale: 'fr-FR',
+ *     parseFn: parseTitle,
+ *     mergeFn: mergeTitleLocale,
+ *     getFn: getTitleForLocale,
+ *   });
+ * ```
+ */
 export function useLocalizedTextInput({
   value,
   onChange,

@@ -6,6 +6,9 @@
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 
+/**
+ * Represents a product category as returned by the store API.
+ */
 export interface Category {
   id: string;
   handle: string;
@@ -19,6 +22,10 @@ export interface Category {
   updated_at: string;
 }
 
+/**
+ * A {@link Category} node enriched with its nested `children` for tree rendering.
+ * Built client-side from the flat category list returned by the API.
+ */
 export interface CategoryTree extends Category {
   children: CategoryTree[];
 }

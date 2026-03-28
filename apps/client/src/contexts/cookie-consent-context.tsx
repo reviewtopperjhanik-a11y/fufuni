@@ -25,6 +25,12 @@ import {
   ReactNode,
 } from "react";
 
+/**
+ * The three possible states of the user's cookie consent decision.
+ * - `"pending"` — the user has not yet made a choice (banner is shown).
+ * - `"accepted"` — the user accepted all cookies.
+ * - `"rejected"` — the user rejected non-essential cookies.
+ */
 export type CookieConsentStatus = "pending" | "accepted" | "rejected";
 
 interface CookieConsentContextType {
@@ -40,6 +46,18 @@ const CookieConsentContext = createContext<
 
 const COOKIE_CONSENT_KEY = "cookie-consent-status";
 
+/**
+ * Provides cookie consent state and actions to the component tree.
+ * The consent status is persisted in `localStorage` so it survives page
+ * refreshes. Wrap your application root with this provider.
+ *
+ * @example
+ * ```tsx
+ * <CookieConsentProvider>
+ *   <App />
+ * </CookieConsentProvider>
+ * ```
+ */
 export const CookieConsentProvider: FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -92,6 +110,13 @@ export const CookieConsentProvider: FC<{ children: ReactNode }> = ({
   );
 };
 
+/**
+ * Returns the cookie consent context value.
+ * Must be called inside a {@link CookieConsentProvider}; throws otherwise.
+ *
+ * @returns `{ cookieConsent, acceptCookies, rejectCookies, resetCookieConsent }`
+ * @throws {Error} When called outside of a `<CookieConsentProvider>` tree.
+ */
 export const useCookieConsent = () => {
   const context = useContext(CookieConsentContext);
 

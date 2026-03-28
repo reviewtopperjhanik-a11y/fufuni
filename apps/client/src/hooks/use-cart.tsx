@@ -31,6 +31,9 @@ import React, {
  * context.
  */
 
+/**
+ * A single item stored in the shopping cart.
+ */
 type CartItem = {
   sku: string;
   title: string;
@@ -40,6 +43,9 @@ type CartItem = {
   qty: number;
 };
 
+/**
+ * Shape of the cart context value provided by {@link CartProvider}.
+ */
 type CartContextType = {
   items: CartItem[];
   addItem: (item: CartItem) => void;
@@ -69,6 +75,20 @@ function writeCart(items: CartItem[]) {
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
+/**
+ * Context provider that manages the global shopping cart state.
+ * Cart contents are persisted in `localStorage` under the key `"merchant_cart"`,
+ * so they survive page refreshes.
+ *
+ * Wrap your application (or the cart-aware subtree) with this provider:
+ *
+ * @example
+ * ```tsx
+ * <CartProvider>
+ *   <App />
+ * </CartProvider>
+ * ```
+ */
 export const CartProvider: React.FC<{ children: ReactNode }> = ({
   children,
 }) => {
@@ -123,6 +143,13 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;
 };
 
+/**
+ * Returns the current cart context.
+ * Must be called inside a {@link CartProvider}; throws otherwise.
+ *
+ * @returns The {@link CartContextType} value with items, totals, and mutation helpers.
+ * @throws {Error} When called outside of a `<CartProvider>` tree.
+ */
 export function useCart(): CartContextType {
   const ctx = useContext(CartContext);
   if (!ctx) {

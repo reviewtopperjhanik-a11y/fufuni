@@ -22,19 +22,21 @@
  */
 
 /**
- * Formate un montant en centimes vers une chaîne monétaire localisée.
- * Utilise l'API standard Intl.NumberFormat — aucun symbole codé en dur.
+ * Formats an amount in cents to a localized currency string.
+ * Uses the standard `Intl.NumberFormat` API — no hard-coded currency symbols.
  *
- * @param cents     - montant en centimes (ex: 2999 → 29,99)
- * @param currency  - code ISO 4217 (ex: "EUR", "USD", "JPY", "GBP") ou "" pour pas de devise
- * @param locale    - locale optionnelle (ex: "fr-FR", "en-US") — défaut: navigateur
- * @returns string formatée (ex: "29,99 €" ou "$29.99" ou "29,99" sans symbole)
+ * @param cents    - Amount in cents (e.g. `2999` → `29.99`).
+ * @param currency - ISO 4217 currency code (e.g. `"EUR"`, `"USD"`, `"JPY"`).
+ *   Pass an empty string to format as a plain number without a currency symbol.
+ * @param locale   - Optional BCP 47 locale tag (e.g. `"fr-FR"`, `"en-US"`).
+ *   Defaults to the browser's language.
+ * @returns Formatted string (e.g. `"29,99 €"`, `"$29.99"`, `"¥9,800"`).
  *
  * @example
  * formatMoney(2999, "EUR", "fr-FR") // "29,99 €"
  * formatMoney(2999, "USD", "en-US") // "$29.99"
- * formatMoney(2999, "", "fr-FR")    // "29,99" (pas de symbole)
- * formatMoney(9800, "JPY", "ja-JP") // "¥9,800" (pas de décimales pour le JPY)
+ * formatMoney(2999, "", "fr-FR")    // "29,99" (no symbol)
+ * formatMoney(9800, "JPY", "ja-JP") // "¥9,800" (0 decimal places for JPY)
  */
 export function formatMoney(
   cents: number,

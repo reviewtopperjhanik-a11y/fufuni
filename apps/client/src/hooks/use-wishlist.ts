@@ -12,6 +12,9 @@ import { getStoreMetadata } from "@/lib/store-metadata";
 import { useTokenUserData } from "@/hooks/use-token-user-data";
 import { getApiBase } from "@/lib/api-base";
 
+/**
+ * Return value of the {@link useWishlist} hook.
+ */
 export interface UseWishlistReturn {
   wishlist: string[];
   isLoading: boolean;

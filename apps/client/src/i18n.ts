@@ -46,6 +46,13 @@ export interface AvailableLanguage {
   isDefault?: boolean; // Default language
 }
 
+/**
+ * Complete list of languages supported by the application.
+ * The entry with `isDefault: true` is used as the i18next `fallbackLng`.
+ * RTL languages have `isRTL: true` which flips the UI layout direction.
+ *
+ * @see {@link AvailableLanguage}
+ */
 export const availableLanguages: AvailableLanguage[] = [
   { code: "en-US", nativeName: "English", isRTL: false, isDefault: true },
   { code: "fr-FR", nativeName: "Français", isRTL: false },

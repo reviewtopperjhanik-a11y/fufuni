@@ -8,6 +8,7 @@ import { Button, Card, Input, TextField, Label } from "@heroui/react";
 import { Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+/** Props for the {@link AdminCrudLayout} shared admin page wrapper. */
 interface AdminCrudLayoutProps {
   /** Page title shown as an h1. */
   title: string;

@@ -7,8 +7,21 @@ import { useCallback } from "react";
 
 import { useAuth } from "@/authentication";
 
+/**
+ * Custom DOM event name dispatched after a successful token refresh.
+ * Other components can listen to this event to sync the new token without
+ * prop drilling.
+ *
+ * @example
+ * ```ts
+ * window.addEventListener(TOKEN_REFRESHED_EVENT, (e) => console.log(e.detail));
+ * ```
+ */
 export const TOKEN_REFRESHED_EVENT = "fufuni:token-refreshed";
 
+/**
+ * Options for the {@link useTokenRefresh} hook.
+ */
 interface UseTokenRefreshOptions {
   onTokenRefreshed?: (newToken: string) => Promise<void>;
 }

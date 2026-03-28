@@ -25,16 +25,33 @@
  * All requests are made directly from the client without backend routing.
  */
 
+/**
+ * Connection parameters for the AI provider used by {@link translateWithAi}.
+ * Supports OpenAI, Groq (OpenAI-compatible), and Anthropic.
+ */
 export interface AiParams {
+  /** The API key for the AI provider. */
   apiKey: string;
+  /** The model identifier to use (e.g. `"gpt-4o"`, `"claude-3-haiku-20240307"`). */
   model: string;
+  /** The base URL of the completions endpoint (e.g. `"https://api.openai.com/v1"`). */
   url: string;
+  /**
+   * Explicit provider hint. When omitted the provider is auto-detected from
+   * the `url`. Supported values: `"openai"` | `"groq"` | `"anthropic"` | `"auto"`.
+   */
   provider?: "openai" | "groq" | "anthropic" | "auto";
 }
 
+/**
+ * Result returned by {@link translateWithAi}.
+ */
 export interface TranslationResult {
+  /** `true` when the translation completed successfully. */
   success: boolean;
+  /** The translated text or HTML. Present only when `success` is `true`. */
   content?: string;
+  /** Human-readable error message. Present only when `success` is `false`. */
   error?: string;
 }
 

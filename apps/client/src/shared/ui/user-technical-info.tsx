@@ -73,6 +73,12 @@ function formatDuration(seconds: number, t: any): string {
   return hms;
 }
 
+/**
+ * Developer / support modal that displays Auth0 profile info, JWT claims, and
+ * token expiry for a logged-in user. Also exposes a manual token-refresh button.
+ * Intended for admin / debug use only; guard rendering with an appropriate
+ * permission check.
+ */
 export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
   ({ isOpen, onClose, user, accessToken, tokenPayload, onTokenRefreshed }) => {
     const { t } = useTranslation();

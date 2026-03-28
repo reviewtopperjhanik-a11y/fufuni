@@ -18,6 +18,11 @@
 
 import { tv } from "tailwind-variants";
 
+/**
+ * Tailwind Variants class factory for heading text.
+ * Supports `color` (gradient presets), `size` (`sm` | `md` | `lg`), and
+ * `fullWidth` variants. Apply gradient colors with `bg-clip-text`.
+ */
 export const title = tv({
   base: "tracking-tight inline font-semibold",
   variants: {
@@ -58,6 +63,10 @@ export const title = tv({
   ],
 });
 
+/**
+ * Tailwind Variants class factory for subtitle / description text.
+ * Provides `size` and `fullWidth` variants.
+ */
 export const subtitle = tv({
   base: "w-full md:w-1/2 my-2 text-lg lg:text-xl text-default-600 block max-w-full",
   variants: {
@@ -70,6 +79,10 @@ export const subtitle = tv({
   },
 });
 
+/**
+ * Tailwind Variants class factory for gradient-filled buttons.
+ * Wraps a standard button with the brand gradient background and rounded style.
+ */
 export const buttonGradient = tv({
   base: [
     "group relative inline-flex items-center justify-center",

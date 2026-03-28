@@ -29,11 +29,21 @@ import { clsx } from "clsx";
 import { IconSvgProps } from "@/types";
 import { useClipboard } from "@/hooks/use-clipboard";
 
+/**
+ * Props for the {@link PreviewButton} icon-only button wrapper.
+ * Extends HeroUI `ButtonProps`, omitting `value` and `title` to avoid
+ * conflicts with HTML attribute semantics.
+ */
 export interface PreviewButtonProps
   extends Omit<ButtonProps, "value" | "title"> {
   icon: React.ReactNode;
 }
 
+/**
+ * Generic icon-only button used to preview or trigger auxiliary actions
+ * (e.g. "open in new tab", "view raw").
+ * Renders an icon passed via the `icon` prop inside a small `isIconOnly` HeroUI `Button`.
+ */
 export const PreviewButton = forwardRef<
   HTMLButtonElement | null,
   PreviewButtonProps
@@ -56,6 +66,9 @@ export const PreviewButton = forwardRef<
 
 PreviewButton.displayName = "PreviewButton";
 
+/**
+ * Props for the {@link CopyButton} component.
+ */
 export interface CopyButtonProps extends Omit<ButtonProps, "value"> {
   value?: string | string[];
   copiedTimeout?: number;
@@ -66,6 +79,11 @@ export interface CopyButtonProps extends Omit<ButtonProps, "value"> {
   isImage?: boolean;
 }
 
+/**
+ * Button that copies a text value (or array of lines) to the clipboard.
+ * Shows a visual "copied" checkmark for `copiedTimeout` milliseconds after a
+ * successful copy. Supports both text and image (data-URL) payloads.
+ */
 export const CopyButton = memo<CopyButtonProps>(
   ({
     value,

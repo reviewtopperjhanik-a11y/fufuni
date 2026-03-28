@@ -679,5 +679,8 @@
   "admin-regions-filter-placeholder": "Buscar regiones...",
   "admin-tax-rates-filter-placeholder": "Buscar tasas impositivas por código de país o código impositivo...",
   "admin-warehouses-filter-placeholder": "Buscar almacenes...",
-  "admin-currencies-filter-placeholder": "Buscar monedas..."
+  "admin-currencies-filter-placeholder": "Buscar monedas...",
+  "admin-products-field-barcode": "Código de barras",
+  "admin-products-field-compare-at-price": "Comparar al precio (centavos)",
+  "admin-products-field-tax-code": "código fiscal"
 }

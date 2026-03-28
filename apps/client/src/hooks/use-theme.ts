@@ -28,6 +28,18 @@ const ThemeProps = {
 
 type Theme = typeof ThemeProps.light | typeof ThemeProps.dark;
 
+/**
+ * Manages the application color theme (`"light"` | `"dark"`).
+ *
+ * The active theme is persisted in `localStorage` under the key `"theme"` and
+ * applied as a CSS class on `document.documentElement`, making it compatible
+ * with Tailwind CSS dark-mode class strategy.
+ *
+ * @param defaultTheme - Initial theme to use when no stored preference is
+ *   found. Defaults to `"light"`.
+ * @returns An object with the current theme, boolean helpers (`isDark`,
+ *   `isLight`), and setters (`setLightTheme`, `setDarkTheme`, `toggleTheme`).
+ */
 export const useTheme = (defaultTheme?: Theme) => {
   const [theme, setTheme] = useState<Theme>(() => {
     const storedTheme = localStorage.getItem(ThemeProps.key) as Theme | null;
