@@ -3,9 +3,10 @@
  * License: AGPL-3.0-or-later
  */
 
-import { useState, useRef, useEffect, useCallback } from 'react';
-import { Input, Label } from '@heroui/react';
+import { useState, useCallback } from 'react';
+import { Input, Button, Label, Tooltip } from '@heroui/react';
 import { Select, ListBox } from '@heroui/react';
+import { Sparkles } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { availableLanguages } from '@/i18n';
@@ -14,6 +15,7 @@ import {
   mergeTaxNameLocale,
   parseTaxName,
 } from '@/utils/description';
+import { useLocalizedTextInput } from '@/hooks/use-localized-text-input';
 
 interface LocalizedTaxNameInputProps {
   /** Raw value from the DB: plain string (legacy) or LocalizedDesc JSON */
@@ -42,48 +44,16 @@ export function LocalizedTaxNameInput({
     availableLanguages.find((l) => l.isDefault)?.code ?? 'en-US';
   const [internalLocale, setInternalLocale] = useState(defaultLocale);
   const selectedLocale = locale ?? internalLocale;
-  const [inputValue, setInputValue] = useState('');
 
-  // --- Refs to avoid stale closures -----------------------------------------
-  const valueRef = useRef(value);
-  const localeRef = useRef(selectedLocale);
-
-  useEffect(() => { valueRef.current = value; }, [value]);
-  useEffect(() => { localeRef.current = selectedLocale; }, [selectedLocale]);
-
-  // --- Sync inputValue when value or locale changes -------------------------
-  useEffect(() => {
-    setInputValue(getTaxNameForLocale(value, selectedLocale));
-  }, [value, selectedLocale]);
-
-  // --- Auto-migrate to JSON when locale changes on a legacy title -----------
-  const isFirstMountRef = useRef(true);
-  useEffect(() => {
-    if (isFirstMountRef.current) {
-      isFirstMountRef.current = false;
-      return; 
-    }
-
-    const parsed = parseTaxName(value);
-    if (typeof parsed === 'string' && inputValue.trim()) {
-      const updated = mergeTaxNameLocale(value, selectedLocale, inputValue);
-      onChange(updated);
-    }
-  }, [selectedLocale, value, inputValue, onChange]);
-
-  // RTL support
-  const isRTL =
-    availableLanguages.find((l) => l.code === selectedLocale)?.isRTL ?? false;
-
-  // --- Input change ---------------------------------------------------------
-  const handleInputChange = useCallback(
-    (text: string) => {
-      setInputValue(text);
-      const updated = mergeTaxNameLocale(valueRef.current, localeRef.current, text);
-      onChange(updated);
-    },
-    [onChange]
-  );
+  const { inputValue, isTranslating, canUseAi, isRTL, handleInputChange, handleAiTranslate } =
+    useLocalizedTextInput({
+      value,
+      onChange,
+      selectedLocale,
+      parseFn: parseTaxName,
+      mergeFn: mergeTaxNameLocale,
+      getFn: getTaxNameForLocale,
+    });
 
   // --- Locale switch --------------------------------------------------------
   const handleLocaleChange = useCallback((selectedKey: string | number | undefined) => {
@@ -103,7 +73,7 @@ export function LocalizedTaxNameInput({
           className="w-36 shrink-0"
           aria-label={t('admin-common-language')}
           value={selectedLocale}
-          onChange={(value) => handleLocaleChange(((value as string) || "") as any)}  
+          onChange={(value) => handleLocaleChange(((value as string) || "") as any)}
         >
           <Label>{t('admin-common-language')}</Label>
           <Select.Trigger>
@@ -131,6 +101,26 @@ export function LocalizedTaxNameInput({
         placeholder="e.g. VAT FR"
         dir={isRTL ? 'rtl' : 'ltr'}
       />
+
+      {/* AI translate — only shown if user has the AI permission */}
+      {canUseAi && (
+        <Tooltip>
+          <Tooltip.Trigger>
+            <Button
+              isIconOnly
+              size="sm"
+              variant="tertiary"
+              isPending={isTranslating}
+              onPress={handleAiTranslate}
+            >
+              {!isTranslating && <Sparkles size={14} />}
+            </Button>
+          </Tooltip.Trigger>
+          <Tooltip.Content>
+            {t('admin-products-title-ai')}
+          </Tooltip.Content>
+        </Tooltip>
+      )}
     </div>
   );
 }
