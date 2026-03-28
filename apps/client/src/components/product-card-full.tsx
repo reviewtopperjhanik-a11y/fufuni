@@ -24,6 +24,7 @@ import { formatMoney } from "@/utils/currency";
 import { resolveDescription, resolveTitle, resolveVendor, resolveTags, resolveHandle, getTaxNameForLocale } from "@/utils/description";
 import { Button } from "@heroui/react";
 import { WishlistButton } from "./wishlist-button";
+import { ProductImage } from "./product-image";
 
 interface Props {
   product: StoreProduct;
@@ -106,22 +107,11 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
 
   return (
     <div className="group">
-      <div className="aspect-square bg-default-100 rounded-xl overflow-hidden mb-4 relative">
-        <img
-          src={image}
-          alt={product.title}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          onError={(e) =>
-          ((e.target as HTMLImageElement).src =
-            "https://placehold.co/400x400/1a1a1a/666?text=No+Image")
-          }
-        />
-        {product.variants.length > 1 && (
-          <span className="absolute top-3 left-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
-            {product.variants.length} options
-          </span>
-        )}
-      </div>
+      <ProductImage
+        src={image}
+        alt={displayTitle}
+        variantCount={product.variants.length}
+      />
 
       <h3 className="font-medium text-default-900 mb-2">{displayTitle}</h3>
 

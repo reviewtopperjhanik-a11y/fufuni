@@ -29,6 +29,7 @@ import { Wand2, Image as ImageIcon } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
 import { SearchIcon } from "@/shared/ui/icons";
 import { ImageUploadInput } from "@/components/image-upload-input";
 import { formatMoney } from "@/utils/currency";
@@ -144,9 +145,7 @@ export default function ProductsPage() {
       : defaultLocale;
   });
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   // list state
   const [products, setProducts] = useState<Product[]>([]);

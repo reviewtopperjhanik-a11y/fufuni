@@ -24,10 +24,12 @@ import { Table } from "@heroui/react";
 import { Checkbox } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
+import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
 
 /**
  * A geographical or market region used by the platform.
@@ -62,9 +64,7 @@ export default function RegionsPage() {
   const { t } = useTranslation();
   const { getJson, postJson, deleteJson, patchJson } = useSecuredApi();
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   // List state
   const [regions, setRegions] = useState<Region[]>([]);
@@ -230,40 +230,16 @@ export default function RegionsPage() {
 
   return (
     <DefaultLayout>
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">{t("admin-regions-title")}</h1>
-          <Button variant="primary" onPress={handleOpenCreate}>
-            <Plus className="w-4 h-4" />
-            {t("admin-regions-add")}
-          </Button>
-        </div>
-
-        <Card className="mb-6">
-          <Card.Content className="flex gap-4">
-            <TextField className="flex-1">
-              <Label>{t("admin-regions-filter-placeholder")}</Label>
-              <Input
-                placeholder={t("admin-regions-filter-placeholder")}
-                value={globalFilter}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-              />
-            </TextField>
-            <div className="flex flex-col gap-1">
-              <Label>{t("admin-common-status")}</Label>
-              <select
-                className="px-3 py-2 rounded-lg bg-default-100 border border-default-300 text-sm focus:outline-none focus:ring-2"
-                value={statusFilter || ""}
-                onChange={(e) => setStatusFilter(e.target.value || "")}
-              >
-                <option value="">All</option>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-              </select>
-            </div>
-          </Card.Content>
-        </Card>
-
+      <AdminCrudLayout
+        title={t("admin-regions-title")}
+        addLabel={t("admin-regions-add")}
+        onAdd={handleOpenCreate}
+        globalFilter={globalFilter}
+        onGlobalFilterChange={setGlobalFilter}
+        filterPlaceholder={t("admin-regions-filter-placeholder")}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+      >
         <Card>
           <Card.Content>
             <Table>
@@ -468,7 +444,7 @@ export default function RegionsPage() {
             </Modal.Container>
           </Modal.Backdrop>
         </Modal>
-      </div>
+      </AdminCrudLayout>
     </DefaultLayout>
   );
 }

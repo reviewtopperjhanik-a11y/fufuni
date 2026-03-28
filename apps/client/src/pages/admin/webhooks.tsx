@@ -35,6 +35,7 @@ import { Button, Modal, useOverlayState } from "@heroui/react";
 import clsx from "clsx";
 
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
 import DefaultLayout from "@/layouts/default";
 
 /**
@@ -129,9 +130,7 @@ export default function WebhooksPage() {
   const [newUrl, setNewUrl] = useState("");
   const [newEvents, setNewEvents] = useState<string[]>(["order.created"]);
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   /**
    * Query for retrieving the list of webhooks. `refreshIndex` is a simple

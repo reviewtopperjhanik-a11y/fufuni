@@ -32,6 +32,7 @@ import clsx from "clsx";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
 import { resolveTitle } from "@/utils/description";
 
 // --- typings -------------------------------------------------------------
@@ -88,9 +89,7 @@ export default function InventoryPage() {
   const { t, i18n } = useTranslation();
   const { getJson, postJson } = useSecuredApi();
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   // List state
   const [inventory, setInventory] = useState<InventoryItem[]>([]);

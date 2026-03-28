@@ -6,12 +6,11 @@
 import { useMemo } from "react";
 import {
   Card,
-  Button,
-  Link as HeroUILink,
   Input} from "@heroui/react";
 import { useWishlist } from "@/hooks/use-wishlist";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { EmptyCard } from "@/shared/ui/feedback/empty-card";
 
 /**
  * WishlistManager - Modern wishlist interface
@@ -30,24 +29,13 @@ export function WishlistManager() {
 
   if (wishlist.length === 0) {
     return (
-      <Card className="border border-default-200 bg-default-50">
-        <Card.Content className="py-12 text-center">
-          <div className="space-y-4">
-            <p className="text-5xl">❤️</p>
-            <p className="text-lg font-semibold text-default-700">
-              Aucun favori pour le moment
-            </p>
-            <p className="text-sm text-default-500">
-              Ajoutez des produits à vos favoris pour les retrouver facilement
-            </p>
-            <HeroUILink href="/" className="mt-4">
-              <Button variant="primary">
-                Découvrir nos produits
-              </Button>
-            </HeroUILink>
-          </div>
-        </Card.Content>
-      </Card>
+      <EmptyCard
+        emoji="❤️"
+        title="Aucun favori pour le moment"
+        description="Ajoutez des produits à vos favoris pour les retrouver facilement"
+        ctaHref="/"
+        ctaLabel="Découvrir nos produits"
+      />
     );
   }
 

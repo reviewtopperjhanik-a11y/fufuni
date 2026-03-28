@@ -6,9 +6,12 @@
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Link } from "react-router-dom";
-import { Card, Spinner, Button, Chip, Table } from "@heroui/react";
+import { Card, Button, Chip, Table } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
+import { ORDER_STATUS_COLORS } from "@/config/order-status";
+import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
 
 interface OrderItem {
   sku: string;
@@ -41,20 +44,6 @@ interface OrderListResponse {
   };
 }
 
-// Map order status to a Chip color
-const STATUS_COLORS: Record<
-  string,
-  "success" | "warning" | "danger" | "default" | "primary"
-> = {
-  paid: "success",
-  processing: "primary",
-  shipped: "primary",
-  delivered: "success",
-  refunded: "danger",
-  canceled: "danger",
-  pending: "warning",
-};
-
 /**
  * Displays the paginated order history for the authenticated customer.
  */
@@ -65,8 +54,7 @@ export default function OrderHistory() {
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
-  const apiBase =
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
+  const apiBase = getApiBase();
 
   const fetchOrders = async (nextCursor?: string) => {
     setLoading(true);
@@ -94,14 +82,7 @@ export default function OrderHistory() {
   }, [auth]);
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="flex flex-col items-center gap-2">
-          <Spinner />
-          <span className="text-default-500">{t("loading")}</span>
-        </div>
-      </div>
-    );
+    return <LoadingPane />;
   }
 
   return (
@@ -131,7 +112,7 @@ export default function OrderHistory() {
                   </Table.Cell>
                   <Table.Cell>
                     <Chip
-                      color={(STATUS_COLORS[order.status] as any) || "default"}
+                      color={(ORDER_STATUS_COLORS[order.status] as any) || "default"}
                       size="sm"
                       variant="primary"
                     >

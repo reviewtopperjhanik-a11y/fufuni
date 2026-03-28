@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Card,
-  Spinner,
   Button,
   Modal,
   useOverlayState,
@@ -22,6 +21,8 @@ import {
 import { useAuth } from "@/authentication";
 
 import countries from "@/config/countries.json";
+import { getApiBase } from "@/lib/api-base";
+import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
 
 interface Address {
   id: string;
@@ -56,8 +57,7 @@ export default function Addresses() {
   const [loading, setLoading] = useState(true);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
   const [formData, setFormData] = useState<Partial<Address>>({});
-  const apiBase =
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
+  const apiBase = getApiBase();
 
   const fetchAddresses = async () => {
     setLoading(true);
@@ -123,14 +123,7 @@ export default function Addresses() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="flex flex-col items-center gap-2">
-          <Spinner />
-          <span className="text-default-500">{t("loading")}</span>
-        </div>
-      </div>
-    );
+    return <LoadingPane />;
   }
 
   return (

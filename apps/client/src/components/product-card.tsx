@@ -24,6 +24,7 @@ import { useTranslation } from "react-i18next";
 import { useCart } from "@/hooks/use-cart";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitle } from "@/utils/description";
+import { ProductImage } from "@/components/product-image";
 
 interface Props {
   product: StoreProduct;
@@ -55,32 +56,12 @@ export const ProductCard: React.FC<Props> = ({
 
   return (
     <div className="group">
-      <div
-        className="aspect-square bg-default-100 rounded-xl overflow-hidden mb-4 relative cursor-pointer"
+      <ProductImage
+        src={image}
+        alt={displayTitle}
+        variantCount={product.variants.length}
         onClick={() => navigate(`/product/${product.id}`)}
-        role="button"
-        tabIndex={0}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            navigate(`/product/${product.id}`);
-          }
-        }}
-      >
-        <img
-          src={image}
-          alt={displayTitle}
-          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-          onError={(e) =>
-          ((e.target as HTMLImageElement).src =
-            "https://placehold.co/400x400/1a1a1a/666?text=No+Image")
-          }
-        />
-        {product.variants.length > 1 && (
-          <span className="absolute top-3 left-3 bg-black/70 text-white text-xs px-2 py-1 rounded">
-            {product.variants.length} options
-          </span>
-        )}
-      </div>
+      />
       <h3 className="font-medium text-default-900 mb-1">{displayTitle}</h3>
       <p className="text-default-500 text-sm mb-3">{price}</p>
       {product.variants.length > 1 && onSelectVariant && (

@@ -29,6 +29,7 @@ import { Card} from "@heroui/react";
 import { Trash2, Plus, Pencil, Save } from "lucide-react";
 
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
 import { formatMoney } from "@/utils/currency";
 
 interface VariantPrice {
@@ -70,9 +71,7 @@ export function VariantPrices({
   const { t } = useTranslation();
   const { getJson, postJson, deleteJson } = useSecuredApi();
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   // State
   const [prices, setPrices] = useState<VariantPrice[]>([]);

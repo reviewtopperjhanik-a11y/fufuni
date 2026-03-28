@@ -3,11 +3,13 @@
  * License: AGPL-3.0-or-later
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { decodeJwt } from 'jose';
 import { useAuth } from '@/authentication';
 import { useTokenRefresh } from '@/hooks/use-token-refresh';
 import { getStoreMetadata } from '@/lib/store-metadata';
+import { useTokenUserData } from '@/hooks/use-token-user-data';
+import { getApiBase } from '@/lib/api-base';
 
 /**
  * SavedCartSnapshot — Complete cart snapshot stored in Auth0 user_metadata
@@ -88,53 +90,14 @@ export function getSavedCartsFromToken(token: string | null): (SavedCartSnapshot
 export function useSavedCarts(): UseSavedCartsReturn {
   const auth = useAuth();
   const { refreshToken } = useTokenRefresh();
-  
-  const [savedCarts, setSavedCarts] = useState<(SavedCartSnapshot | string)[]>([]);
-  const [isLoading, setIsLoading] = useState<boolean>(auth.isAuthenticated);
-  const [isError, setIsError] = useState<boolean>(false);
+  const apiBase = getApiBase();
 
-  // Load saved carts from token initially
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadSavedCarts = async () => {
-      if (!auth.isAuthenticated) {
-        if (isMounted) {
-          setSavedCarts([]);
-          setIsLoading(false);
-        }
-        return;
-      }
-      
-      try {
-        const token = await auth.getAccessToken();
-        if (isMounted) {
-          setSavedCarts(getSavedCartsFromToken(token));
-          setIsLoading(false);
-        }
-      } catch (err) {
-        console.error('[useSavedCarts] Error fetching token:', err);
-        if (isMounted) {
-          setIsError(true);
-          setIsLoading(false);
-        }
-      }
-    };
-    
-    loadSavedCarts();
-    
-    return () => { isMounted = false; };
-  }, [auth.isAuthenticated, auth.getAccessToken]);
-
-  // Synchronize state across multiple instances instantly
-  useEffect(() => {
-    const handleSync = (e: Event) => {
-      const customEvent = e as CustomEvent<(SavedCartSnapshot | string)[]>;
-      setSavedCarts(customEvent.detail);
-    };
-    window.addEventListener(SAVED_CARTS_UPDATED_EVENT, handleSync);
-    return () => window.removeEventListener(SAVED_CARTS_UPDATED_EVENT, handleSync);
-  }, []);
+  const {
+    data: savedCarts,
+    isLoading,
+    isError,
+    setData: setSavedCarts,
+  } = useTokenUserData(getSavedCartsFromToken, SAVED_CARTS_UPDATED_EVENT);
 
   const toggleSavedCart = useCallback(
     async (cartId: string) => {
@@ -148,30 +111,23 @@ export function useSavedCarts(): UseSavedCartsReturn {
         return (sc as SavedCartSnapshot).id === cartId;
       });
 
-      setIsLoading(true);
-      setIsError(false);
-
       try {
         if (saved) {
-          await auth.deleteJson(`${import.meta.env.API_BASE_URL}/v1/me/saved-carts/${cartId}`);
+          await auth.deleteJson(`${apiBase}/v1/me/saved-carts/${cartId}`);
         } else {
-          await auth.postJson(`${import.meta.env.API_BASE_URL}/v1/me/saved-carts`, { cartId });
+          await auth.postJson(`${apiBase}/v1/me/saved-carts`, { cartId });
         }
 
         const newToken = await refreshToken();
         const newSavedCarts = getSavedCartsFromToken(newToken || null);
-        
+
         setSavedCarts(newSavedCarts);
         window.dispatchEvent(new CustomEvent(SAVED_CARTS_UPDATED_EVENT, { detail: newSavedCarts }));
-        
       } catch (error) {
         console.error('[useSavedCarts] Mutation error:', error);
-        setIsError(true);
-      } finally {
-        setIsLoading(false);
       }
     },
-    [auth, refreshToken, savedCarts]
+    [auth, refreshToken, savedCarts, apiBase]
   );
 
   const isSaved = useCallback(

@@ -51,6 +51,7 @@ import {
 
 import { formatMoney } from "@/utils/currency";
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
 import DefaultLayout from "@/layouts/default";
 
 // --- typings -------------------------------------------------------------
@@ -105,9 +106,7 @@ export default function OrdersPage() {
   const { t } = useTranslation();
   const { getJson, patchJson, postJson } = useSecuredApi();
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   const [sorting, setSorting] = useState<SortingState>([
     { id: "created_at", desc: true },

@@ -7,7 +7,6 @@ import { useEffect, useState, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Card,
-  Spinner,
   Button,
   Tabs,
   Avatar,
@@ -24,6 +23,8 @@ import { useSavedCarts } from "@/hooks/use-saved-carts";
 import { SavedCartsManager } from "@/components/saved-carts-manager";
 import { WishlistManager } from "@/components/wishlist-manager";
 import { formatMoney } from "@/utils/currency";
+import { getApiBase } from "@/lib/api-base";
+import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
 
 interface CustomerProfile {
   id: string;
@@ -51,8 +52,7 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [selectedTab, setSelectedTab] = useState("overview");
 
-  const apiBase =
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
+  const apiBase = getApiBase();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -87,14 +87,7 @@ export default function Dashboard() {
   }, [savedCarts]);
 
   if (loading) {
-    return (
-      <div className="flex justify-center items-center py-24">
-        <div className="flex flex-col items-center gap-2">
-          <Spinner size="lg" />
-          <span className="text-default-500">{t("loading")}</span>
-        </div>
-      </div>
-    );
+    return <LoadingPane className="py-24" size="lg" />;
   }
 
   if (!profile) {

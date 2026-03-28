@@ -31,6 +31,7 @@ import { Plus, Edit2, Trash2 } from "lucide-react";
 import { SearchIcon } from "@/shared/ui/icons";
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
 import { formatMoney } from "@/utils/currency";
 import { resolveTaxName } from "@/utils/description";
 
@@ -85,9 +86,7 @@ export default function ShippingRatesPage() {
   const { t, i18n } = useTranslation();
   const { getJson, postJson, deleteJson, patchJson } = useSecuredApi();
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   // List state
   const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);

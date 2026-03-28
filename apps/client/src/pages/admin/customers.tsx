@@ -31,6 +31,7 @@ import {
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
 import { SearchIcon } from "@/shared/ui/icons";
 import { formatMoney } from "@/utils/currency";
 
@@ -90,9 +91,7 @@ export default function CustomersPage() {
   const { t } = useTranslation();
   const { getJson, putJson } = useSecuredApi();
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   // list state
   const [customers, setCustomers] = useState<Customer[]>([]);

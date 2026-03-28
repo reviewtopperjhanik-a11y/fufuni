@@ -24,7 +24,7 @@ import { Table } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
 import { Chip } from "@heroui/react";
-import { Plus, Edit2, Trash2, Package } from "lucide-react";
+import { Edit2, Trash2, Package } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import {
@@ -34,6 +34,7 @@ import {
   updateShippingClass,
   deleteShippingClass,
 } from "@/lib/store-api";
+import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
 
 // ─── Component ───────────────────────────────────────────────────────────
 
@@ -172,83 +173,46 @@ export default function ShippingClassesPage() {
 
   return (
     <DefaultLayout>
-      <div className="p-6">
-        {/* Header */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex items-center gap-3">
-            <Package className="w-8 h-8 text-primary" />
-            <div>
-              <h1 className="text-3xl font-bold">
-                {t("admin-shipping-classes-title")}
-              </h1>
-              <p className="text-sm text-default-500 mt-1">
-                {t("admin-shipping-classes-subtitle")}
-              </p>
-            </div>
-          </div>
-          <Button variant="primary" onPress={handleOpenCreate}>
-            <Plus className="w-4 h-4" />
-            {t("admin-shipping-classes-btn-new")}
-          </Button>
-        </div>
-
-        {/* Info banner explaining resolution modes */}
-        <Card className="mb-6 border-l-4 border-blue-400">
-          <Card.Content className="py-3">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
-              <div>
-                <span className="font-semibold text-orange-600">
-                  {t("admin-shipping-classes-exclusive-help-title")}
-                </span>
-                <p className="text-default-500 mt-1">
-                  {t("admin-shipping-classes-exclusive-help-desc")}
-                </p>
+      <AdminCrudLayout
+        title={t("admin-shipping-classes-title")}
+        subtitle={t("admin-shipping-classes-subtitle")}
+        icon={<Package className="w-8 h-8 text-primary" />}
+        addLabel={t("admin-shipping-classes-btn-new")}
+        onAdd={handleOpenCreate}
+        globalFilter={globalFilter}
+        onGlobalFilterChange={setGlobalFilter}
+        filterPlaceholder={t("admin-shipping-classes-filter-placeholder")}
+        statusFilter={statusFilter}
+        onStatusFilterChange={setStatusFilter}
+        statusLabel={t("admin-shipping-classes-status")}
+        statusAllLabel={t("admin-shipping-classes-filter-status")}
+        statusActiveLabel={t("admin-shipping-classes-active")}
+        statusInactiveLabel={t("admin-shipping-classes-inactive")}
+        headerExtra={
+          <Card className="mb-6 border-l-4 border-blue-400">
+            <Card.Content className="py-3">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="font-semibold text-orange-600">
+                    {t("admin-shipping-classes-exclusive-help-title")}
+                  </span>
+                  <p className="text-default-500 mt-1">
+                    {t("admin-shipping-classes-exclusive-help-desc")}
+                  </p>
+                </div>
+                <div>
+                  <span className="font-semibold text-green-600">
+                    {t("admin-shipping-classes-additive-help-title")}
+                  </span>
+                  <p className="text-default-500 mt-1">
+                    {t("admin-shipping-classes-additive-help-desc")}
+                  </p>
+                </div>
               </div>
-              <div>
-                <span className="font-semibold text-green-600">
-                  {t("admin-shipping-classes-additive-help-title")}
-                </span>
-                <p className="text-default-500 mt-1">
-                  {t("admin-shipping-classes-additive-help-desc")}
-                </p>
-              </div>
-            </div>
-          </Card.Content>
-        </Card>
-
-        {/* Filters */}
-        <Card className="mb-6">
-          <Card.Content className="flex gap-4">
-            <TextField className="flex-1">
-              <Label>{t("admin-shipping-classes-filter-placeholder")}</Label>
-              <Input
-                placeholder={t("admin-shipping-classes-filter-placeholder")}
-                value={globalFilter}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-              />
-            </TextField>
-            <div className="flex flex-col gap-1">
-              <Label>{t("admin-shipping-classes-status")}</Label>
-              <select
-                className="px-3 py-2 rounded-lg bg-default-100 border border-default-300 text-sm focus:outline-none focus:ring-2"
-                value={statusFilter || ""}
-                onChange={(e) => setStatusFilter(e.target.value || "")}
-              >
-                <option value="">
-                  {t("admin-shipping-classes-filter-status")}
-                </option>
-                <option value="active">
-                  {t("admin-shipping-classes-active")}
-                </option>
-                <option value="inactive">
-                  {t("admin-shipping-classes-inactive")}
-                </option>
-              </select>
-            </div>
-          </Card.Content>
-        </Card>
-
-        {/* Table */}
+            </Card.Content>
+          </Card>
+        }
+      >
         <Card>
           <Card.Content>
             <Table>
@@ -482,7 +446,7 @@ export default function ShippingClassesPage() {
             </Modal.Container>
           </Modal.Backdrop>
         </Modal>
-      </div>
+      </AdminCrudLayout>
     </DefaultLayout>
   );
 }

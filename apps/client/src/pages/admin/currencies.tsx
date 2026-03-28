@@ -23,17 +23,17 @@ import {
   Input,
   TextField,
   Label,
-  Select,
-  ListBox,
   Table,
   Modal,
   Card,
   Tooltip,
 } from "@heroui/react";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
+import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
 
 /**
  * Represents a currency record returned by the API.
@@ -62,9 +62,7 @@ export default function CurrenciesPage() {
   const { t } = useTranslation();
   const { getJson, postJson, deleteJson, patchJson } = useSecuredApi();
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   // List state
   const [currencies, setCurrencies] = useState<Currency[]>([]);
@@ -222,53 +220,16 @@ export default function CurrenciesPage() {
 
   return (
     <DefaultLayout>
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">{t("admin-currencies-title")}</h1>
-          <Button variant="primary" onPress={handleOpenCreate}>
-            <Plus className="w-4 h-4" />
-            {t("admin-currencies-add")}
-          </Button>
-        </div>
-
-        <Card className="mb-6">
-          <Card.Content className="flex gap-4">
-            <TextField className="w-full">
-              <Label>{t("admin-currencies-filter-placeholder")}</Label>
-              <Input
-                placeholder={t("admin-currencies-filter-placeholder")}
-                value={globalFilter}
-                onChange={(e) => setGlobalFilter(e.target.value)}
-              />
-            </TextField>
-            <Select
-              value={statusFilter || ""}
-              onChange={(value) => setStatusFilter((value as string) || "")}
-            >
-              <Label>{t("admin-common-status")}</Label>
-              <Select.Trigger>
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  <ListBox.Item id="" textValue="All">
-                    All
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                  <ListBox.Item id="active" textValue="Active">
-                    Active
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                  <ListBox.Item id="inactive" textValue="Inactive">
-                    Inactive
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                </ListBox>
-              </Select.Popover>
-            </Select>
-          </Card.Content>
-        </Card>
+      <AdminCrudLayout
+        title={t("admin-currencies-title")}
+        addLabel={t("admin-currencies-add")}
+        onAdd={handleOpenCreate}
+        globalFilter={globalFilter}
+        onGlobalFilterChange={setGlobalFilter}
+        filterPlaceholder={t("admin-currencies-filter-placeholder")}
+        statusFilter={statusFilter || ""}
+        onStatusFilterChange={(v) => setStatusFilter(v || "")}
+      >
 
         <Card>
           <Card.Content>
@@ -507,7 +468,7 @@ export default function CurrenciesPage() {
             </Modal.Container>
           </Modal.Backdrop>
         </Modal>
-      </div>
+      </AdminCrudLayout>
     </DefaultLayout>
   );
 }

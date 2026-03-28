@@ -23,18 +23,17 @@ import {
   Input,
   TextField,
   Label,
-  Select,
-  ListBox,
   Table,
   Modal,
   Card,
   Tooltip,
 } from "@heroui/react";
-import { Plus, Edit2, Trash2 } from "lucide-react";
+import { Edit2, Trash2 } from "lucide-react";
 
-import { SearchIcon } from "@/shared/ui/icons";
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
+import { AdminCrudLayout } from "@/shared/ui/admin/admin-crud-layout";
 
 /**
  * Represents a country as returned by the API.
@@ -77,9 +76,7 @@ export default function CountriesPage() {
   const { t } = useTranslation();
   const { getJson, postJson, deleteJson, patchJson } = useSecuredApi();
 
-  const apiBase = (import.meta as any).env?.API_BASE_URL
-    ? (import.meta as any).env.API_BASE_URL
-    : "";
+  const apiBase = getApiBase();
 
   // List state
   const [countries, setCountries] = useState<Country[]>([]);
@@ -238,59 +235,16 @@ export default function CountriesPage() {
 
   return (
     <DefaultLayout>
-      <div className="p-6">
-        <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold">{t("admin-countries-title")}</h1>
-          <Button onPress={handleOpenCreate}>
-            <Plus className="w-4 h-4" />
-            {t("admin-countries-add")}
-          </Button>
-        </div>
-
-        <Card className="mb-6">
-          <Card.Content className="flex gap-4">
-            <div className="relative flex-1">
-              <TextField
-                className="w-full"
-                value={globalFilter}
-                onChange={(value) => setGlobalFilter(value)}
-              >
-                <Label>{t("admin-common-search")}</Label>
-                <Input
-                  className="pl-8"
-                  placeholder={t("admin-common-search")}
-                />
-              </TextField>
-              <SearchIcon className="absolute left-2 top-1/2 transform -translate-y-1/2 pointer-events-none text-default-400 w-4 h-4" />
-            </div>
-            <Select
-              value={statusFilter}
-              onChange={(value) => setStatusFilter((value as string) || "")}
-            >
-              <Label>{t("admin-common-status")}</Label>
-              <Select.Trigger>
-                <Select.Value />
-                <Select.Indicator />
-              </Select.Trigger>
-              <Select.Popover>
-                <ListBox>
-                  <ListBox.Item id="" textValue="All">
-                    All
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                  <ListBox.Item id="active" textValue="Active">
-                    Active
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                  <ListBox.Item id="inactive" textValue="Inactive">
-                    Inactive
-                    <ListBox.ItemIndicator />
-                  </ListBox.Item>
-                </ListBox>
-              </Select.Popover>
-            </Select>
-          </Card.Content>
-        </Card>
+      <AdminCrudLayout
+        title={t("admin-countries-title")}
+        addLabel={t("admin-countries-add")}
+        onAdd={handleOpenCreate}
+        globalFilter={globalFilter}
+        onGlobalFilterChange={setGlobalFilter}
+        filterPlaceholder={t("admin-common-search")}
+        statusFilter={statusFilter || ""}
+        onStatusFilterChange={(v) => setStatusFilter(v || "")}
+      >
 
         <Card>
           <Card.Content>
@@ -538,7 +492,7 @@ export default function CountriesPage() {
             </Modal.Dialog>
           </Modal.Container>
         </Modal>
-      </div>
+      </AdminCrudLayout>
     </DefaultLayout>
   );
 }

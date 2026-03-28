@@ -11,11 +11,11 @@ import {
   Separator,
   Modal,
   useOverlayState,
-  Table,
-  Link as HeroUILink} from "@heroui/react";
+  Table} from "@heroui/react";
 import { useSavedCarts } from "@/hooks/use-saved-carts";
 import { SavedCartSnapshot } from "@/hooks/use-saved-carts";
 import { formatMoney } from "@/utils/currency";
+import { EmptyCard } from "@/shared/ui/feedback/empty-card";
 
 /**
  * SavedCartsManager - Modern saved carts interface
@@ -49,24 +49,13 @@ export function SavedCartsManager() {
 
   if (savedCarts.length === 0) {
     return (
-      <Card className="border border-default-200 bg-default-50">
-        <Card.Content className="py-12 text-center">
-          <div className="space-y-4">
-            <p className="text-5xl">🛒</p>
-            <p className="text-lg font-semibold text-default-700">
-              Pas de panier sauvegardé
-            </p>
-            <p className="text-sm text-default-500">
-              Sauvegardez vos paniers pour les finaliser plus tard
-            </p>
-            <HeroUILink href="/" className="mt-4">
-              <Button variant="primary">
-                Découvrir nos produits
-              </Button>
-            </HeroUILink>
-          </div>
-        </Card.Content>
-      </Card>
+      <EmptyCard
+        emoji="🛒"
+        title="Pas de panier sauvegardé"
+        description="Sauvegardez vos paniers pour les finaliser plus tard"
+        ctaHref="/"
+        ctaLabel="Découvrir nos produits"
+      />
     );
   }
 

@@ -6,10 +6,13 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
-import { Card, Spinner, Button, Chip, Separator, Table } from "@heroui/react";
+import { Card, Button, Chip, Separator, Table } from "@heroui/react";
 
 import { useAuth } from "@/authentication";
 import { downloadInvoicePdf } from "../../utils/invoice-pdf";
+import { getApiBase } from "@/lib/api-base";
+import { ORDER_STATUS_COLORS } from "@/config/order-status";
+import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
 
 interface OrderItem {
   sku: string;
@@ -34,19 +37,6 @@ interface Order {
   items: OrderItem[];
 }
 
-const STATUS_COLORS: Record<
-  string,
-  "success" | "warning" | "danger" | "default" | "primary"
-> = {
-  paid: "success",
-  processing: "primary",
-  shipped: "primary",
-  delivered: "success",
-  refunded: "danger",
-  canceled: "danger",
-  pending: "warning",
-};
-
 /**
  * Displays detailed information for a single order.
  * Allows downloading the invoice as PDF.
@@ -58,8 +48,7 @@ export default function OrderDetail() {
   const auth = useAuth() as any;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
-  const apiBase =
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
+  const apiBase = getApiBase();
 
   useEffect(() => {
     const fetchOrder = async () => {
@@ -84,14 +73,7 @@ export default function OrderDetail() {
   }, [auth, number, apiBase, navigate]);
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="flex flex-col items-center gap-2">
-          <Spinner />
-          <span className="text-default-500">{t("loading")}</span>
-        </div>
-      </div>
-    );
+    return <LoadingPane />;
   }
 
   if (!order) {
@@ -153,7 +135,7 @@ export default function OrderDetail() {
             {t("account-order-details")}
           </h2>
           <Chip
-            color={(STATUS_COLORS[order.status] as any) || "default"}
+            color={(ORDER_STATUS_COLORS[order.status] as any) || "default"}
             variant="tertiary"
           >
             {order.status}

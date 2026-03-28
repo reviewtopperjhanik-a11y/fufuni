@@ -3,11 +3,13 @@
  * License: AGPL-3.0-or-later
  */
 
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { decodeJwt } from 'jose';
 import { useAuth } from '@/authentication';
 import { useTokenRefresh } from '@/hooks/use-token-refresh';
 import { getStoreMetadata } from '@/lib/store-metadata';
+import { useTokenUserData } from '@/hooks/use-token-user-data';
+import { getApiBase } from '@/lib/api-base';
 
 export interface UseWishlistReturn {
   wishlist: string[];
@@ -59,54 +61,14 @@ export function getWishlistFromToken(token: string | null): string[] {
 export function useWishlist(): UseWishlistReturn {
   const auth = useAuth();
   const { refreshToken } = useTokenRefresh();
-  
-  const [wishlist, setWishlist] = useState<string[]>([]);
-  // We're loading initially if we are authenticated
-  const [isLoading, setIsLoading] = useState<boolean>(auth.isAuthenticated);
-  const [isError, setIsError] = useState<boolean>(false);
+  const apiBase = getApiBase();
 
-  // Load wishlist from token initially
-  useEffect(() => {
-    let isMounted = true;
-    
-    const loadWishlist = async () => {
-      if (!auth.isAuthenticated) {
-        if (isMounted) {
-          setWishlist([]);
-          setIsLoading(false);
-        }
-        return;
-      }
-      
-      try {
-        const token = await auth.getAccessToken();
-        if (isMounted) {
-          setWishlist(getWishlistFromToken(token));
-          setIsLoading(false);
-        }
-      } catch (err) {
-        console.error('[useWishlist] Error fetching token:', err);
-        if (isMounted) {
-          setIsError(true);
-          setIsLoading(false);
-        }
-      }
-    };
-    
-    loadWishlist();
-    
-    return () => { isMounted = false; };
-  }, [auth.isAuthenticated, auth.getAccessToken]);
-
-  // Synchronize state across multiple `useWishlist` instances instantly
-  useEffect(() => {
-    const handleSync = (e: Event) => {
-      const customEvent = e as CustomEvent<string[]>;
-      setWishlist(customEvent.detail);
-    };
-    window.addEventListener(WISHLIST_UPDATED_EVENT, handleSync);
-    return () => window.removeEventListener(WISHLIST_UPDATED_EVENT, handleSync);
-  }, []);
+  const {
+    data: wishlist,
+    isLoading,
+    isError,
+    setData: setWishlist,
+  } = useTokenUserData(getWishlistFromToken, WISHLIST_UPDATED_EVENT);
 
   const toggle = useCallback(
     async (productId: string) => {
@@ -117,38 +79,23 @@ export function useWishlist(): UseWishlistReturn {
 
       const isFav = wishlist.includes(productId);
 
-      // Optimistic loading state
-      setIsLoading(true);
-      setIsError(false);
-
       try {
-        // Toggle in backend
         if (isFav) {
-          await auth.deleteJson(`${import.meta.env.API_BASE_URL}/v1/me/wishlist/${productId}`);
+          await auth.deleteJson(`${apiBase}/v1/me/wishlist/${productId}`);
         } else {
-          await auth.postJson(`${import.meta.env.API_BASE_URL}/v1/me/wishlist`, { productId });
+          await auth.postJson(`${apiBase}/v1/me/wishlist`, { productId });
         }
 
-        // Backend mutated effectively. Ask for a new JWT token to update local single truth!
         const newToken = await refreshToken();
-        
-        // Parse directly from the freshly refreshed token payload
         const newWishlist = getWishlistFromToken(newToken || null);
-        
-        // Update this instance
+
         setWishlist(newWishlist);
-        
-        // Notify any other instances across the app (product lists, badges, etc.)
         window.dispatchEvent(new CustomEvent(WISHLIST_UPDATED_EVENT, { detail: newWishlist }));
-        
       } catch (error) {
         console.error('[useWishlist] Mutation error:', error);
-        setIsError(true);
-      } finally {
-        setIsLoading(false);
       }
     },
-    [auth, refreshToken, wishlist]
+    [auth, refreshToken, wishlist, apiBase]
   );
 
   const isFavorite = useCallback(

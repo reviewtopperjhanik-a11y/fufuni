@@ -26,8 +26,9 @@
  * You may expand this module later with helpers for cart/checkout.
  */
 
-const API_BASE =
-  (import.meta as any).env?.API_BASE_URL || "";
+import { getApiBase } from "@/lib/api-base";
+
+const API_BASE = getApiBase();
 const PUBLIC_KEY = import.meta.env.MERCHANT_PK;
 
 if (!PUBLIC_KEY) {

@@ -7,7 +7,6 @@ import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import {
   Card,
-  Spinner,
   Button,
   Input,
   TextField,
@@ -21,6 +20,8 @@ import {
 import { useAuth } from "@/authentication";
 
 import { availableLanguages } from "@/i18n";
+import { getApiBase } from "@/lib/api-base";
+import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
 
 interface Profile {
   id: string;
@@ -44,8 +45,7 @@ export default function Preferences() {
     accepts_marketing: 0,
   });
   const [saveSuccess, setSaveSuccess] = useState(false);
-  const apiBase =
-    import.meta.env.VITE_API_BASE_URL || import.meta.env.API_BASE_URL;
+  const apiBase = getApiBase();
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -104,14 +104,7 @@ export default function Preferences() {
   };
 
   if (loading) {
-    return (
-      <div className="flex justify-center py-12">
-        <div className="flex flex-col items-center gap-2">
-          <Spinner />
-          <span className="text-default-500">{t("loading")}</span>
-        </div>
-      </div>
-    );
+    return <LoadingPane />;
   }
 
   if (!profile) {
