@@ -31,6 +31,7 @@ import { z } from '@hono/zod-openapi';
 
 /** Path parameter schema for routes that accept a resource `id` (UUID). */
 export const IdParam = z.object({
+  id: z.string().uuid().openapi({ param: { name: 'id', in: 'path' } }),
 });
 
 /** Query parameters for cursor-based paginated list endpoints. */

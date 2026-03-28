@@ -346,7 +346,7 @@ app.openapi(deleteCurrency, async (c) => {
   // All guards passed → safe to delete
   await db.run('DELETE FROM currencies WHERE id = ?', [id]);
 
-  return c.json({ deleted: true }, 200);
+  return c.json({ deleted: true as const }, 200);
 });
 
 // ============================================================
@@ -691,7 +691,7 @@ app.openapi(deleteCountry, async (c) => {
 
   await db.run('DELETE FROM countries WHERE id = ?', [id]);
 
-  return c.json({ deleted: true }, 200);
+  return c.json({ deleted: true as const }, 200);
 });
 
 // ============================================================
@@ -945,7 +945,7 @@ app.openapi(deleteWarehouse, async (c) => {
 
   await db.run('DELETE FROM warehouses WHERE id = ?', [id]);
 
-  return c.json({ deleted: true }, 200);
+  return c.json({ deleted: true as const }, 200);
 });
 
 // ============================================================
@@ -1201,7 +1201,7 @@ app.openapi(deleteShippingClass, async (c) => {
 
   await db.run('DELETE FROM shipping_classes WHERE id = ?', [id]);
 
-  return c.json({ deleted: true }, 200);
+  return c.json({ deleted: true as const }, 200);
 });
 
 // ============================================================
@@ -1455,7 +1455,7 @@ app.openapi(deleteShippingRate, async (c) => {
 
   await db.run('DELETE FROM shipping_rates WHERE id = ?', [id]);
 
-  return c.json({ deleted: true }, 200);
+  return c.json({ deleted: true as const }, 200);
 });
 
 // ============================================================
@@ -1750,7 +1750,7 @@ app.openapi(deleteRegion, async (c) => {
 
   await db.run('DELETE FROM regions WHERE id = ?', [id]);
 
-  return c.json({ deleted: true }, 200);
+  return c.json({ deleted: true as const }, 200);
 });
 
 // ============================================================

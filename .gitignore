@@ -21,3 +21,4 @@ _sensitive_datas/gpg_key_id.txt
 IMPLEMENTATION_GUIDE.md
 IMPLEMENTATION_SUMMARY.md
 apps/merchant/.dev.vars.bak
+*.tsbuildinfo

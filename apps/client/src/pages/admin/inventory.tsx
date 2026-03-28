@@ -423,7 +423,7 @@ export default function InventoryPage() {
                                 {selectedItem.sku}
                               </p>
                               <p className=" text-sm text-gray-600">
-                                {selectedItem.product_title || "-"}
+                                {resolveTitle(selectedItem.product_title || "-", i18n.language)}
                               </p>
                             </div>
                           </div>

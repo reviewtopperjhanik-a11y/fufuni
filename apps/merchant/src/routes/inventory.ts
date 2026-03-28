@@ -448,17 +448,14 @@ app.openapi(adjustWarehouseInventory, async (c) => {
   // --- End sync block -------------------------------------------------------
 
   return c.json({
-    sku: sku,
-    on_hand: totalOnHand,
-    reserved: totalReserved,
-    available: totalOnHand - totalReserved,
-    variant_title: variantInfo?.variant_title,
-    product_title: variantInfo?.product_title,
-    warehouses: allWarehouses.map(w => ({
-      warehouse_id: w.warehouse_id,
-      warehouse_name: w.warehouse_name,
-      quantity: w.on_hand,
-    })),
+    sku,
+    warehouse_id: level.warehouse_id,
+    warehouse_name: level.warehouse_name ?? null,
+    on_hand: level.on_hand,
+    reserved: level.reserved,
+    available,
+    variant_title: variantInfo?.variant_title ?? null,
+    product_title: variantInfo?.product_title ?? null,
   }, 200);
 });
 

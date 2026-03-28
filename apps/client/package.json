@@ -6,8 +6,8 @@
   "scripts": {
     "dev": "vite",
     "dev:env": "bash -c 'set -a && source ../../.env && set +a; base=\"\"; for arg in \"$@\"; do case \"$arg\" in --base=*) base=\"${arg#*=}\";; esac; done; if [ -n \"$base\" ]; then export STORE_URL=\"http://localhost:5173${base}\"; export CORS_ORIGIN=\"http://localhost:5173${base}\"; fi; exec vite \"$@\"' --",
-    "build": "npm run clean && tsc && vite build",
-    "build:env": "bash -c 'npm run clean && set -a && source ../../.env && set +a && tsc && vite build \"$@\"' --",
+    "build": "tsc && vite build",
+    "build:env": "bash -c 'set -a && source ../../.env && set +a && tsc && vite build \"$@\"' --",
     "lint": "eslint ./src/**/**/*.{ts,tsx} --fix",
     "type-check": "tsc --noEmit",
     "preview:env": "bash -c 'set -a && source ../../.env && set +a && vite preview \"$@\"' --",

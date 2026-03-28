@@ -1,14 +1,19 @@
 {
+  "files": [],
+  "references": [
+    { "path": "apps/client" },
+    { "path": "apps/merchant" }
+  ],
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "ESNext",
-    "moduleResolution": "bundler",
-    "strict": true,
-    "esModuleInterop": true,
+    "composite": true,
+    "incremental": true,
     "skipLibCheck": true,
     "noEmit": true,
+    "strict": true,
+    "moduleResolution": "bundler",
+    "module": "ESNext",
+    "target": "ES2022",
+    "esModuleInterop": true,
     "types": []
-  },
-  "include": ["scripts/**/*"],
-  "exclude": ["node_modules"]
+  }
 }

@@ -1090,7 +1090,7 @@ export default function ProductsPage() {
                           <div className="flex items-center justify-between">
                             <h3 className="text-sm font-semibold">
                               {t("admin-products-variants")} (
-                              {editingProduct.variants.length})
+                              {editingProduct.variants?.length ?? 0})
                             </h3>
                             <Button
                               size="sm"
@@ -1101,13 +1101,13 @@ export default function ProductsPage() {
                             </Button>
                           </div>
 
-                          {editingProduct.variants.length === 0 ? (
+                          {(editingProduct.variants?.length ?? 0) === 0 ? (
                             <p className="text-sm text-default-500">
                               {t("admin-products-no-variants")}
                             </p>
                           ) : (
                             <div className="space-y-2">
-                              {editingProduct.variants.map((v) => (
+                              {(editingProduct.variants ?? []).map((v) => (
                                 <VariantCard
                                   key={v.id}
                                   variant={v}
