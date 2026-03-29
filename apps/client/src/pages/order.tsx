@@ -211,7 +211,7 @@ export default function OrderPage() {
 
   const [order, setOrder] = useState<OrderStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [error] = useState<string | null>(null);
   const [errorKey, setErrorKey] = useState<string | null>(null);
   const [activeReview, setActiveReview] = useState<string | null>(null);
 
@@ -237,7 +237,7 @@ export default function OrderPage() {
         return res.json();
       })
       .then((data) => setOrder(data))
-      .catch((err) => {
+      .catch(() => {
         if (!errorKey) setErrorKey("unable-to-load-order");
       })
       .finally(() => setLoading(false));
