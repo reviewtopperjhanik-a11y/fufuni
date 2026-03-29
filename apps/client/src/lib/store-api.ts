@@ -141,6 +141,7 @@ export interface StoreVariant {
   price_cents: number;
   currency?: string; // ISO 4217 code (e.g. USD, EUR)
   image_url?: string;
+  thumbnail_url?: string | null;
   weight_g?: number;
   dims_cm?: { l: number; w: number; h: number } | null;
   requires_shipping?: boolean;
@@ -176,11 +177,32 @@ export interface StoreProduct {
  */
 export async function getProducts(): Promise<StoreProduct[]> {
   const resp = await request<{ items: StoreProduct[] }>(
-    `/v1/products?limit=10&status=active`,
+    `/v1/products?limit=20&status=active&thumbnail=true`,
   );
 
-  // match example logic: keep only products with at least one variant
   return (resp.items || []).filter((p) => p.variants && p.variants.length > 0);
+}
+
+/**
+ * Fetch a page of active products for infinite-scroll listing.
+ * Returns only thumbnails for smaller payloads.
+ *
+ * @param cursor - Optional pagination cursor from a previous response.
+ * @param limit  - Number of products per page (default 20).
+ */
+export async function getProductsPage(
+  cursor?: string | null,
+  limit = 20,
+): Promise<{ items: StoreProduct[]; pagination: { has_more: boolean; next_cursor: string | null } }> {
+  const params = new URLSearchParams({ limit: String(limit), status: 'active', thumbnail: 'true' });
+  if (cursor) params.set('cursor', cursor);
+  const resp = await request<{ items: StoreProduct[]; pagination: { has_more: boolean; next_cursor: string | null } }>(
+    `/v1/products?${params}`,
+  );
+  return {
+    items: (resp.items || []).filter((p) => p.variants && p.variants.length > 0),
+    pagination: resp.pagination,
+  };
 }
 
 /**
@@ -202,7 +224,7 @@ export async function searchProducts(query: string): Promise<StoreProduct[]> {
 
   if (!q) return [];
   const resp = await request<{ items: StoreProduct[] }>(
-    `/v1/products/search?q=${q}&limit=100`,
+    `/v1/products/search?q=${q}&limit=100&thumbnail=true`,
   );
 
   return (resp.items || []).filter((p) => p.variants && p.variants.length > 0);

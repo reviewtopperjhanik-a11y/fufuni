@@ -26,11 +26,11 @@ import { title, subtitle } from "@/shared/ui/primitives";
 import { GithubIcon } from "@/shared/ui/icons";
 import DefaultLayout from "@/layouts/default";
 
-import { useState } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 
-import { StoreProduct, searchProducts, getProducts } from "@/lib/store-api";
+import { StoreProduct, searchProducts, getProductsPage } from "@/lib/store-api";
 import { ProductCard } from "@/components/product-card";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
 
 export default function IndexPage() {
@@ -41,28 +41,68 @@ export default function IndexPage() {
   const [searchParams] = useSearchParams();
   const term = searchParams.get("q") || "";
 
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Search mode: single query when user types in the search box
   const {
-    data: products,
-    isLoading: productsLoading,
-    isError: productsError,
+    data: searchData,
+    isLoading: searchLoading,
+    isError: searchError,
   } = useQuery<StoreProduct[], Error>({
-    queryKey: ["products", term],
-    queryFn: async () => {
-      if (term) {
-        return await searchProducts(term);
-      }
-      // no term => default product list
-      return await getProducts();
-    },
+    queryKey: ['search', term],
+    queryFn: () => searchProducts(term),
+    enabled: !!term,
   });
 
-  const safeProducts: StoreProduct[] = products || [];
+  // Browse mode: infinite-scroll query when no search term
+  const {
+    data: browseData,
+    hasNextPage,
+    fetchNextPage,
+    isFetchingNextPage,
+    isLoading: browseLoading,
+    isError: browseError,
+  } = useInfiniteQuery({
+    queryKey: ['products'],
+    queryFn: ({ pageParam }) => getProductsPage(pageParam as string | null),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.has_more ? lastPage.pagination.next_cursor : undefined,
+    enabled: !term,
+  });
+
+  const safeProducts: StoreProduct[] = term
+    ? (searchData ?? [])
+    : (browseData?.pages.flatMap((p) => p.items) ?? []);
+
+  const productsLoading = term ? searchLoading : browseLoading;
+  const productsError = term ? searchError : browseError;
+
   const [selectedVariants, setSelectedVariants] =
     useState<Record<string, string>>({});
 
   const handleVariantChange = (productId: string, sku: string) => {
     setSelectedVariants((prev) => ({ ...prev, [productId]: sku }));
   };
+
+  const handleIntersect = useCallback(
+    (entries: IntersectionObserverEntry[]) => {
+      if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
+        void fetchNextPage();
+      }
+    },
+    [hasNextPage, isFetchingNextPage, fetchNextPage],
+  );
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || term) return;
+    const observer = new IntersectionObserver(handleIntersect, {
+      rootMargin: '200px',
+    });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleIntersect, term]);
 
 
   return (
@@ -166,16 +206,25 @@ export default function IndexPage() {
         ) : safeProducts.length === 0 ? (
           <p className="text-center">{t("admin-products-empty")}</p>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {safeProducts.map((product) => (
-              <ProductCard
-                key={product.id}
-                product={product}
-                selectedSku={selectedVariants[product.id]}
-                onSelectVariant={handleVariantChange}
-              />
-            ))}
-          </div>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+              {safeProducts.map((product) => (
+                <ProductCard
+                  key={product.id}
+                  product={product}
+                  selectedSku={selectedVariants[product.id]}
+                  onSelectVariant={handleVariantChange}
+                />
+              ))}
+            </div>
+            {!term && (
+              <div ref={sentinelRef} className="mt-8 flex justify-center">
+                {isFetchingNextPage && (
+                  <p className="text-sm text-default-400">{t("admin-products-loading")}</p>
+                )}
+              </div>
+            )}
+          </>
         )}
       </section>
     </DefaultLayout>

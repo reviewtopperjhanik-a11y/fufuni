@@ -250,6 +250,7 @@ function mapVariant(
   v: Record<string, unknown>,
   taxRate: { rate_percentage?: number; display_name?: string; } | null,
   defaultTaxInclusive: boolean,
+  imageMode: 'full' | 'thumb' | 'none' = 'full',
 ) {
   return {
     id: v.id as string,
@@ -257,7 +258,8 @@ function mapVariant(
     title: v.title as string,
     price_cents: v.price_cents as number,
     currency: ((v.currency as string) ?? 'USD') as string,
-    image_url: (v.image_url ?? null) as string | null,
+    image_url: imageMode === 'none' || imageMode === 'thumb' ? null : (v.image_url ?? null) as string | null,
+    thumbnail_url: imageMode === 'none' ? null : (v.thumbnail_url ?? null) as string | null,
     shipping_class_id: (v.shipping_class_id ?? null) as string | null | undefined,
     weight_g: ((v.weight_g as number) ?? 0) as number,
     dims_cm: parseDimscm(v.dims_cm),
@@ -281,6 +283,7 @@ function mapProduct(
   defaultTaxRate: any | null,
   defaultTaxInclusive: boolean,
   categories: Record<string, any>[] = [],
+  imageMode: 'full' | 'thumb' | 'none' = 'full',
 ) {
   return {
     id: p.id as string,
@@ -298,14 +301,15 @@ function mapProduct(
     variants: variants.map((v) => {
       const code = (v.tax_code as string | null) ?? null;
       const selectedRate = code ? taxRateByCode[code] : null;
-      return mapVariant(v, selectedRate || defaultTaxRate, defaultTaxInclusive);
+      return mapVariant(v, selectedRate || defaultTaxRate, defaultTaxInclusive, imageMode);
     }),
   }
 }
 
 app.openapi(listProducts, async (c) => {
   const db = getDb(c.var.db);
-  const { limit: limitStr, cursor, status } = c.req.valid('query');
+  const { limit: limitStr, cursor, status, noimage, thumbnail } = c.req.valid('query');
+  const imageMode = noimage === 'true' ? 'none' : thumbnail === 'true' ? 'thumb' : 'full';
   const limit = Math.min(parseInt(limitStr || '20'), 100);
 
   let query = `SELECT * FROM products`;
@@ -384,7 +388,7 @@ app.openapi(listProducts, async (c) => {
   }
 
   const items = products.map((p) =>
-    mapProduct(p, variantsByProduct[p.id] || [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, categoriesByProduct[p.id] || []),
+    mapProduct(p, variantsByProduct[p.id] || [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, categoriesByProduct[p.id] || [], imageMode),
   );
 
   const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].created_at : null;
@@ -394,7 +398,8 @@ app.openapi(listProducts, async (c) => {
 
 app.openapi(searchProducts, async (c) => {
   const db = getDb(c.var.db);
-  const { q, limit: limitStr, cursor } = c.req.valid('query');
+  const { q, limit: limitStr, cursor, noimage, thumbnail } = c.req.valid('query');
+  const imageMode = noimage === 'true' ? 'none' : thumbnail === 'true' ? 'thumb' : 'full';
   const limit = Math.min(parseInt(limitStr || '20'), 100);
 
   const term = `%${q}%`;
@@ -468,7 +473,7 @@ app.openapi(searchProducts, async (c) => {
     }
   }
 
-  const items = products.map((p) => mapProduct(p, variantsByProduct[p.id] || [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, categoriesByProduct[p.id] || []));
+  const items = products.map((p) => mapProduct(p, variantsByProduct[p.id] || [], taxRateByCode, defaultTaxRate, defaultTaxInclusive, categoriesByProduct[p.id] || [], imageMode));
 
   const nextCursor = hasMore && items.length > 0 ? items[items.length - 1].created_at : null;
 
@@ -800,7 +805,7 @@ const createVariant = createRoute({
 app.openapi(createVariant, async (c) => {
   const { id: productId } = c.req.valid('param');
   const {
-    sku, title, price_cents, currency, image_url,
+    sku, title, price_cents, currency, image_url, thumbnail_url,
     weight_g, dims_cm, requires_shipping,
     barcode, compare_at_price_cents, tax_code
   } = c.req.valid('json');
@@ -820,13 +825,13 @@ app.openapi(createVariant, async (c) => {
       id, product_id, sku, title, price_cents, currency,
       weight_g, dims_cm, requires_shipping,
       barcode, compare_at_price_cents, tax_code,
-      image_url, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      image_url, thumbnail_url, created_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, productId, sku, title, price_cents, currency ?? 'USD',
       weight_g ?? 0, dims_cm ? JSON.stringify(dims_cm) : null, requires_shipping === false ? 0 : 1,
       barcode ?? null, compare_at_price_cents ?? null, tax_code ?? null,
-      image_url || null, timestamp
+      image_url || null, thumbnail_url || null, timestamp
     ]
   );
 
@@ -921,6 +926,10 @@ app.openapi(updateVariant, async (c) => {
   if (body.image_url !== undefined) {
     updates.push('image_url = ?');
     params.push(body.image_url);
+  }
+  if (body.thumbnail_url !== undefined) {
+    updates.push('thumbnail_url = ?');
+    params.push(body.thumbnail_url ?? null);
   }
 
   if (updates.length > 0) {

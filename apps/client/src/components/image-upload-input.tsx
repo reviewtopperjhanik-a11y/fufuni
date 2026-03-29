@@ -13,11 +13,13 @@ import {
   detectImageMethod,
   estimateBase64Size,
 } from '@/utils/image-upload';
+import { convertToWebp, blobToBase64, IMAGE_SIZE_THRESHOLD } from '@/utils/image-utils';
 import { useSecuredApi } from '@/authentication';
 
 export interface ImageUploadInputProps {
   value: string | null;
   onChange: (url: string | null) => void;
+  onThumbnailChange?: (url: string | null) => void;
   disabled?: boolean;
   apiBaseUrl: string;
   forceR2?: boolean;
@@ -27,6 +29,7 @@ export interface ImageUploadInputProps {
 export function ImageUploadInput({
   value,
   onChange,
+  onThumbnailChange,
   disabled = false,
   apiBaseUrl,
   forceR2 = false,
@@ -54,13 +57,27 @@ export function ImageUploadInput({
     setIsUploading(true);
 
     try {
+      // Convert to WebP (1200px max) and apply storage rule
+      const webpBlob = await convertToWebp(file, 1200, 0.8);
+      const webpFile = new File(
+        [webpBlob],
+        file.name.replace(/\.[^.]+$/, '.webp'),
+        { type: 'image/webp' },
+      );
       const result = await uploadImageFile(
-        file,
+        webpFile,
         apiBaseUrl,
-        postForm, // Pass the secured API function
-        useR2 // Pass the R2 preference
+        postForm,
+        useR2 || webpBlob.size >= IMAGE_SIZE_THRESHOLD,
       );
       onChange(result.url);
+
+      // Generate thumbnail (300px WebP — always fits in base64)
+      if (onThumbnailChange) {
+        const thumbBlob = await convertToWebp(file, 300, 0.8);
+        onThumbnailChange(await blobToBase64(thumbBlob));
+      }
+
       setManualUrlMode(false);
     } catch (err) {
       const message =

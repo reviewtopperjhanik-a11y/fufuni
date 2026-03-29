@@ -29,10 +29,15 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",
+    "@types/jpeg-js": "^0.3.0",
+    "@types/pngjs": "^6.0.5",
+    "jpeg-js": "^0.4.4",
+    "pngjs": "^7.0.0",
+    "supertest": "^6.3.3",
     "ts-jest": "^29.4.6",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "wrangler": "^4.78.0",
-    "supertest": "^6.3.3"
+    "webp-wasm": "^1.0.6",
+    "wrangler": "^4.78.0"
   }
 }

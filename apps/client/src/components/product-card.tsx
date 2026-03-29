@@ -51,7 +51,7 @@ export const ProductCard: React.FC<Props> = ({
   const price = variant ? formatMoney(variant.price_cents, currency) : formatMoney(0, currency);
 
   const image =
-    variant?.image_url || product.image_url ||
+    (variant?.thumbnail_url ?? variant?.image_url) || product.image_url ||
     "https://placehold.co/400x400/1a1a1a/666?text=No+Image";
 
   return (

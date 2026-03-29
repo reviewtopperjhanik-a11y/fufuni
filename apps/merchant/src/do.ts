@@ -238,6 +238,7 @@ CREATE TABLE IF NOT EXISTS variants (
   compare_at_price_cents INTEGER,
   tax_code TEXT,
   image_url TEXT,
+  thumbnail_url TEXT,
   shipping_class_id TEXT REFERENCES shipping_classes(id),
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'draft')),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -994,6 +995,10 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
         {
           name: '028_products_add_average_rating',
           sql: 'ALTER TABLE products ADD COLUMN average_rating REAL NOT NULL DEFAULT 0.0',
+        },
+        {
+          name: '029_variants_add_thumbnail_url',
+          sql: 'ALTER TABLE variants ADD COLUMN thumbnail_url TEXT',
         },
       ];
 

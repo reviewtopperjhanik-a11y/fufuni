@@ -92,6 +92,7 @@ export const CreateVariantBody = z.object({
   barcode: z.string().optional().openapi({ example: '3760093570015', description: 'EAN-13, UPC-A or any GTIN barcode' }),
   compare_at_price_cents: z.number().int().min(0).optional().openapi({ example: 4999, description: 'Original price shown crossed-out (must be > price_cents)' }),
   tax_code: z.string().optional().openapi({ example: 'txcd_99999999', description: 'Stripe Tax product code' }),
+  thumbnail_url: z.string().url().nullable().optional().openapi({ description: 'Small WebP thumbnail (data URI for <1 MB, R2 URL for ≥1 MB)' }),
 }).openapi('CreateVariant');
 
 /** Request body for partially updating a variant (all fields optional). */
@@ -110,6 +111,7 @@ export const UpdateVariantBody = z.object({
   barcode: z.string().nullable().optional(),
   compare_at_price_cents: z.number().int().min(0).nullable().optional(),
   tax_code: z.string().nullable().optional(),
+  thumbnail_url: z.string().url().nullable().optional(),
 }).openapi('UpdateVariant');
 
 /** Path parameters for variant-price routes: `productId / variantId / currencyId`. */
@@ -215,11 +217,15 @@ export const UpdateProductBody = z.object({
 /** Query parameters for the product list endpoint. */
 export const ProductQuery = PaginationQuery.extend({
   status: ProductStatus.optional().openapi({ param: { name: 'status', in: 'query' } }),
+  noimage: z.enum(['true', 'false']).optional().openapi({ param: { name: 'noimage', in: 'query' }, description: 'Strip all image data from the response' }),
+  thumbnail: z.enum(['true', 'false']).optional().openapi({ param: { name: 'thumbnail', in: 'query' }, description: 'Return thumbnail_url instead of full image_url' }),
 });
 
 /** Query parameters for the full-text search endpoint. */
 export const SearchQuery = PaginationQuery.extend({
   q: z.string().min(1).openapi({ param: { name: 'q', in: 'query' }, example: 'shirt' }),
+  noimage: z.enum(['true', 'false']).optional().openapi({ param: { name: 'noimage', in: 'query' }, description: 'Strip all image data from the response' }),
+  thumbnail: z.enum(['true', 'false']).optional().openapi({ param: { name: 'thumbnail', in: 'query' }, description: 'Return thumbnail_url instead of full image_url' }),
 });
 
 // ============================================================

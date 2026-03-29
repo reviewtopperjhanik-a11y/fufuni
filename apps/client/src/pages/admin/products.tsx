@@ -62,6 +62,7 @@ interface Variant {
   price_cents: number;
   currency?: string; // ISO 4217 code (e.g., "USD", "EUR")
   image_url?: string;
+  thumbnail_url?: string | null;
   weight_g?: number;
   dims_cm?: { l: number; w: number; h: number } | null;
   requires_shipping?: boolean;
@@ -190,6 +191,7 @@ export default function ProductsPage() {
   const [variantTitle, setVariantTitle] = useState("");
   const [variantPrice, setVariantPrice] = useState("");
   const [variantImage, setVariantImage] = useState<string | null>(null);
+  const [variantThumbnail, setVariantThumbnail] = useState<string | null>(null);
   const [submittingVariant, setSubmittingVariant] = useState(false);
   // enrichment fields
   const [variantWeightG, setVariantWeightG] = useState("");
@@ -612,6 +614,7 @@ export default function ProductsPage() {
     setVariantTitle("");
     setVariantPrice("");
     setVariantImage(null);
+    setVariantThumbnail(null);
     setVariantWeightG("");
     setVariantDimsL("");
     setVariantDimsW("");
@@ -641,6 +644,7 @@ export default function ProductsPage() {
     setVariantTitle(v.title);
     setVariantPrice(String(v.price_cents));
     setVariantImage(v.image_url || null);
+    setVariantThumbnail(v.thumbnail_url || null);
     setVariantWeightG(String(v.weight_g || 0));
     setVariantDimsL(String(v.dims_cm?.l || ""));
     setVariantDimsW(String(v.dims_cm?.w || ""));
@@ -684,6 +688,7 @@ export default function ProductsPage() {
         title: variantTitle,
         price_cents: price,
         image_url: variantImage || undefined,
+        thumbnail_url: variantThumbnail || undefined,
         weight_g: variantWeightG ? parseFloat(variantWeightG) : undefined,
         requires_shipping: variantRequiresShipping,
         barcode: variantBarcode || undefined,
@@ -1296,6 +1301,7 @@ export default function ProductsPage() {
                           disabled={submittingVariant}
                           value={variantImage}
                           onChange={setVariantImage}
+                          onThumbnailChange={setVariantThumbnail}
                         />
                       </div>
 
@@ -1618,11 +1624,11 @@ function VariantCard({
       className="flex items-center gap-3 p-3 rounded-lg border cursor-pointer hover:bg-default-100 transition-colors"
       onClick={onEdit}
     >
-      {variant.image_url ? (
+      {(variant.thumbnail_url ?? variant.image_url) ? (
         <img
           alt={variant.title}
           className="w-12 h-12 object-cover rounded border"
-          src={variant.image_url}
+          src={variant.thumbnail_url ?? variant.image_url}
         />
       ) : (
         <div className="w-12 h-12 flex items-center justify-center rounded border bg-default-100">
