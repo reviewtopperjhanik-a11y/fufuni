@@ -275,12 +275,144 @@ async function seedCategories() {
     parent_id: parentCategory.id,
   });
 
+  const bagsCarryCategory = await api('/v1/categories', {
+    handle: 'bags-carry',
+    name: JSON.stringify({
+      'en-US': 'Bags & Carry',
+      'fr-FR': 'Sacs et transport',
+      'es-ES': 'Bolsas y transporte',
+      'ar-SA': 'الحقائب والحمل',
+      'zh-CN': '箱包与携带',
+      'he-IL': 'תיקים ונשיאה',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Products designed for carrying, storage and everyday transport.',
+      'fr-FR': 'Produits conçus pour le transport, le rangement et l’usage nomade au quotidien.',
+      'es-ES': 'Productos diseñados para transportar, guardar y llevar a diario.',
+      'ar-SA': 'منتجات مخصصة للحمل والتخزين والتنقل اليومي.',
+      'zh-CN': '用于携带、收纳和日常运输的产品。',
+      'he-IL': 'מוצרים המיועדים לנשיאה, אחסון והובלה יומיומית.',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  const drinkwareCategory = await api('/v1/categories', {
+    handle: 'drinkware',
+    name: JSON.stringify({
+      'en-US': 'Drinkware',
+      'fr-FR': 'Boissons et contenants',
+      'es-ES': 'Bebida y recipientes',
+      'ar-SA': 'أدوات الشرب',
+      'zh-CN': '饮具',
+      'he-IL': 'כלי שתייה',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Reusable beverage containers and drink-related products for daily use or gifting.',
+      'fr-FR': 'Contenants réutilisables pour boissons et produits liés à la consommation au quotidien ou en cadeau.',
+      'es-ES': 'Recipientes reutilizables para bebidas y productos relacionados para uso diario o regalo.',
+      'ar-SA': 'حاويات قابلة لإعادة الاستخدام للمشروبات ومنتجات مرتبطة بها للاستخدام اليومي أو الهدايا.',
+      'zh-CN': '适合日常使用或赠礼的可重复使用饮品容器及相关产品。',
+      'he-IL': 'מכלי שתייה רב-פעמיים ומוצרים קשורים לשימוש יומיומי או כמתנה.',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  const accessoriesTechCategory = await api('/v1/categories', {
+    handle: 'accessories-tech',
+    name: JSON.stringify({
+      'en-US': 'Accessories & Tech',
+      'fr-FR': 'Accessoires et tech',
+      'es-ES': 'Accesorios y tecnología',
+      'ar-SA': 'الإكسسوارات والتقنية',
+      'zh-CN': '配件与科技',
+      'he-IL': 'אביזרים וטכנולוגיה',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Small promotional items, desk accessories and tech-oriented everyday products.',
+      'fr-FR': 'Petits objets promotionnels, accessoires de bureau et produits tech du quotidien.',
+      'es-ES': 'Pequeños artículos promocionales, accesorios de escritorio y productos tecnológicos de uso diario.',
+      'ar-SA': 'منتجات ترويجية صغيرة وإكسسوارات مكتبية ومنتجات تقنية للاستخدام اليومي.',
+      'zh-CN': '小型促销品、桌面配件及日常科技类产品。',
+      'he-IL': 'פריטי קידום קטנים, אביזרי שולחן ומוצרים טכנולוגיים לשימוש יומיומי.',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  const homeLivingCategory = await api('/v1/categories', {
+    handle: 'home-living',
+    name: JSON.stringify({
+      'en-US': 'Home & Living',
+      'fr-FR': 'Maison et lifestyle',
+      'es-ES': 'Hogar y estilo de vida',
+      'ar-SA': 'المنزل ونمط الحياة',
+      'zh-CN': '家居与生活方式',
+      'he-IL': 'בית ולייף סטייל',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Comfort, decor and practical products intended for home, lounge or personal spaces.',
+      'fr-FR': 'Produits de confort, de décoration et d’usage pratique pour la maison, les espaces lounge ou personnels.',
+      'es-ES': 'Productos de confort, decoración y uso práctico para el hogar, zonas lounge o espacios personales.',
+      'ar-SA': 'منتجات للراحة والديكور والاستخدام العملي مخصصة للمنزل أو لمساحات الاستراحة أو المساحات الشخصية.',
+      'zh-CN': '适用于家居、休闲区或个人空间的舒适、装饰和实用产品。',
+      'he-IL': 'מוצרי נוחות, עיצוב ושימוש פרקטי לבית, לאזורי ישיבה או למרחבים אישיים.',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  const eventsSignageCategory = await api('/v1/categories', {
+    handle: 'events-signage',
+    name: JSON.stringify({
+      'en-US': 'Events & Signage',
+      'fr-FR': 'Événementiel et signalétique',
+      'es-ES': 'Eventos y señalética',
+      'ar-SA': 'الفعاليات واللافتات',
+      'zh-CN': '活动与展示标识',
+      'he-IL': 'אירועים ושילוט',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Products intended for visibility, branding, trade shows, displays and promotional environments.',
+      'fr-FR': 'Produits destinés à la visibilité, au branding, aux salons, à l’affichage et aux environnements promotionnels.',
+      'es-ES': 'Productos destinados a visibilidad, branding, ferias, exhibición y entornos promocionales.',
+      'ar-SA': 'منتجات مخصصة للظهور البصري والعلامة التجارية والمعارض والعرض والبيئات الترويجية.',
+      'zh-CN': '用于提升可见性、品牌展示、展会、陈列和促销环境的产品。',
+      'he-IL': 'מוצרים המיועדים לנראות, מיתוג, תערוכות, תצוגה וסביבות קידום מכירות.',
+    }),
+    parent_id: parentCategory.id,
+  });
+
+  const sportsOutdoorCategory = await api('/v1/categories', {
+    handle: 'sports-outdoor',
+    name: JSON.stringify({
+      'en-US': 'Sports & Outdoor',
+      'fr-FR': 'Sport et plein air',
+      'es-ES': 'Deporte y aire libre',
+      'ar-SA': 'الرياضة والهواء الطلق',
+      'zh-CN': '运动与户外',
+      'he-IL': 'ספורט וחוץ',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Products made for sport practice, outdoor activities, clubs and active lifestyles.',
+      'fr-FR': 'Produits destinés à la pratique sportive, aux activités extérieures, aux clubs et aux usages actifs.',
+      'es-ES': 'Productos destinados al deporte, las actividades al aire libre, los clubes y los estilos de vida activos.',
+      'ar-SA': 'منتجات مخصصة لممارسة الرياضة والأنشطة الخارجية والأندية وأنماط الحياة النشطة.',
+      'zh-CN': '适用于运动、户外活动、俱乐部和积极生活方式的产品。',
+      'he-IL': 'מוצרים המיועדים לספורט, לפעילויות חוץ, למועדונים ולאורח חיים פעיל.',
+    }),
+    parent_id: parentCategory.id,
+  });
+
   return {
     merchandising: parentCategory.id,
     classicTees: classicTeesCategory.id,
     caps: capsCategory.id,
     hoodies: hoodiesCategory.id,
     stickers: stickersCategory.id,
+    bagsCarry: bagsCarryCategory.id,
+    drinkware: drinkwareCategory.id,
+    accessoriesTech: accessoriesTechCategory.id,
+    homeLiving: homeLivingCategory.id,
+    eventsSignage: eventsSignageCategory.id,
+    sportsOutdoor: sportsOutdoorCategory.id,
   };
 }
 
