@@ -146,13 +146,16 @@ export default function OrdersPage() {
 
       return getJson(url);
     },
-    keepPreviousData: true,
-    onSuccess: (result: any) => {
-      const pagination = result?.pagination || {};
+    placeholderData: (previousData) => previousData,
+  });
+
+  useEffect(() => {
+    if (data) {
+      const pagination = data?.pagination || {};
       setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
       setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
-    },
-  });
+    }
+  }, [data]);
 
   const orders: Order[] = data?.items || [];
 
