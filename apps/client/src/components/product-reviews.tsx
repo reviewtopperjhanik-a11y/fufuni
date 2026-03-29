@@ -78,7 +78,20 @@ export function ProductReviews({ productId }: Props) {
         items: Review[];
       }>,
   });
+
+  // Check purchase eligibility — only when authenticated
+  const { data: eligibility } = useQuery<{ hasPurchased: boolean; alreadyReviewed: boolean }>({
+    queryKey: ['review-eligibility', productId],
+    queryFn: () =>
+      getJson(`${apiBase}/v1/products/${productId}/reviews/eligibility`) as Promise<{
+        hasPurchased: boolean;
+        alreadyReviewed: boolean;
+      }>,
+    enabled: isAuthenticated,
+  });
+
   const reviews = data?.items ?? [];
+  const canWriteReview = isAuthenticated && !!eligibility?.hasPurchased && !eligibility?.alreadyReviewed && !submitted;
 
   const handleSubmit = async () => {
     setSubmitting(true);
@@ -102,12 +115,20 @@ export function ProductReviews({ productId }: Props) {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">{t('reviews-title')}</h3>
-        {isAuthenticated && !showForm && !submitted && (
+        {canWriteReview && !showForm && (
           <Button size="sm" onPress={() => setShowForm(true)}>
             {t('reviews-write')}
           </Button>
         )}
       </div>
+
+      {/* Ineligibility notices */}
+      {isAuthenticated && eligibility && !eligibility.hasPurchased && (
+        <p className="text-sm text-default-400 italic">{t('reviews-purchase-required')}</p>
+      )}
+      {isAuthenticated && eligibility?.alreadyReviewed && !submitted && (
+        <p className="text-sm text-default-400 italic">{t('reviews-already-submitted')}</p>
+      )}
 
       {/* Write review form */}
       {showForm && (

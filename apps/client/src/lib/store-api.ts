@@ -165,6 +165,8 @@ export interface StoreProduct {
   vendor?: string | null;
   tags?: string[] | null;
   handle?: string | null;
+  review_count?: number;
+  average_rating?: number;
 }
 
 /**

@@ -293,6 +293,8 @@ function mapProduct(
     tags: (p.tags ?? null) as string | null,
     handle: (p.handle ?? null) as string | null,
     categories: categories.length > 0 ? categories : null,
+    review_count: (p.review_count as number) ?? 0,
+    average_rating: (p.average_rating as number) ?? 0,
     variants: variants.map((v) => {
       const code = (v.tax_code as string | null) ?? null;
       const selectedRate = code ? taxRateByCode[code] : null;

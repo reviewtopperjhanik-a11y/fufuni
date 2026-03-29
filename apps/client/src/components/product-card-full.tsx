@@ -16,15 +16,17 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { StoreProduct } from "@/lib/store-api";
 import { useTranslation } from "react-i18next";
 import { useCart } from "@/hooks/use-cart";
 import { formatMoney } from "@/utils/currency";
 import { resolveDescription, resolveTitle, resolveVendor, resolveTags, resolveHandle, getTaxNameForLocale } from "@/utils/description";
 import { Button } from "@heroui/react";
+import { Star } from "lucide-react";
 import { WishlistButton } from "./wishlist-button";
 import { ProductImage } from "./product-image";
+import { ProductReviews } from "./product-reviews";
 
 interface Props {
   product: StoreProduct;
@@ -38,6 +40,7 @@ interface Props {
 export const ProductCardFull: React.FC<Props> = ({ product }) => {
   const { t, i18n } = useTranslation();
   const { addItem } = useCart();
+  const reviewsRef = useRef<HTMLDivElement>(null);
 
   // Local state for managing variant selection
   const [selectedSku, setSelectedSku] = useState<string>(
@@ -114,6 +117,41 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
       />
 
       <h3 className="font-medium text-default-900 mb-2">{displayTitle}</h3>
+
+      {/* Rating summary — Amazon/Fnac style: stars + score + count, links to reviews */}
+      {(product.review_count ?? 0) > 0 && (
+        <button
+          type="button"
+          className="flex items-center gap-1.5 mb-3 group/rating hover:underline focus:outline-none"
+          onClick={() => reviewsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        >
+          {/* Filled-star bar */}
+          <span className="flex gap-0.5" aria-hidden>
+            {[1, 2, 3, 4, 5].map((s) => {
+              const avg = product.average_rating ?? 0;
+              const fill = Math.min(1, Math.max(0, avg - s + 1));
+              // full / partial / empty
+              return (
+                <span key={s} className="relative inline-block">
+                  <Star size={15} className="text-default-200" />
+                  <span
+                    className="absolute inset-0 overflow-hidden"
+                    style={{ width: `${fill * 100}%` }}
+                  >
+                    <Star size={15} className="fill-amber-400 text-amber-400" />
+                  </span>
+                </span>
+              );
+            })}
+          </span>
+          <span className="text-sm font-semibold text-amber-500">
+            {(product.average_rating ?? 0).toFixed(1)}
+          </span>
+          <span className="text-sm text-default-500 group-hover/rating:text-primary">
+            ({product.review_count} {t('reviews-count', { count: product.review_count })})
+          </span>
+        </button>
+      )}
 
       {vendor && (
         <p className="text-xs text-default-500 mb-1">
@@ -241,6 +279,11 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
         {t("add-to-cart")}
       </Button>
       <WishlistButton productId={product.id} />
+
+      {/* Reviews section — anchored so the rating summary can scroll here */}
+      <div ref={reviewsRef} className="mt-8 pt-6 border-t border-default-200">
+        <ProductReviews productId={product.id} />
+      </div>
     </div>
   );
 };

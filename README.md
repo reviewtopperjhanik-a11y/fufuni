@@ -67,7 +67,7 @@ Visitors see an attractive landing page with a Log in button and direct links to
   - [Rate Filtering Logic](#rate-filtering-logic)
 - [Multi-Region & Multi-Currency](#multi-region--multi-currency)
 - [Authentication & Security](#authentication--security)
-- [AI Translation](#ai-translation)
+- [AI Features](#ai-features)
 - [Internationalisation](#internationalisation)
 - [Admin Panel](#admin-panel)
 - [Deployment](#deployment)
@@ -131,12 +131,14 @@ Visitors see an attractive landing page with a Log in button and direct links to
 - `availableLanguages` registry with `nativeName`, `isRTL`, `isDefault` flags
 - Locale-aware price display (`Intl.NumberFormat`, ISO 4217)
 
-### 🤖 AI Translation
-- One-click translation for product titles and descriptions directly in the admin panel
+### 🤖 AI Features
+- **One-click translation** for product titles and descriptions directly in the admin panel
+- **AI-assisted review moderation** — admins can analyze pending reviews individually or in batch; the AI returns an `approve`/`reject` recommendation with a one-sentence reason displayed inline
+- Batch workflow: select reviews → Analyze with AI → one-click "Approve all AI-recommended" or "Reject all AI-flagged"
 - Provider auto-detection: Groq, OpenAI, Anthropic
-- Permission-gated — only admins holding the `AI_PERMISSION` claim can trigger translations
+- Permission-gated — only admins holding the `AI_PERMISSION` claim can trigger AI features
 - The backend exposes `GET /v1/ai/parameters` (key, model, URL) — **all AI calls are made client-side** so the LLM API key never leaves the browser via a server-side proxy
-- HTML-aware mode preserves Tiptap markup; plain-text mode for titles
+- HTML-aware translation preserves Tiptap markup; plain-text mode for titles
 
 ### � Analytics Dashboard
 - **Admin-only analytics** endpoint — all metrics computed server-side from existing tables, no external service needed
@@ -751,20 +753,35 @@ Rates are filtered by:
 - Reviews require moderation before appearing publicly (status: `pending → approved`).
 - Verified purchase badge appears when the reviewer has a delivered order containing the product.
 - Product rating cache (`review_count`, `average_rating` on `products` table) is updated on every moderation action.
-- Admin moderation panel at `/admin/reviews`.
+- Reviews can be submitted from the **order history page** (authenticated customers) or from the **order tracking page** (magic-link recipients) for delivered orders.
+- **Guest reviews** — customers who checked out without creating an account can leave a review directly from the signed order-view link; identity is verified via the order's JWT token (`ORDER_TOKEN_SECRET`) and the hashed `viewtoken`, no Auth0 required.
+- Admin moderation panel at `/admin/reviews` with **AI-assisted analysis**.
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/v1/products/:productId/reviews` | public | List approved reviews (cursor-paginated) |
-| `POST` | `/v1/products/:productId/reviews` | customer JWT | Submit a review |
+| `POST` | `/v1/products/:productId/reviews` | customer JWT | Submit a review (authenticated customer) |
+| `POST` | `/v1/products/:productId/reviews/guest` | order JWT | Submit a review as a guest (magic-link verified) |
 | `GET` | `/v1/reviews/admin` | `admin:store` | List reviews by status (`?status=pending\|approved\|rejected\|all`) |
 | `PATCH` | `/v1/reviews/:reviewId/status` | `admin:store` | Approve or reject a review |
 
+#### AI-assisted moderation
+
+Admins holding the `AI_PERMISSION` claim (`ai:api` by default) see additional controls on the `/admin/reviews` page:
+
+- **Checkbox selection** — select individual reviews or all pending reviews at once.
+- **Analyze with AI** — sends selected reviews to the configured LLM (via `GET /v1/ai/parameters`); each review receives a `approve`/`reject` recommendation with a one-sentence reason shown inline. Up to 5 reviews are processed concurrently; a live `done/total` counter is displayed during analysis.
+- **Batch approve / reject** — act on all selected reviews in a single click.
+- **AI-guided batch** — dedicated buttons to approve all AI-recommended or reject all AI-flagged reviews from the current selection.
+- All AI calls are made **client-side** — the LLM API key is fetched from the backend but never proxied through it.
+
 > **Implementation notes:**
-> - Duplicate reviews are blocked: one review per `(customer_id, product_id)` pair.
+> - Duplicate reviews are blocked: one review per `(customer_id, product_id)` pair (or `(NULL, product_id, order_id)` for guests).
+> - Guest review auth: backend verifies HMAC-HS256 JWT + compares `SHA-256(token)` against `orders.viewtoken`; checks order status is `delivered` and product is in the order.
 > - Verified purchase is detected by joining `orders → order_items → variants` for delivered orders.
 > - Cursor pagination uses `created_at < ?` (not `id > ?`) — UUIDs are not chronologically ordered.
 > - SQL status filter uses parameterized queries — no user input is interpolated directly.
+> - `product_id` is resolved server-side via `LEFT JOIN variants ON variants.sku = order_items.sku` so clients never need to look it up separately.
 
 ---
 
@@ -1093,7 +1110,9 @@ Configurable in `src/config/rate-limits.ts`:
 
 ---
 
-## AI Translation
+## AI Features
+
+### Translation
 
 The backend exposes a single endpoint that returns AI credentials to the client:
 
@@ -1111,6 +1130,17 @@ Configured via `wrangler.jsonc`:
 - `AI_API_URL`: provider base URL (e.g. `https://api.groq.com/openai/v1`)
 - `AI_MODEL`: model name (e.g. `openai/gpt-oss-20b`)
 - `AI_API_KEY`: API key (set as a Wrangler secret in production)
+
+### Review Moderation
+
+Admins with the `AI_PERMISSION` permission (`ai:api` by default) get AI analysis controls on the `/admin/reviews` page.
+`analyzeReviewWithAi` and `analyzeReviewsBatchWithAi` (in `ai-client.ts`) build a structured prompt asking the LLM to return a JSON object:
+
+```json
+{ "recommendation": "approve" | "reject", "reason": "<one sentence>" }
+```
+
+The client strips any markdown code fences before `JSON.parse`, handles both Anthropic and OpenAI-compatible APIs, and processes up to 5 reviews concurrently.
 
 ---
 

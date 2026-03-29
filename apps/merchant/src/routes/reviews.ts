@@ -132,6 +132,82 @@ app.openapi(listReviewsRoute, async (c) => {
   );
 });
 
+// ── Customer: check review eligibility ────────────────────────────────────
+// Returns whether the authenticated customer can review this product:
+//   • hasPurchased    — has a delivered order containing the product
+//   • alreadyReviewed — already submitted a review (pending or approved)
+
+const eligibilityRoute = createRoute({
+  method: 'get',
+  path: '/eligibility',
+  tags: ['Reviews'],
+  summary: 'Check if the current customer can review this product',
+  security: [{ bearerAuth: ['valid jwt'] }],
+  request: {
+    params: z.object({ productId: z.string().uuid() }),
+  },
+  responses: {
+    200: {
+      description: 'Eligibility status',
+      content: {
+        'application/json': {
+          schema: z.object({
+            hasPurchased: z.boolean(),
+            alreadyReviewed: z.boolean(),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(eligibilityRoute, async (c) => {
+  const { productId } = c.req.valid('param');
+  const db = getDb(c.var.db);
+
+  // Inline auth (same pattern as createReviewRoute)
+  const authHeader = c.req.header('Authorization');
+  if (!authHeader?.startsWith('Bearer ')) {
+    return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
+  }
+  const jwtToken = authHeader.slice(7);
+  const domain = c.env.AUTH0_DOMAIN;
+  const audience = c.env.AUTH0_AUDIENCE;
+  if (!domain || !audience) return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
+
+  let jwtSub: string | undefined;
+  try {
+    const { verifyAuth0Jwt } = await import('../lib/auth0');
+    const payload = await verifyAuth0Jwt(jwtToken, domain, audience);
+    jwtSub = payload.sub as string | undefined;
+  } catch {
+    return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
+  }
+  if (!jwtSub) return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
+
+  const [customer] = await db.query<{ id: string }>(
+    `SELECT id FROM customers WHERE auth_provider_id = ? LIMIT 1`,
+    [jwtSub]
+  );
+  if (!customer) return c.json({ hasPurchased: false, alreadyReviewed: false }, 200);
+
+  const [order] = await db.query<{ id: string }>(
+    `SELECT o.id FROM orders o
+     JOIN order_items oi ON oi.order_id = o.id
+     JOIN variants v     ON v.sku = oi.sku
+     WHERE v.product_id = ? AND o.customer_id = ? AND o.status = 'delivered'
+     LIMIT 1`,
+    [productId, customer.id]
+  );
+
+  const [existing] = await db.query<{ id: string }>(
+    `SELECT id FROM product_reviews WHERE product_id = ? AND customer_id = ?`,
+    [productId, customer.id]
+  );
+
+  return c.json({ hasPurchased: !!order, alreadyReviewed: !!existing }, 200);
+});
+
 // ── Customer: submit a review ──────────────────────────────────────────────
 
 const createReviewRoute = createRoute({
@@ -165,6 +241,14 @@ const createReviewRoute = createRoute({
     },
     409: {
       description: 'Customer already reviewed this product',
+      content: {
+        'application/json': {
+          schema: z.object({ message: z.string() }),
+        },
+      },
+    },
+    403: {
+      description: 'Customer has not purchased this product',
       content: {
         'application/json': {
           schema: z.object({ message: z.string() }),
@@ -222,6 +306,9 @@ app.openapi(createReviewRoute, async (c) => {
     [productId, customer.id]
   );
 
+  // Only purchasers may review
+  if (!order) throw ApiError.forbidden('Only customers who purchased this product can leave a review');
+
   const id = uuid();
   await db.run(
     `INSERT INTO product_reviews
@@ -237,7 +324,7 @@ app.openapi(createReviewRoute, async (c) => {
       rating,
       title ?? null,
       body ?? null,
-      order ? 1 : 0,
+      order ? 1 : 0,   // always 1 — purchase enforced above, kept for clarity
       order?.id ?? null,
       now(),
       now(),
