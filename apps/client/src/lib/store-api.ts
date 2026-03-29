@@ -216,6 +216,30 @@ export async function getProduct(id: string): Promise<StoreProduct> {
 }
 
 /**
+ * Fetch a paginated list of products belonging to a category (by handle).
+ * Uses the `/v1/categories/:handle/products` endpoint with cursor pagination.
+ *
+ * @param handle  - Category URL slug (e.g. "t-shirts").
+ * @param cursor  - Optional pagination cursor from a previous response.
+ * @param limit   - Number of products per page (default 20).
+ */
+export async function getCategoryProductsPage(
+  handle: string,
+  cursor?: string | null,
+  limit = 20,
+): Promise<{ items: StoreProduct[]; pagination: { has_more: boolean; next_cursor: string | null } }> {
+  const params = new URLSearchParams({ limit: String(limit), thumbnail: 'true' });
+  if (cursor) params.set('cursor', cursor);
+  const resp = await request<{ items: StoreProduct[]; pagination: { has_more: boolean; next_cursor: string | null } }>(
+    `/v1/categories/${encodeURIComponent(handle)}/products?${params}`,
+  );
+  return {
+    items: (resp.items || []).filter((p) => p.variants && p.variants.length > 0),
+    pagination: resp.pagination,
+  };
+}
+
+/**
  * Search products using the new `/v1/products/search?q=...` endpoint.
  * Returns the same item list structure; q is required and will be URL-encoded.
  */

@@ -22,19 +22,24 @@
  * SOFTWARE.
  */
 
-import { useParams } from "react-router-dom";
+import { useParams, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Card} from "@heroui/react";
-import { Spinner } from "@heroui/react";
+import { Card, Breadcrumbs, Spinner } from "@heroui/react";
 
 import DefaultLayout from "@/layouts/default";
 import { getProduct, StoreProduct } from "@/lib/store-api";
 import { ProductCardFull } from "@/components/product-card-full";
+import { useCategories } from "@/hooks/use-categories";
+import { resolveTitle } from "@/utils/description";
 
 export default function ProductPage() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
+
+  // Category handle forwarded via router state when navigating from a category browse page
+  const fromCategory = (location.state as { from?: string } | null)?.from ?? "";
 
   const {
     data: product,
@@ -50,9 +55,30 @@ export default function ProductPage() {
     enabled: !!id,
   });
 
+  // Fetch category flat list so we can resolve the category name for breadcrumbs
+  const { data: categories } = useCategories();
+  const categoryName = fromCategory
+    ? categories?.find((c) => c.handle === fromCategory)?.name ?? fromCategory
+    : "";
+
+  const displayTitle = product ? resolveTitle(product.title, i18n.language) : "";
+
   return (
     <DefaultLayout>
-      <div className="px-4 py-6">
+      <div className="max-w-4xl mx-auto px-4 py-6">
+        {/* Breadcrumbs */}
+        <Breadcrumbs className="mb-4">
+          <Breadcrumbs.Item href="/">{t("home")}</Breadcrumbs.Item>
+          {fromCategory ? (
+            <Breadcrumbs.Item href={`/products?category=${fromCategory}`}>{categoryName}</Breadcrumbs.Item>
+          ) : (
+            <Breadcrumbs.Item href="/products">{t("shop-products-title")}</Breadcrumbs.Item>
+          )}
+          {displayTitle && (
+            <Breadcrumbs.Item>{displayTitle}</Breadcrumbs.Item>
+          )}
+        </Breadcrumbs>
+
         {isLoading && (
           <div className="flex justify-center items-center py-20">
             <div className="flex flex-col items-center gap-2">
@@ -63,18 +89,16 @@ export default function ProductPage() {
         )}
 
         {isError && (
-          <Card className="border-red-200 bg-red-50">
-            <Card.Content className="text-red-800">
+          <Card className="border-danger-200 bg-danger-50">
+            <Card.Content className="text-danger-800">
               <p className="font-semibold mb-2">{t("error")}</p>
-              <p>{error?.message || t("admin-products-loading-error")}</p>
+              <p>{error?.message || t("admin-products-error-loading")}</p>
             </Card.Content>
           </Card>
         )}
 
         {product && (
-          <div className="max-w-2xl">
-            <ProductCardFull product={product} />
-          </div>
+          <ProductCardFull product={product} />
         )}
 
         {!isLoading && !product && !isError && (

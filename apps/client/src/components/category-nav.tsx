@@ -10,6 +10,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, Link, Skeleton, Badge, ScrollShadow } from '@heroui/react';
 import { useNavigate } from 'react-router-dom';
 import { useCategoryTree } from '@/hooks/use-categories';
+import { resolveTitle } from '@/utils/description';
 
 export interface CategoryNavProps {
   showImages?: boolean;
@@ -26,6 +27,7 @@ function CategoryItem({
   children,
   onSelect,
   showImages,
+  locale,
 }: {
   handle: string;
   name: string;
@@ -33,8 +35,10 @@ function CategoryItem({
   children: any[];
   onSelect?: (handle: string) => void;
   showImages?: boolean;
+  locale: string;
 }) {
   const navigate = useNavigate();
+  const displayName = resolveTitle(name, locale);
 
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -53,11 +57,11 @@ function CategoryItem({
           {showImages && image_url && (
             <img
               src={image_url}
-              alt={name}
+              alt={displayName}
               className="w-6 h-6 rounded-sm object-cover inline-block mr-2"
             />
           )}
-          <span>{name}</span>
+          <span>{displayName}</span>
         </Link>
         {children && children.length > 0 && (
           <Badge.Anchor>
@@ -79,6 +83,7 @@ function CategoryItem({
               children={child.children}
               onSelect={onSelect}
               showImages={showImages}
+              locale={locale}
             />
           ))}
         </ul>
@@ -99,7 +104,7 @@ export function CategoryNav({
   showImages = false,
   className = '',
 }: CategoryNavProps) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { tree, isLoading, error } = useCategoryTree();
 
   if (isLoading) {
@@ -147,6 +152,7 @@ export function CategoryNav({
               image_url={category.image_url}
               children={category.children}
               showImages={showImages}
+              locale={i18n.language}
             />
           ))}
         </ul>

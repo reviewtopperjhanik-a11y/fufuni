@@ -74,6 +74,7 @@ function App() {
     <Suspense fallback={<SiteLoading />}>
       <Routes>
         <Route element={<IndexPage />} path="/" />
+        <Route element={<IndexPage />} path="/products" />
         <Route element={<LoginPage />} path="/login" />
         <Route element={<CartPage />} path="/cart" />
         <Route element={<SuccessPage />} path="/success" />

@@ -281,6 +281,7 @@
   "products-error": "No se pudieron cargar los productos",
   "remove": "Eliminar",
   "shop-products-title": "Productos",
+  "search-results-for": "Resultados para \"{{term}}\"",
   "total": "Total",
   "checkout-failed": "El pago falló. \nPor favor inténtalo de nuevo.",
   "checkout-invalid-email": "Por favor, introduce una dirección de correo electrónico válida.",

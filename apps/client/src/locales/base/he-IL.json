@@ -281,6 +281,7 @@
   "products-error": "טעינת המוצרים נכשלה",
   "remove": "לְהַסִיר",
   "shop-products-title": "מוצרים",
+  "search-results-for": "תוצאות עבור \"{{term}}\"",
   "total": "סכום כך הכל",
   "checkout-failed": "התשלום נכשל. \nאנא נסה שוב.",
   "checkout-invalid-email": "נא להזין כתובת אימייל חוקית.",

@@ -281,6 +281,7 @@
   "products-error": "无法加载产品",
   "remove": "消除",
   "shop-products-title": "产品",
+  "search-results-for": "\"{{term}}\"的搜索结果",
   "total": "总计",
   "checkout-failed": "结帐失败。\n请再试一次。",
   "checkout-invalid-email": "请输入有效的电子邮件地址。",

@@ -165,7 +165,8 @@ publicApp.openapi(getCategoryProductsRoute, async (c) => {
     if (!category) throw ApiError.notFound(`Category "${handle}" not found`);
 
     let sql = `
-      SELECT p.id, p.title, p.handle, p.status, p.image_url, p.vendor, p.tags
+      SELECT p.id, p.title, p.handle, p.status, p.image_url, p.vendor, p.tags,
+             p.description, p.created_at, p.review_count, p.average_rating
       FROM products p
       JOIN product_categories pc ON pc.product_id = p.id
       WHERE pc.category_id = ? AND p.status = 'active'
@@ -179,9 +180,75 @@ publicApp.openapi(getCategoryProductsRoute, async (c) => {
     sql += ' ORDER BY pc.position ASC, p.created_at DESC LIMIT ?';
     params.push(limit + 1);
 
-    const items = await db.query<any>(sql, params);
-    const hasMore = items.length > limit;
-    if (hasMore) items.pop();
+    const products = await db.query<any>(sql, params);
+    const hasMore = products.length > limit;
+    if (hasMore) products.pop();
+
+    // Fetch variants for all returned products (same approach as catalog.ts)
+    const productIds = products.map((p: any) => p.id);
+    const variantsByProduct: Record<string, any[]> = {};
+
+    if (productIds.length > 0) {
+      const placeholders = productIds.map(() => '?').join(',');
+      const allVariants = await db.query<any>(
+        `SELECT * FROM variants WHERE product_id IN (${placeholders}) ORDER BY created_at ASC`,
+        productIds,
+      );
+      for (const v of allVariants) {
+        if (!variantsByProduct[v.product_id]) variantsByProduct[v.product_id] = [];
+        variantsByProduct[v.product_id].push(v);
+      }
+    }
+
+    // Enrich variants with tax rate info
+    const activeTaxRates = await db.query<any>(`SELECT * FROM tax_rates WHERE status = 'active'`);
+    const taxRateByCode: Record<string, any> = {};
+    let defaultTaxRate: any | null = null;
+    for (const tr of activeTaxRates) {
+      if (tr.tax_code) taxRateByCode[tr.tax_code] = tr;
+      else if (!defaultTaxRate) defaultTaxRate = tr;
+    }
+    const [defaultRegion] = await db.query<any>(`SELECT tax_inclusive FROM regions WHERE is_default = 1 LIMIT 1`);
+    const defaultTaxInclusive = defaultRegion ? defaultRegion.tax_inclusive === 1 : false;
+
+    // Build response items with variants array
+    const items = products.map((p: any) => {
+      const variants = (variantsByProduct[p.id] || []).map((v: any) => {
+        const code = (v.tax_code as string | null) ?? null;
+        const taxRate = code ? taxRateByCode[code] : null;
+        const resolved = taxRate || defaultTaxRate;
+        return {
+          id: v.id,
+          sku: v.sku,
+          title: v.title,
+          price_cents: v.price_cents,
+          currency: v.currency ?? 'USD',
+          image_url: null,
+          thumbnail_url: v.thumbnail_url ?? null,
+          weight_g: v.weight_g ?? 0,
+          requires_shipping: v.requires_shipping !== 0,
+          barcode: v.barcode ?? null,
+          compare_at_price_cents: v.compare_at_price_cents ?? null,
+          tax_code: v.tax_code ?? null,
+          tax_rate_percentage: resolved?.rate_percentage ?? 0,
+          tax_display_name: resolved?.display_name ?? null,
+          tax_inclusive: (v.tax_inclusive as boolean | undefined) ?? defaultTaxInclusive,
+        };
+      });
+      return {
+        id: p.id,
+        title: p.title,
+        handle: p.handle ?? null,
+        status: p.status,
+        image_url: p.image_url ?? null,
+        vendor: p.vendor ?? null,
+        tags: p.tags ?? null,
+        description: p.description ?? null,
+        review_count: p.review_count ?? 0,
+        average_rating: p.average_rating ?? 0,
+        variants,
+      };
+    });
 
     return c.json(
       {

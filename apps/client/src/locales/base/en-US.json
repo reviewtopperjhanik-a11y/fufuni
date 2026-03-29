@@ -161,6 +161,7 @@
   "save": "Save",
   "products-error": "Failed to load products",
   "shop-products-title": "Products",
+  "search-results-for": "Results for \"{{term}}\"",
   "cart": "Shopping Cart",
   "cart-empty": "Your cart is empty.",
   "remove": "Remove",
@@ -740,5 +741,6 @@
   "admin-products-status-draft": "draft",
   "admin-products-error-loading": "Error loading product",
   "admin-customers-error-loading": "Error loading customer",
-  "submitting": "…"
+  "submitting": "…",
+  "admin-products-loading-error": "Product loading error"
 }

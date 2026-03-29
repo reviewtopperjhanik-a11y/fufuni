@@ -16,34 +16,42 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Trans, useTranslation } from "react-i18next";
-import { Link as RouterLink, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { useSearchParams } from "react-router-dom";
+import { Spinner } from "@heroui/react";
 
-import { useAuth } from "@/authentication";
-import { LoginButton, LogoutButton } from "@/authentication";
-import { siteConfig } from "@/config/site";
-import { title, subtitle } from "@/shared/ui/primitives";
-import { GithubIcon } from "@/shared/ui/icons";
 import DefaultLayout from "@/layouts/default";
 
 import { useState, useCallback, useEffect, useRef } from "react";
 
-import { StoreProduct, searchProducts, getProductsPage } from "@/lib/store-api";
+import { StoreProduct, searchProducts, getProductsPage, getCategoryProductsPage } from "@/lib/store-api";
 import { ProductCard } from "@/components/product-card";
+import { CategoryNav } from "@/components/category-nav";
+import { useCategories } from "@/hooks/use-categories";
+import { resolveTitle } from "@/utils/description";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 
 
 export default function IndexPage() {
-  const { t } = useTranslation();
-  const { isAuthenticated, user } = useAuth();
+  const { t, i18n } = useTranslation();
 
-  // check for search query in URL
+  // Parse URL params — q for search, category for category filter
   const [searchParams] = useSearchParams();
   const term = searchParams.get("q") || "";
+  const categoryHandle = searchParams.get("category") || "";
 
   const sentinelRef = useRef<HTMLDivElement>(null);
 
-  // Search mode: single query when user types in the search box
+  // Resolve localised category name for the page heading
+  const { data: categories } = useCategories();
+  const categoryName = categoryHandle
+    ? resolveTitle(
+        categories?.find((c) => c.handle === categoryHandle)?.name ?? categoryHandle,
+        i18n.language,
+      )
+    : "";
+
+  // Search mode — active when ?q= is present
   const {
     data: searchData,
     isLoading: searchLoading,
@@ -54,12 +62,29 @@ export default function IndexPage() {
     enabled: !!term,
   });
 
-  // Browse mode: infinite-scroll query when no search term
+  // Category mode — active when ?category= is present (and no search term)
+  const {
+    data: categoryData,
+    hasNextPage: categoryHasNextPage,
+    fetchNextPage: categoryFetchNextPage,
+    isFetchingNextPage: categoryIsFetchingNextPage,
+    isLoading: categoryLoading,
+    isError: categoryError,
+  } = useInfiniteQuery({
+    queryKey: ['category-products', categoryHandle],
+    queryFn: ({ pageParam }) => getCategoryProductsPage(categoryHandle, pageParam as string | null),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) =>
+      lastPage.pagination.has_more ? lastPage.pagination.next_cursor : undefined,
+    enabled: !!categoryHandle && !term,
+  });
+
+  // Browse mode — active when no search term and no category
   const {
     data: browseData,
-    hasNextPage,
-    fetchNextPage,
-    isFetchingNextPage,
+    hasNextPage: browseHasNextPage,
+    fetchNextPage: browseFetchNextPage,
+    isFetchingNextPage: browseIsFetchingNextPage,
     isLoading: browseLoading,
     isError: browseError,
   } = useInfiniteQuery({
@@ -68,15 +93,20 @@ export default function IndexPage() {
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) =>
       lastPage.pagination.has_more ? lastPage.pagination.next_cursor : undefined,
-    enabled: !term,
+    enabled: !term && !categoryHandle,
   });
 
   const safeProducts: StoreProduct[] = term
     ? (searchData ?? [])
-    : (browseData?.pages.flatMap((p) => p.items) ?? []);
+    : categoryHandle
+      ? (categoryData?.pages.flatMap((p) => p.items) ?? [])
+      : (browseData?.pages.flatMap((p) => p.items) ?? []);
 
-  const productsLoading = term ? searchLoading : browseLoading;
-  const productsError = term ? searchError : browseError;
+  const productsLoading = term ? searchLoading : categoryHandle ? categoryLoading : browseLoading;
+  const productsError = term ? searchError : categoryHandle ? categoryError : browseError;
+  const hasNextPage = categoryHandle ? categoryHasNextPage : browseHasNextPage;
+  const fetchNextPage = categoryHandle ? categoryFetchNextPage : browseFetchNextPage;
+  const isFetchingNextPage = categoryHandle ? categoryIsFetchingNextPage : browseIsFetchingNextPage;
 
   const [selectedVariants, setSelectedVariants] =
     useState<Record<string, string>>({});
@@ -104,129 +134,69 @@ export default function IndexPage() {
     return () => observer.disconnect();
   }, [handleIntersect, term]);
 
-
   return (
     <DefaultLayout>
-      <section className="flex flex-col items-center justify-center gap-4 py-8 md:py-10">
-        <div className="inline-block max-w-lg text-center justify-center">
-          <span className={title()}>{t("make")}&nbsp;</span>
-          <span className={title({ color: "violet" })}>
-            {t("beautiful")}&nbsp;
-          </span>
-          <br />
-          <span className={title()}>
-            <Trans i18nKey="websites-regardless-of-your-design-experience" />
-          </span>
-          <div className={subtitle({ class: "mt-4" })}>
-            <Trans i18nKey="beautiful-fast-and-modern-react-ui-library" />
-          </div>
-        </div>
+      <div className="max-w-7xl mx-auto px-4 py-6 flex gap-6">
+        {/* Sidebar — categories navigation (hidden on mobile) */}
+        <aside className="hidden md:block w-56 shrink-0">
+          <CategoryNav showImages={false} />
+        </aside>
 
-        {/* call-to-action buttons */}
-        <div className="flex gap-3">
-          <a
-            href={siteConfig().links.docs}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-6 py-2 bg-linear-to-r from-purple-500 to-purple-600 text-white rounded-full font-semibold hover:opacity-90 shadow-lg transition-opacity"
-          >
-            <Trans i18nKey="documentation" />
-          </a>
-          <a
-            href={siteConfig().links.github}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="px-6 py-2 border border-current rounded-full font-semibold hover:bg-default-100 transition-colors flex items-center gap-2"
-          >
-            <GithubIcon size={20} />
-            GitHub
-          </a>
-        </div>
+        {/* Main content */}
+        <main className="flex-1 min-w-0">
+          {/* Page heading */}
+          <h1 className="text-2xl font-semibold mb-6">
+            {term
+              ? t("search-results-for", { term })
+              : categoryHandle
+                ? categoryName
+                : t("shop-products-title")}
+          </h1>
 
-        {/* dynamic area depending on auth state */}
-        <div className="mt-8 text-center">
-          {!isAuthenticated ? (
+          {/* State: loading */}
+          {productsLoading && (
+            <div className="flex justify-center items-center py-20">
+              <Spinner size="lg" />
+            </div>
+          )}
+
+          {/* State: error */}
+          {productsError && !productsLoading && (
+            <p className="text-center text-danger">{t("products-error")}</p>
+          )}
+
+          {/* State: empty */}
+          {!productsLoading && !productsError && safeProducts.length === 0 && (
+            <p className="text-center text-default-500">{t("admin-products-empty")}</p>
+          )}
+
+          {/* Product grid */}
+          {safeProducts.length > 0 && (
             <>
-              <LoginButton />
-              <p className="mt-4 text-sm">
-                <Trans i18nKey="template_login_prompt" />
-              </p>
-              <div className="mt-2">
-                <RouterLink
-                  to="/openapi"
-                  className="px-6 py-2 border border-current rounded-full font-semibold hover:bg-default-100 transition-colors inline-block"
-                >
-                  {t("openapi-docs")}
-                </RouterLink>
-                <p className="text-xs mt-1 opacity-70">
-                  <Trans i18nKey="template_login_required" />
-                </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                {safeProducts.map((product) => (
+                  <ProductCard
+                    key={product.id}
+                    product={product}
+                    selectedSku={selectedVariants[product.id]}
+                    onSelectVariant={handleVariantChange}
+                    categoryHandle={categoryHandle || undefined}
+                  />
+                ))}
               </div>
-            </>
-          ) : (
-            <>
-              <p>
-                <Trans
-                  i18nKey="template_welcome_back"
-                  values={{ name: user?.nickname || user?.name }}
-                />
-              </p>
-              <div className="flex flex-col sm:flex-row gap-3 justify-center mt-4">
-                <RouterLink
-                  to="/api"
-                  className="px-6 py-2 border border-current rounded-full font-semibold hover:bg-default-100 transition-colors inline-block"
-                >
-                  {t("api")}
-                </RouterLink>
-                <RouterLink
-                  to="/openapi"
-                  className="px-6 py-2 border border-current rounded-full font-semibold hover:bg-default-100 transition-colors inline-block"
-                >
-                  {t("openapi-docs")}
-                </RouterLink>
-              </div>
-              <div className="mt-4">
-                <LogoutButton text={t("log-out")} />
-              </div>
+
+              {/* Infinite scroll sentinel */}
+              {!term && (
+                <div ref={sentinelRef} className="mt-8 flex justify-center">
+                  {isFetchingNextPage && (
+                    <Spinner size="sm" />
+                  )}
+                </div>
+              )}
             </>
           )}
-        </div>
-
-      </section>
-
-      {/* products grid */}
-      <section className="max-w-6xl mx-auto px-6 py-12">
-        <h2 className="text-2xl font-semibold mb-6 text-center">
-          {t("shop-products-title")}
-        </h2>
-        {productsLoading ? (
-          <p className="text-center">{t("admin-products-loading")}</p>
-        ) : productsError ? (
-          <p className="text-center text-red-500">{t("products-error")}</p>
-        ) : safeProducts.length === 0 ? (
-          <p className="text-center">{t("admin-products-empty")}</p>
-        ) : (
-          <>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-              {safeProducts.map((product) => (
-                <ProductCard
-                  key={product.id}
-                  product={product}
-                  selectedSku={selectedVariants[product.id]}
-                  onSelectVariant={handleVariantChange}
-                />
-              ))}
-            </div>
-            {!term && (
-              <div ref={sentinelRef} className="mt-8 flex justify-center">
-                {isFetchingNextPage && (
-                  <p className="text-sm text-default-400">{t("admin-products-loading")}</p>
-                )}
-              </div>
-            )}
-          </>
-        )}
-      </section>
+        </main>
+      </div>
     </DefaultLayout>
   );
 }

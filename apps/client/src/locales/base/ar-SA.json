@@ -281,6 +281,7 @@
   "products-error": "فشل في تحميل المنتجات",
   "remove": "يزيل",
   "shop-products-title": "منتجات",
+  "search-results-for": "نتائج لـ \"{{term}}\"",
   "total": "الإجمالي",
   "checkout-failed": "فشل الخروج. \nيرجى المحاولة مرة أخرى.",
   "checkout-invalid-email": "يرجى إدخال عنوان بريد إلكتروني صالح.",
