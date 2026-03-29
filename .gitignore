@@ -22,3 +22,5 @@ IMPLEMENTATION_GUIDE.md
 IMPLEMENTATION_SUMMARY.md
 apps/merchant/.dev.vars.bak
 *.tsbuildinfo
+docs/
+typedoc.json
