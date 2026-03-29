@@ -731,5 +731,6 @@
   "admin-reviews-ai-approve-all": "Approuver tous les recommandés IA ({{count}})",
   "admin-reviews-ai-reject-all": "Rejeter tous les signalés IA ({{count}})",
   "admin-reviews-ai-rec-approve": "Approuver",
-  "admin-reviews-ai-rec-reject": "Rejeter"
+  "admin-reviews-ai-rec-reject": "Rejeter",
+  "next": "Suivant"
 }

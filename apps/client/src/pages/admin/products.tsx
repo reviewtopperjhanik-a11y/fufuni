@@ -22,6 +22,7 @@ import { Button } from "@heroui/react";
 import { Input } from "@heroui/react";
 import { Select, Label, ListBox } from "@heroui/react";
 import { Table } from "@heroui/react";
+import { Pagination } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
 import { Checkbox } from "@heroui/react";
@@ -156,6 +157,11 @@ export default function ProductsPage() {
   const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
 
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const currentPage = cursorHistory.length + 1;
+
   // categories modal
   const [categoriesModal, setCategoriesModal] = useState(false);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(
@@ -198,17 +204,38 @@ export default function ProductsPage() {
   // fetch products from backend
   /**
    * Load product list from the API, applying current status filter.
-   * Updates local `products` state and toggles loading indicator.
+   * Supports cursor-based pagination with `pagination.has_more` and `pagination.next_cursor`.
    */
-  const loadProducts = async () => {
+  const loadProducts = async (
+    nextCursor: string | null = null,
+    pushHistory = false,
+  ) => {
     setLoading(true);
+
+    if (pushHistory) {
+      setCursorHistory((prev) => [...prev, cursor]);
+    } else if (!nextCursor) {
+      setCursorHistory([]);
+    }
+
     try {
-      let url = `${apiBase}/v1/products?limit=100`;
+      let url = `${apiBase}/v1/products?limit=10`;
 
       if (statusFilter) url += `&status=${statusFilter}`;
+      if (nextCursor) url += `&cursor=${encodeURIComponent(nextCursor)}`;
+
       const resp = await getJson(url);
 
       setProducts(resp.items || []);
+
+      const pagination = resp.pagination || {};
+      const has_more =
+        pagination.has_more ?? pagination.hasMore ?? false;
+      const next_cursor =
+        pagination.next_cursor ?? pagination.nextCursor ?? null;
+
+      setHasMore(has_more);
+      setCursor(next_cursor);
     } catch (err) {
       console.error("Failed to load products", err);
     } finally {
@@ -217,8 +244,27 @@ export default function ProductsPage() {
   };
 
   useEffect(() => {
-    loadProducts();
-  }, [statusFilter]);
+    loadProducts(null, false);
+  }, [statusFilter, apiBase]);
+
+  const goToPreviousPage = async () => {
+    if (cursorHistory.length === 0) {
+      return;
+    }
+
+    const previousCursor = cursorHistory[cursorHistory.length - 1];
+    setCursorHistory((prev) => prev.slice(0, -1));
+
+    await loadProducts(previousCursor, false);
+  };
+
+  const goToNextPage = async () => {
+    if (!hasMore || !cursor) {
+      return;
+    }
+
+    await loadProducts(cursor, true);
+  };
 
   // load shipping classes for selector
   useEffect(() => {
@@ -765,6 +811,38 @@ export default function ProductsPage() {
                 ))}
               </Table.Body>
             </Table.Content>
+            <Table.Footer>
+              <div className="w-full p-2">
+                <Pagination className="justify-between">
+                  <Pagination.Summary>
+                    {products.length === 0
+                      ? t("admin-products-empty")
+                      : `${(currentPage - 1) * 10 + 1} - ${(currentPage - 1) * 10 +
+                          products.length} / page ${currentPage}`}
+                  </Pagination.Summary>
+                  <Pagination.Content>
+                    <Pagination.Item>
+                      <Pagination.Previous
+                        isDisabled={cursorHistory.length === 0}
+                        onPress={goToPreviousPage}
+                      >
+                        <Pagination.PreviousIcon />
+                        <span>{t("previous")}</span>
+                      </Pagination.Previous>
+                    </Pagination.Item>
+                    <Pagination.Item>
+                      <Pagination.Next
+                        isDisabled={!hasMore}
+                        onPress={goToNextPage}
+                      >
+                        <span>{t("next")}</span>
+                        <Pagination.NextIcon />
+                      </Pagination.Next>
+                    </Pagination.Item>
+                  </Pagination.Content>
+                </Pagination>
+              </div>
+            </Table.Footer>
           </Table>
         )}
       </div>

@@ -18,7 +18,7 @@
 
 import { useState, useEffect } from "react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@heroui/react";
+import { Button, Pagination } from "@heroui/react";
 import { Input, TextField, Label } from "@heroui/react";
 import { Table } from "@heroui/react";
 import { Checkbox } from "@heroui/react";
@@ -68,6 +68,12 @@ export default function RegionsPage() {
 
   const apiBase = getApiBase();
 
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const currentPage = cursorHistory.length + 1;
+
   const {
     items: regions,
     setItems: setRegions,
@@ -102,14 +108,21 @@ export default function RegionsPage() {
    * Retrieve the list of regions and available currencies from the backend
    * and update component state. Used on mount and after data-changing actions.
    */
-  const loadData = async () => {
+  const loadData = async (cursorParam: string | null = null) => {
     try {
       const [regionsResp, currenciesResp] = await Promise.all([
-        getJson(`${apiBase}/v1/regions?limit=100`),
+        getJson(
+          `${apiBase}/v1/regions?limit=10${cursorParam ? `&cursor=${encodeURIComponent(cursorParam)}` : ""}`,
+        ),
         getJson(`${apiBase}/v1/regions/currencies?limit=100`),
       ]);
 
       setRegions(regionsResp.items || []);
+
+      const pagination = regionsResp.pagination || {};
+      setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
+      setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
+
       setCurrencies(currenciesResp.items || []);
     } catch (err) {
       console.error("Failed to load data", err);
@@ -117,8 +130,28 @@ export default function RegionsPage() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(cursor);
+  }, [cursor, globalFilter, statusFilter]);
+
+  useEffect(() => {
+    setCursor(null);
+    setCursorHistory([]);
+  }, [globalFilter, statusFilter]);
+
+  const goToNextPage = () => {
+    if (!hasMore || !nextCursor) return;
+
+    setCursorHistory((prev) => [...prev, cursor]);
+    setCursor(nextCursor);
+  };
+
+  const goToPreviousPage = () => {
+    if (cursorHistory.length === 0) return;
+
+    const previousCursor = cursorHistory[cursorHistory.length - 1];
+    setCursorHistory((prev) => prev.slice(0, -1));
+    setCursor(previousCursor);
+  };
 
   /**
    * Prepare and open the modal for creating a new region.
@@ -296,6 +329,39 @@ export default function RegionsPage() {
                   ))}
                 </Table.Body>
               </Table.Content>
+              <Table.Footer>
+                <div className="w-full p-2">
+                  <Pagination className="justify-between">
+                    <Pagination.Summary>
+                      {regions.length === 0
+                        ? t("admin-regions-empty")
+                        : `${(currentPage - 1) * 10 + 1} - ${
+                            (currentPage - 1) * 10 + regions.length
+                          } / page ${currentPage}`}
+                    </Pagination.Summary>
+                    <Pagination.Content>
+                      <Pagination.Item>
+                        <Pagination.Previous
+                          isDisabled={cursorHistory.length === 0}
+                          onPress={goToPreviousPage}
+                        >
+                          <Pagination.PreviousIcon />
+                          <span>{t("previous") || "Previous"}</span>
+                        </Pagination.Previous>
+                      </Pagination.Item>
+                      <Pagination.Item>
+                        <Pagination.Next
+                          isDisabled={!hasMore}
+                          onPress={goToNextPage}
+                        >
+                          <span>{t("next") || "Next"}</span>
+                          <Pagination.NextIcon />
+                        </Pagination.Next>
+                      </Pagination.Item>
+                    </Pagination.Content>
+                  </Pagination>
+                </div>
+              </Table.Footer>
             </Table>
           </Card.Content>
         </Card>

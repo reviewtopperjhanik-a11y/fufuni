@@ -50,7 +50,7 @@ export interface ReviewAnalysisResult {
   /** `true` when the analysis completed successfully. */
   success: boolean;
   /** `"approve"` if the review seems legitimate, `"reject"` if it should be rejected. Present only when `success` is `true`. */
-  recommendation?: 'approve' | 'reject';
+  recommendation?: "approve" | "reject";
   /** Short human-readable reason for the recommendation. Present only when `success` is `true`. */
   reason?: string;
   /** Human-readable error message. Present only when `success` is `false`. */
@@ -86,9 +86,9 @@ export async function analyzeReviewWithAi(
     `Reject if: it is spam, offensive, contains personal data, is off-topic, or is clearly fake.\n\n` +
     `Review:\n` +
     `- Rating: ${review.rating}/5\n` +
-    (review.title ? `- Title: ${review.title}\n` : '') +
-    (review.body ? `- Body: ${review.body}\n` : '') +
-    (review.author_name ? `- Author: ${review.author_name}\n` : '') +
+    (review.title ? `- Title: ${review.title}\n` : "") +
+    (review.body ? `- Body: ${review.body}\n` : "") +
+    (review.author_name ? `- Author: ${review.author_name}\n` : "") +
     `\nRespond with a JSON object ONLY, no markdown, no explanation:\n` +
     `{"recommendation":"approve","reason":"<one sentence>"}\n` +
     `or\n` +
@@ -97,57 +97,87 @@ export async function analyzeReviewWithAi(
   try {
     let rawText: string | undefined;
 
-    if (provider === 'anthropic') {
-      const baseUrl = aiParams.url.endsWith('/') ? aiParams.url : aiParams.url + '/';
-      const endpoint = new URL('messages', baseUrl).toString();
+    if (provider === "anthropic") {
+      const baseUrl = aiParams.url.endsWith("/")
+        ? aiParams.url
+        : aiParams.url + "/";
+      const endpoint = new URL("messages", baseUrl).toString();
       const res = await fetch(endpoint, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'x-api-key': aiParams.apiKey,
-          'Content-Type': 'application/json',
-          'anthropic-version': '2023-06-01',
+          "x-api-key": aiParams.apiKey,
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01",
         },
         body: JSON.stringify({
           model: aiParams.model,
           max_tokens: 128,
-          messages: [{ role: 'user', content: prompt }],
+          messages: [{ role: "user", content: prompt }],
         }),
       });
+
       if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
-      const data = (await res.json()) as { content?: Array<{ type: string; text: string }> };
+      const data = (await res.json()) as {
+        content?: Array<{ type: string; text: string }>;
+      };
+
       rawText = data.content?.[0]?.text?.trim();
     } else {
-      const baseUrl = aiParams.url.endsWith('/') ? aiParams.url : aiParams.url + '/';
-      const endpoint = new URL('chat/completions', baseUrl).toString();
+      const baseUrl = aiParams.url.endsWith("/")
+        ? aiParams.url
+        : aiParams.url + "/";
+      const endpoint = new URL("chat/completions", baseUrl).toString();
       const res = await fetch(endpoint, {
-        method: 'POST',
+        method: "POST",
         headers: {
           Authorization: `Bearer ${aiParams.apiKey}`,
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           model: aiParams.model,
-          messages: [{ role: 'user', content: prompt }],
+          messages: [{ role: "user", content: prompt }],
           temperature: 0.1,
           max_tokens: 128,
         }),
       });
+
       if (!res.ok) return { success: false, error: `HTTP ${res.status}` };
-      const data = (await res.json()) as { choices?: Array<{ message?: { content: string } }> };
+      const data = (await res.json()) as {
+        choices?: Array<{ message?: { content: string } }>;
+      };
+
       rawText = data.choices?.[0]?.message?.content?.trim();
     }
 
-    if (!rawText) return { success: false, error: 'No response from AI' };
+    if (!rawText) return { success: false, error: "No response from AI" };
 
     // Strip optional markdown code fences before parsing
-    const cleaned = rawText.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
-    const parsed = JSON.parse(cleaned) as { recommendation: string; reason: string };
-    if (parsed.recommendation !== 'approve' && parsed.recommendation !== 'reject') {
-      return { success: false, error: 'Unexpected recommendation value' };
+    const cleaned = rawText
+      .replace(/^```[a-z]*\n?/i, "")
+      .replace(/```$/, "")
+      .trim();
+    const parsed = JSON.parse(cleaned) as {
+      recommendation: string;
+      reason: string;
+    };
+
+    if (
+      parsed.recommendation !== "approve" &&
+      parsed.recommendation !== "reject"
+    ) {
+      return { success: false, error: "Unexpected recommendation value" };
     }
-    return { success: true, recommendation: parsed.recommendation, reason: parsed.reason };
+
+    return {
+      success: true,
+      recommendation: parsed.recommendation,
+      reason: parsed.reason,
+    };
   } catch (err) {
-    return { success: false, error: err instanceof Error ? err.message : 'Unknown error' };
+    return {
+      success: false,
+      error: err instanceof Error ? err.message : "Unknown error",
+    };
   }
 }
 
@@ -166,13 +196,17 @@ export async function analyzeReviewsBatchWithAi(
 
   for (let i = 0; i < reviews.length; i += CONCURRENCY) {
     const chunk = reviews.slice(i, i + CONCURRENCY);
-    const chunkResults = await Promise.all(chunk.map((r) => analyzeReviewWithAi(r, aiParams)));
+    const chunkResults = await Promise.all(
+      chunk.map((r) => analyzeReviewWithAi(r, aiParams)),
+    );
+
     chunk.forEach((r, idx) => {
       results.set(r.id, chunkResults[idx]);
       done++;
       onProgress?.(done, reviews.length);
     });
   }
+
   return results;
 }
 

@@ -69,7 +69,7 @@ export default function AnalyticsPage() {
     queryKey: ["analytics-dashboard", period],
     queryFn: () =>
       getJson(
-        `${apiBase}/v1/analytics/dashboard?period=${period}`
+        `${apiBase}/v1/analytics/dashboard?period=${period}`,
       ) as Promise<DashboardData>,
   });
 
@@ -172,9 +172,7 @@ export default function AnalyticsPage() {
                     <p className="text-xs text-default-400">
                       {t("admin-analytics-low-stock")}
                     </p>
-                    <p className="text-xl font-bold">
-                      {data.low_stock_count}
-                    </p>
+                    <p className="text-xl font-bold">{data.low_stock_count}</p>
                   </div>
                 </Card.Content>
               </Card>

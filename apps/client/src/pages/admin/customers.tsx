@@ -27,6 +27,7 @@ import {
   Label,
   TextField,
   Chip,
+  Pagination,
 } from "@heroui/react";
 
 import DefaultLayout from "@/layouts/default";
@@ -97,6 +98,11 @@ export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [globalFilter, setGlobalFilter] = useState<string>("");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const currentPage = cursorHistory.length + 1;
 
   // selected customer / details
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
@@ -112,18 +118,24 @@ export default function CustomersPage() {
    * Retrieve customer list from the API, optionally filtering by the current
    * search term, and update component state.
    */
-  const loadCustomers = async () => {
+  const loadCustomers = async (cursorParam: string | null = null) => {
     setLoading(true);
     try {
-      let url = `${apiBase}/v1/customers?limit=100`;
+      let url = `${apiBase}/v1/customers?limit=10`;
       const term = globalFilter.trim();
 
       if (term) {
         url += `&search=${encodeURIComponent(term)}`;
       }
+      if (cursorParam) {
+        url += `&cursor=${encodeURIComponent(cursorParam)}`;
+      }
       const resp = await getJson(url);
 
       setCustomers(resp.items || []);
+      const pagination = resp.pagination || {};
+      setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
+      setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
     } catch (err) {
       console.error("Failed to load customers", err);
     } finally {
@@ -132,7 +144,27 @@ export default function CustomersPage() {
   };
 
   useEffect(() => {
-    loadCustomers();
+    loadCustomers(cursor);
+  }, [globalFilter, cursor]);
+
+  const goToNextPage = () => {
+    if (!hasMore || !nextCursor) return;
+
+    setCursorHistory((prev) => [...prev, cursor]);
+    setCursor(nextCursor);
+  };
+
+  const goToPreviousPage = () => {
+    if (cursorHistory.length === 0) return;
+
+    const previousCursor = cursorHistory[cursorHistory.length - 1];
+    setCursorHistory((prev) => prev.slice(0, -1));
+    setCursor(previousCursor);
+  };
+
+  useEffect(() => {
+    setCursor(null);
+    setCursorHistory([]);
   }, [globalFilter]);
 
   /**
@@ -255,6 +287,38 @@ export default function CustomersPage() {
                 ))}
               </Table.Body>
             </Table.Content>
+            <Table.Footer>
+              <div className="w-full p-2">
+                <Pagination className="justify-between">
+                  <Pagination.Summary>
+                    {customers.length === 0
+                      ? t("admin-customers-empty")
+                      : `${(currentPage - 1) * 10 + 1} - ${(currentPage - 1) * 10 +
+                          customers.length} / page ${currentPage}`}
+                  </Pagination.Summary>
+                  <Pagination.Content>
+                    <Pagination.Item>
+                      <Pagination.Previous
+                        isDisabled={cursorHistory.length === 0}
+                        onPress={goToPreviousPage}
+                      >
+                        <Pagination.PreviousIcon />
+                        <span>{t("previous") || "Previous"}</span>
+                      </Pagination.Previous>
+                    </Pagination.Item>
+                    <Pagination.Item>
+                      <Pagination.Next
+                        isDisabled={!hasMore}
+                        onPress={goToNextPage}
+                      >
+                        <span>{t("next") || "Next"}</span>
+                        <Pagination.NextIcon />
+                      </Pagination.Next>
+                    </Pagination.Item>
+                  </Pagination.Content>
+                </Pagination>
+              </div>
+            </Table.Footer>
           </Table>
         )}
       </div>

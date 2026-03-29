@@ -20,7 +20,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { RefreshCw, AlertTriangle, Package, Plus, Trash2 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { Button } from "@heroui/react";
+import { Button, Pagination } from "@heroui/react";
 import { Input, TextField, Label } from "@heroui/react";
 import { Select, ListBox } from "@heroui/react";
 import { Table } from "@heroui/react";
@@ -95,6 +95,11 @@ export default function InventoryPage() {
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [allWarehouses, setAllWarehouses] = useState<Warehouse[]>([]);
   const [globalFilter, setGlobalFilter] = useState<string>("");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const currentPage = cursorHistory.length + 1;
 
   // Modal state
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -109,14 +114,23 @@ export default function InventoryPage() {
    * Adds a cache‑busting query parameter to avoid stale results.
    * Also loads the complete list of all warehouses. Uses JWT token from useSecuredApi.
    */
-  const loadData = async () => {
+  const loadData = async (cursorParam: string | null = null) => {
     try {
       const [inventoryResponse, warehousesResponse] = await Promise.all([
-        getJson(`${apiBase}/v1/inventory?cb=${Date.now()}`),
+        getJson(
+          `${apiBase}/v1/inventory?limit=10${
+            cursorParam ? `&cursor=${encodeURIComponent(cursorParam)}` : ""
+          }&cb=${Date.now()}`,
+        ),
         getJson(`${apiBase}/v1/regions/warehouses?limit=500`),
       ]);
 
       setInventory(inventoryResponse.items || []);
+
+      const pagination = inventoryResponse.pagination || {};
+      setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
+      setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
+
       setAllWarehouses(warehousesResponse.items || []);
     } catch (err) {
       console.error("Failed to load inventory or warehouses", err);
@@ -124,8 +138,28 @@ export default function InventoryPage() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
+    loadData(cursor);
+  }, [cursor, globalFilter]);
+
+  useEffect(() => {
+    setCursor(null);
+    setCursorHistory([]);
+  }, [globalFilter]);
+
+  const goToNextPage = () => {
+    if (!hasMore || !nextCursor) return;
+
+    setCursorHistory((prev) => [...prev, cursor]);
+    setCursor(nextCursor);
+  };
+
+  const goToPreviousPage = () => {
+    if (cursorHistory.length === 0) return;
+
+    const previousCursor = cursorHistory[cursorHistory.length - 1];
+    setCursorHistory((prev) => prev.slice(0, -1));
+    setCursor(previousCursor);
+  };
 
   // Filtered inventory
   const displayedItems = useMemo(() => {
@@ -291,7 +325,7 @@ export default function InventoryPage() {
           <h1 className="text-3xl font-bold">{t("admin-inventory-title")}</h1>
           <button
             className="p-2 rounded hover:bg-gray-200 transition-colors disabled:opacity-50"
-            onClick={loadData}
+            onClick={() => loadData(cursor)}
           >
             <RefreshCw className="" size={20} />
           </button>
@@ -395,6 +429,39 @@ export default function InventoryPage() {
                   </Table.Body>
                 </Table.Content>
               </Table.ScrollContainer>
+              <Table.Footer>
+                <div className="w-full p-2">
+                  <Pagination className="justify-between">
+                    <Pagination.Summary>
+                      {inventory.length === 0
+                        ? t("admin-inventory-empty")
+                        : `${(currentPage - 1) * 10 + 1} - ${
+                            (currentPage - 1) * 10 + inventory.length
+                          } / page ${currentPage}`}
+                    </Pagination.Summary>
+                    <Pagination.Content>
+                      <Pagination.Item>
+                        <Pagination.Previous
+                          isDisabled={cursorHistory.length === 0}
+                          onPress={goToPreviousPage}
+                        >
+                          <Pagination.PreviousIcon />
+                          <span>{t("previous") || "Previous"}</span>
+                        </Pagination.Previous>
+                      </Pagination.Item>
+                      <Pagination.Item>
+                        <Pagination.Next
+                          isDisabled={!hasMore}
+                          onPress={goToNextPage}
+                        >
+                          <span>{t("next") || "Next"}</span>
+                          <Pagination.NextIcon />
+                        </Pagination.Next>
+                      </Pagination.Item>
+                    </Pagination.Content>
+                  </Pagination>
+                </div>
+              </Table.Footer>
             </Table>
           </Card.Content>
         </Card>
@@ -423,7 +490,10 @@ export default function InventoryPage() {
                                 {selectedItem.sku}
                               </p>
                               <p className=" text-sm text-gray-600">
-                                {resolveTitle(selectedItem.product_title || "-", i18n.language)}
+                                {resolveTitle(
+                                  selectedItem.product_title || "-",
+                                  i18n.language,
+                                )}
                               </p>
                             </div>
                           </div>

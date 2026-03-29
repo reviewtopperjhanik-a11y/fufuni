@@ -116,7 +116,9 @@ export default function OrderHistory() {
                   <Table.Cell>
                     <Chip
                       color={
-                        ORDER_STATUS_COLORS[order.status as keyof typeof ORDER_STATUS_COLORS] || "default"
+                        ORDER_STATUS_COLORS[
+                          order.status as keyof typeof ORDER_STATUS_COLORS
+                        ] || "default"
                       }
                       size="sm"
                       variant="primary"
@@ -156,9 +158,12 @@ export default function OrderHistory() {
               .filter((i) => {
                 if (!i.product_id || seen.has(i.product_id)) return false;
                 seen.add(i.product_id);
+
                 return true;
               });
+
             if (reviewableItems.length === 0) return null;
+
             return (
               <div className="space-y-3">
                 <h2 className="text-xl font-semibold">
@@ -176,7 +181,7 @@ export default function OrderHistory() {
                             setActiveReview(
                               activeReview === item.product_id
                                 ? null
-                                : item.product_id
+                                : item.product_id,
                             )
                           }
                         >

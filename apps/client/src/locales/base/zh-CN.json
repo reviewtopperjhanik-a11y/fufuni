@@ -731,5 +731,6 @@
   "admin-reviews-ai-approve-all": "批准所有 AI 推荐 ({{count}})",
   "admin-reviews-ai-reject-all": "拒绝所有 AI 标记 ({{count}})",
   "admin-reviews-ai-rec-approve": "批准",
-  "admin-reviews-ai-rec-reject": "拒绝"
+  "admin-reviews-ai-rec-reject": "拒绝",
+  "next": "下一个"
 }

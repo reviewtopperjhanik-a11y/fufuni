@@ -16,7 +16,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import {
   useReactTable,
@@ -47,6 +47,7 @@ import {
   Button,
   Chip,
   Table,
+  Pagination,
 } from "@heroui/react";
 
 import { formatMoney } from "@/utils/currency";
@@ -115,22 +116,65 @@ export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string>("");
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
 
+  // cursor pagination state
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [cursorHistory, setCursorHistory] = useState<Array<string | null>>([]);
+  const currentPage = cursorHistory.length + 1;
+
   // trigger new fetch by bumping this counter; used in query key and url cache-bust
   const [refreshIndex, setRefreshIndex] = useState(0);
 
   /**
-   * React Query hook to fetch the list of orders whenever the status filter
-   * or refreshIndex changes. The `cb` parameter busts cache.
+   * React Query hook to fetch the list of orders with cursor-based pagination.
    */
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["orders", statusFilter, refreshIndex],
-    queryFn: () =>
-      getJson(
-        `${apiBase}/v1/orders?limit=100${statusFilter ? `&status=${statusFilter}` : ""}&cb=${Date.now()}`,
-      ),
+    queryKey: ["orders", statusFilter, refreshIndex, cursor],
+    queryFn: () => {
+      let url = `${apiBase}/v1/orders?limit=10`;
+
+      if (statusFilter) {
+        url += `&status=${statusFilter}`;
+      }
+
+      if (cursor) {
+        url += `&cursor=${encodeURIComponent(cursor)}`;
+      }
+
+      url += `&cb=${Date.now()}`;
+
+      return getJson(url);
+    },
+    keepPreviousData: true,
+    onSuccess: (result: any) => {
+      const pagination = result?.pagination || {};
+      setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
+      setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
+    },
   });
 
   const orders: Order[] = data?.items || [];
+
+  const goToNextPage = () => {
+    if (!hasMore || !nextCursor) return;
+
+    setCursorHistory((prev) => [...prev, cursor]);
+    setCursor(nextCursor);
+  };
+
+  const goToPreviousPage = () => {
+    if (cursorHistory.length === 0) return;
+
+    const previousCursor = cursorHistory[cursorHistory.length - 1];
+    setCursorHistory((prev) => prev.slice(0, -1));
+    setCursor(previousCursor);
+  };
+
+  useEffect(() => {
+    setCursor(null);
+    setCursorHistory([]);
+  }, [statusFilter]);
 
   /**
    * Mutation used to update an order record (status, tracking, etc.). On
@@ -384,6 +428,38 @@ export default function OrdersPage() {
                     </Table.Body>
                   </Table.Content>
                 </Table.ScrollContainer>
+                <Table.Footer>
+                  <div className="w-full p-2 flex items-center justify-between">
+                    <Pagination className="justify-between w-full">
+                      <Pagination.Summary>
+                        {orders.length === 0
+                          ? t("admin-orders-empty")
+                          : `${(currentPage - 1) * 10 + 1} - ${(currentPage - 1) * 10 +
+                              orders.length} / page ${currentPage}`}
+                      </Pagination.Summary>
+                      <Pagination.Content>
+                        <Pagination.Item>
+                          <Pagination.Previous
+                            isDisabled={cursorHistory.length === 0}
+                            onPress={goToPreviousPage}
+                          >
+                            <Pagination.PreviousIcon />
+                            <span>{t("previous") || "Previous"}</span>
+                          </Pagination.Previous>
+                        </Pagination.Item>
+                        <Pagination.Item>
+                          <Pagination.Next
+                            isDisabled={!hasMore}
+                            onPress={goToNextPage}
+                          >
+                            <span>{t("next") || "Next"}</span>
+                            <Pagination.NextIcon />
+                          </Pagination.Next>
+                        </Pagination.Item>
+                      </Pagination.Content>
+                    </Pagination>
+                  </div>
+                </Table.Footer>
               </Table>
             )}
           </Card.Content>

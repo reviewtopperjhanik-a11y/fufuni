@@ -442,12 +442,12 @@ export default function ShippingRatesPage() {
             shippingRates.map((r) =>
               r.id === editingRate.id
                 ? {
-                  ...response,
-                  price_cents: formData.price
-                    ? Math.round(parseFloat(formData.price) * 100)
-                    : r.price_cents,
-                  currency_code: currencyCode ?? r.currency_code,
-                }
+                    ...response,
+                    price_cents: formData.price
+                      ? Math.round(parseFloat(formData.price) * 100)
+                      : r.price_cents,
+                    currency_code: currencyCode ?? r.currency_code,
+                  }
                 : r,
             ),
           );
@@ -827,7 +827,7 @@ export default function ShippingRatesPage() {
                         <Table.Cell className="text-default-500 text-sm">
                           {cls.description
                             ? cls.description.substring(0, 40) +
-                            (cls.description.length > 40 ? "..." : "")
+                              (cls.description.length > 40 ? "..." : "")
                             : "—"}
                         </Table.Cell>
                         <Table.Cell>
@@ -950,7 +950,9 @@ export default function ShippingRatesPage() {
                       <Tooltip>
                         <Tooltip.Trigger>
                           <TextField>
-                            <Label>{t("admin-shipping-rates-max-weight")}</Label>
+                            <Label>
+                              {t("admin-shipping-rates-max-weight")}
+                            </Label>
                             <Input
                               min={0}
                               placeholder="5000"
@@ -1233,9 +1235,9 @@ export default function ShippingRatesPage() {
 
                                 const newPrice =
                                   pricesByDivisa[currencyId] !== undefined
-                                    ? (pricesByDivisa[currencyId] / 100).toFixed(
-                                      2,
-                                    )
+                                    ? (
+                                        pricesByDivisa[currencyId] / 100
+                                      ).toFixed(2)
                                     : "";
 
                                 console.log("✅ Setting price to:", newPrice);
@@ -1323,13 +1325,13 @@ export default function ShippingRatesPage() {
                     <Modal.Header className="flex flex-col gap-1">
                       {isClassEditMode
                         ? t(
-                          "admin-shipping-classes-modal-title-edit",
-                          "Edit Shipping Class",
-                        )
+                            "admin-shipping-classes-modal-title-edit",
+                            "Edit Shipping Class",
+                          )
                         : t(
-                          "admin-shipping-classes-modal-title-create",
-                          "New Shipping Class",
-                        )}
+                            "admin-shipping-classes-modal-title-create",
+                            "New Shipping Class",
+                          )}
                     </Modal.Header>
                     <Modal.Body className="gap-4">
                       <Tooltip>
@@ -1359,7 +1361,9 @@ export default function ShippingRatesPage() {
                         </Tooltip.Content>
                       </Tooltip>
                       <TextField isRequired>
-                        <Label>{t("admin-shipping-classes-display-name")}</Label>
+                        <Label>
+                          {t("admin-shipping-classes-display-name")}
+                        </Label>
                         <Input
                           placeholder={t(
                             "admin-shipping-classes-display-name-placeholder",

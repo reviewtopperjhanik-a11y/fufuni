@@ -731,5 +731,6 @@
   "admin-reviews-ai-approve-all": "الموافقة على جميع توصيات الذكاء الاصطناعي ({{count}})",
   "admin-reviews-ai-reject-all": "رفض جميع المُكتشَفة بالذكاء الاصطناعي ({{count}})",
   "admin-reviews-ai-rec-approve": "موافقة",
-  "admin-reviews-ai-rec-reject": "رفض"
+  "admin-reviews-ai-rec-reject": "رفض",
+  "next": "التالي"
 }

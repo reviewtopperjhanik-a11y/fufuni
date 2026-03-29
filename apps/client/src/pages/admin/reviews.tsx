@@ -20,20 +20,21 @@
 // Admin page to moderate product reviews (approve / reject).
 // Users with AI_PERMISSION can use AI-assisted analysis, including batch processing.
 
-import { useEffect, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { useQuery } from '@tanstack/react-query';
-import { Button, Chip } from '@heroui/react';
-import { Sparkles } from 'lucide-react';
-import { useSecuredApi } from '@/authentication';
-import { getApiBase } from '@/lib/api-base';
-import { resolveTitle } from '@/utils/description';
-import DefaultLayout from '@/layouts/default';
+import { useEffect, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { useQuery } from "@tanstack/react-query";
+import { Button, Chip } from "@heroui/react";
+import { Sparkles } from "lucide-react";
+
+import { useSecuredApi } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
+import { resolveTitle } from "@/utils/description";
+import DefaultLayout from "@/layouts/default";
 import {
   analyzeReviewsBatchWithAi,
   type AiParams,
   type ReviewAnalysisResult,
-} from '@/utils/ai-client';
+} from "@/utils/ai-client";
 
 export default function AdminReviewsPage() {
   const { t, i18n } = useTranslation();
@@ -45,14 +46,19 @@ export default function AdminReviewsPage() {
 
   // AI permission + analysis state
   const [canUseAi, setCanUseAi] = useState(false);
-  const [aiAnalyses, setAiAnalyses] = useState<Map<string, ReviewAnalysisResult>>(new Map());
+  const [aiAnalyses, setAiAnalyses] = useState<
+    Map<string, ReviewAnalysisResult>
+  >(new Map());
   const [analyzing, setAnalyzing] = useState(false);
-  const [analyzeProgress, setAnalyzeProgress] = useState<{ done: number; total: number } | null>(null);
+  const [analyzeProgress, setAnalyzeProgress] = useState<{
+    done: number;
+    total: number;
+  } | null>(null);
 
   // Batch selection
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const aiPermission = (import.meta as any).env?.AI_PERMISSION || 'ai:api';
+  const aiPermission = (import.meta as any).env?.AI_PERMISSION || "ai:api";
 
   useEffect(() => {
     hasPermission(aiPermission)
@@ -61,20 +67,37 @@ export default function AdminReviewsPage() {
   }, [hasPermission, aiPermission]);
 
   const { data, isLoading, refetch } = useQuery<{ items: any[] }>({
-    queryKey: ['admin-reviews'],
+    queryKey: ["admin-reviews"],
     queryFn: () =>
-      getJson(`${apiBase}/v1/reviews/admin?status=pending`) as Promise<{ items: any[] }>,
+      getJson(`${apiBase}/v1/reviews/admin?status=pending`) as Promise<{
+        items: any[];
+      }>,
   });
   const reviews = data?.items ?? [];
 
   // ── Individual moderation ─────────────────────────────────────────────────
 
-  const moderate = async (reviewId: string, status: 'approved' | 'rejected') => {
+  const moderate = async (
+    reviewId: string,
+    status: "approved" | "rejected",
+  ) => {
     setModerating(reviewId);
     try {
       await patchJson(`${apiBase}/v1/reviews/${reviewId}/status`, { status });
-      setSelected((s) => { const n = new Set(s); n.delete(reviewId); return n; });
-      setAiAnalyses((m) => { const n = new Map(m); n.delete(reviewId); return n; });
+      setSelected((s) => {
+        const n = new Set(s);
+
+        n.delete(reviewId);
+
+        return n;
+      });
+      setAiAnalyses((m) => {
+        const n = new Map(m);
+
+        n.delete(reviewId);
+
+        return n;
+      });
       await refetch();
     } finally {
       setModerating(null);
@@ -85,14 +108,23 @@ export default function AdminReviewsPage() {
 
   const [batchModerating, setBatchModerating] = useState(false);
 
-  const moderateBatch = async (ids: string[], status: 'approved' | 'rejected') => {
+  const moderateBatch = async (
+    ids: string[],
+    status: "approved" | "rejected",
+  ) => {
     setBatchModerating(true);
     try {
-      await Promise.all(ids.map((id) => patchJson(`${apiBase}/v1/reviews/${id}/status`, { status })));
+      await Promise.all(
+        ids.map((id) =>
+          patchJson(`${apiBase}/v1/reviews/${id}/status`, { status }),
+        ),
+      );
       setSelected(new Set());
       setAiAnalyses((m) => {
         const n = new Map(m);
+
         ids.forEach((id) => n.delete(id));
+
         return n;
       });
       await refetch();
@@ -107,9 +139,9 @@ export default function AdminReviewsPage() {
     setAnalyzing(true);
     setAnalyzeProgress({ done: 0, total: targets.length });
     try {
-      const params = await getJson(
-        `${(import.meta as any).env?.API_BASE_URL || ''}/v1/ai/parameters`,
-      ) as AiParams;
+      const params = (await getJson(
+        `${(import.meta as any).env?.API_BASE_URL || ""}/v1/ai/parameters`,
+      )) as AiParams;
 
       const results = await analyzeReviewsBatchWithAi(
         targets.map((r) => ({
@@ -122,9 +154,10 @@ export default function AdminReviewsPage() {
         params,
         (done, total) => setAnalyzeProgress({ done, total }),
       );
+
       setAiAnalyses((prev) => new Map([...prev, ...results]));
     } catch (err) {
-      console.error('AI analysis failed', err);
+      console.error("AI analysis failed", err);
     } finally {
       setAnalyzing(false);
       setAnalyzeProgress(null);
@@ -136,7 +169,9 @@ export default function AdminReviewsPage() {
   const toggleSelect = (id: string) =>
     setSelected((s) => {
       const n = new Set(s);
+
       n.has(id) ? n.delete(id) : n.add(id);
+
       return n;
     });
 
@@ -145,17 +180,17 @@ export default function AdminReviewsPage() {
 
   const selectedReviews = reviews.filter((r) => selected.has(r.id));
   const aiRecommendedApprove = [...selected].filter(
-    (id) => aiAnalyses.get(id)?.recommendation === 'approve',
+    (id) => aiAnalyses.get(id)?.recommendation === "approve",
   );
   const aiRecommendedReject = [...selected].filter(
-    (id) => aiAnalyses.get(id)?.recommendation === 'reject',
+    (id) => aiAnalyses.get(id)?.recommendation === "reject",
   );
 
   return (
     <DefaultLayout>
       <div className="space-y-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
-          <h1 className="text-2xl font-bold">{t('admin-reviews-title')}</h1>
+          <h1 className="text-2xl font-bold">{t("admin-reviews-title")}</h1>
 
           {/* AI + batch controls */}
           {reviews.length > 0 && (
@@ -164,11 +199,13 @@ export default function AdminReviewsPage() {
               <Button
                 size="sm"
                 variant="tertiary"
-                onPress={selected.size === reviews.length ? clearSelection : selectAll}
+                onPress={
+                  selected.size === reviews.length ? clearSelection : selectAll
+                }
               >
                 {selected.size === reviews.length
-                  ? t('admin-reviews-clear-selection')
-                  : t('admin-reviews-select-all')}
+                  ? t("admin-reviews-clear-selection")
+                  : t("admin-reviews-select-all")}
               </Button>
 
               {/* AI analyze selected (or all if nothing selected) */}
@@ -181,14 +218,16 @@ export default function AdminReviewsPage() {
                     runAiAnalysis(selected.size > 0 ? selectedReviews : reviews)
                   }
                 >
-                  <Sparkles size={14} className="mr-1" />
+                  <Sparkles className="mr-1" size={14} />
                   {analyzing
                     ? analyzeProgress
                       ? `${analyzeProgress.done}/${analyzeProgress.total}`
-                      : t('admin-reviews-ai-analyzing')
+                      : t("admin-reviews-ai-analyzing")
                     : selected.size > 0
-                      ? t('admin-reviews-ai-analyze-selected', { count: selected.size })
-                      : t('admin-reviews-ai-analyze-all')}
+                      ? t("admin-reviews-ai-analyze-selected", {
+                          count: selected.size,
+                        })
+                      : t("admin-reviews-ai-analyze-all")}
                 </Button>
               )}
 
@@ -199,17 +238,17 @@ export default function AdminReviewsPage() {
                     isPending={batchModerating}
                     size="sm"
                     variant="secondary"
-                    onPress={() => moderateBatch([...selected], 'approved')}
+                    onPress={() => moderateBatch([...selected], "approved")}
                   >
-                    {t('admin-reviews-batch-approve', { count: selected.size })}
+                    {t("admin-reviews-batch-approve", { count: selected.size })}
                   </Button>
                   <Button
                     isPending={batchModerating}
                     size="sm"
                     variant="danger"
-                    onPress={() => moderateBatch([...selected], 'rejected')}
+                    onPress={() => moderateBatch([...selected], "rejected")}
                   >
-                    {t('admin-reviews-batch-reject', { count: selected.size })}
+                    {t("admin-reviews-batch-reject", { count: selected.size })}
                   </Button>
                 </>
               )}
@@ -220,9 +259,13 @@ export default function AdminReviewsPage() {
                   isPending={batchModerating}
                   size="sm"
                   variant="secondary"
-                  onPress={() => moderateBatch(aiRecommendedApprove, 'approved')}
+                  onPress={() =>
+                    moderateBatch(aiRecommendedApprove, "approved")
+                  }
                 >
-                  {t('admin-reviews-ai-approve-all', { count: aiRecommendedApprove.length })}
+                  {t("admin-reviews-ai-approve-all", {
+                    count: aiRecommendedApprove.length,
+                  })}
                 </Button>
               )}
               {canUseAi && aiRecommendedReject.length > 0 && (
@@ -230,9 +273,11 @@ export default function AdminReviewsPage() {
                   isPending={batchModerating}
                   size="sm"
                   variant="danger"
-                  onPress={() => moderateBatch(aiRecommendedReject, 'rejected')}
+                  onPress={() => moderateBatch(aiRecommendedReject, "rejected")}
                 >
-                  {t('admin-reviews-ai-reject-all', { count: aiRecommendedReject.length })}
+                  {t("admin-reviews-ai-reject-all", {
+                    count: aiRecommendedReject.length,
+                  })}
                 </Button>
               )}
             </div>
@@ -240,19 +285,22 @@ export default function AdminReviewsPage() {
         </div>
 
         {isLoading ? (
-          <p>{t('admin-common-loading')}</p>
+          <p>{t("admin-common-loading")}</p>
         ) : reviews.length === 0 ? (
-          <p className="text-default-400">{t('admin-reviews-empty')}</p>
+          <p className="text-default-400">{t("admin-reviews-empty")}</p>
         ) : (
           <div className="space-y-3">
             {reviews.map((r) => {
               const analysis = aiAnalyses.get(r.id);
               const isSelected = selected.has(r.id);
+
               return (
                 <div
                   key={r.id}
                   className={`border rounded-xl p-4 space-y-2 transition-colors cursor-pointer ${
-                    isSelected ? 'border-primary bg-primary-50/30' : 'border-default-200'
+                    isSelected
+                      ? "border-primary bg-primary-50/30"
+                      : "border-default-200"
                   }`}
                   onClick={() => toggleSelect(r.id)}
                 >
@@ -274,14 +322,18 @@ export default function AdminReviewsPage() {
                       {/* AI recommendation badge */}
                       {analysis && (
                         <Chip
-                          color={analysis.recommendation === 'approve' ? 'success' : 'danger'}
+                          color={
+                            analysis.recommendation === "approve"
+                              ? "success"
+                              : "danger"
+                          }
                           size="sm"
                           variant="soft"
                         >
-                          <Sparkles size={10} className="inline mr-0.5" />
-                          {analysis.recommendation === 'approve'
-                            ? t('admin-reviews-ai-rec-approve')
-                            : t('admin-reviews-ai-rec-reject')}
+                          <Sparkles className="inline mr-0.5" size={10} />
+                          {analysis.recommendation === "approve"
+                            ? t("admin-reviews-ai-rec-approve")
+                            : t("admin-reviews-ai-rec-reject")}
                         </Chip>
                       )}
                       <Chip size="sm">{r.status}</Chip>
@@ -292,7 +344,9 @@ export default function AdminReviewsPage() {
                     {r.author_name} — {r.rating}★
                   </p>
                   {r.title && <p className="font-medium text-sm">{r.title}</p>}
-                  {r.body && <p className="text-sm text-default-600">{r.body}</p>}
+                  {r.body && (
+                    <p className="text-sm text-default-600">{r.body}</p>
+                  )}
 
                   {/* AI reason */}
                   {analysis?.reason && (
@@ -303,7 +357,10 @@ export default function AdminReviewsPage() {
                   )}
 
                   {/* Per-row actions */}
-                  <div className="flex gap-2" onClick={(e) => e.stopPropagation()}>
+                  <div
+                    className="flex gap-2"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     {canUseAi && !analysis && (
                       <Button
                         isPending={analyzing}
@@ -311,25 +368,25 @@ export default function AdminReviewsPage() {
                         variant="tertiary"
                         onPress={() => runAiAnalysis([r])}
                       >
-                        <Sparkles size={12} className="mr-1" />
-                        {t('admin-reviews-ai-analyze-one')}
+                        <Sparkles className="mr-1" size={12} />
+                        {t("admin-reviews-ai-analyze-one")}
                       </Button>
                     )}
                     <Button
                       isPending={moderating === r.id}
                       size="sm"
                       variant="secondary"
-                      onPress={() => moderate(r.id, 'approved')}
+                      onPress={() => moderate(r.id, "approved")}
                     >
-                      {t('admin-reviews-approve')}
+                      {t("admin-reviews-approve")}
                     </Button>
                     <Button
                       isPending={moderating === r.id}
                       size="sm"
                       variant="danger"
-                      onPress={() => moderate(r.id, 'rejected')}
+                      onPress={() => moderate(r.id, "rejected")}
                     >
-                      {t('admin-reviews-reject')}
+                      {t("admin-reviews-reject")}
                     </Button>
                   </div>
                 </div>

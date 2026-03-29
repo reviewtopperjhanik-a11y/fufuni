@@ -98,7 +98,9 @@ export function useLocalizedTextInput({
   const { t } = useTranslation();
   const { getJson, hasPermission } = useSecuredApi();
 
-  const [inputValue, setInputValue] = useState(() => getFn(value, selectedLocale));
+  const [inputValue, setInputValue] = useState(() =>
+    getFn(value, selectedLocale),
+  );
   const [isTranslating, setIsTranslating] = useState(false);
   const [canUseAi, setCanUseAi] = useState(false);
 
@@ -106,8 +108,12 @@ export function useLocalizedTextInput({
   const valueRef = useRef(value);
   const localeRef = useRef(selectedLocale);
 
-  useEffect(() => { valueRef.current = value; }, [value]);
-  useEffect(() => { localeRef.current = selectedLocale; }, [selectedLocale]);
+  useEffect(() => {
+    valueRef.current = value;
+  }, [value]);
+  useEffect(() => {
+    localeRef.current = selectedLocale;
+  }, [selectedLocale]);
 
   // Sync input display value when the raw value or locale changes
   useEffect(() => {
@@ -116,19 +122,23 @@ export function useLocalizedTextInput({
 
   // Auto-migrate from plain text to JSON when locale switches
   const isFirstMountRef = useRef(true);
+
   useEffect(() => {
     if (isFirstMountRef.current) {
       isFirstMountRef.current = false;
+
       return;
     }
     const parsed = parseFn(value);
+
     if (typeof parsed === "string" && inputValue.trim()) {
       onChange(mergeFn(value, selectedLocale, inputValue));
     }
-  }, [selectedLocale]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [selectedLocale]);
 
   // Check AI permission on mount
   const aiPermission = (import.meta as any).env?.AI_PERMISSION ?? "ai:api";
+
   useEffect(() => {
     hasPermission(aiPermission)
       .then(setCanUseAi)
@@ -158,17 +168,20 @@ export function useLocalizedTextInput({
       const parsed = parseFn(currentValue);
 
       let sourceText = "";
+
       if (typeof parsed === "string") {
         sourceText = parsed;
       } else {
         const sourceLang = FALLBACK.find(
           (l) => l !== localeRef.current && !!parsed[l],
         );
+
         sourceText = sourceLang ? parsed[sourceLang] : "";
       }
 
       if (!sourceText) {
         alert(t("admin-products-ai-no-source"));
+
         return;
       }
 
@@ -182,10 +195,13 @@ export function useLocalizedTextInput({
         params,
         false,
       );
-      if (!result.success) throw new Error(result.error ?? "Translation failed");
+
+      if (!result.success)
+        throw new Error(result.error ?? "Translation failed");
 
       if (result.content) {
         const translated = result.content.trim();
+
         setInputValue(translated);
         onChange(mergeFn(valueRef.current, localeRef.current, translated));
       }

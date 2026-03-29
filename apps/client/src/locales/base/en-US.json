@@ -726,5 +726,6 @@
   "admin-reviews-ai-approve-all": "Approve all AI-recommended ({{count}})",
   "admin-reviews-ai-reject-all": "Reject all AI-flagged ({{count}})",
   "admin-reviews-ai-rec-approve": "Approve",
-  "admin-reviews-ai-rec-reject": "Reject"
+  "admin-reviews-ai-rec-reject": "Reject",
+  "next": "Next"
 }
