@@ -2,7 +2,6 @@
 /**
  * MIT License
  *
- * Copyright (c) 2025 ygwyg
  * Copyright (c) 2026 Ronan Le Meillat - SCTG Development
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -27,9 +26,22 @@
 /**
  * Seed script - creates demo data via the API
  *
+ * Maintainers and contributors should use this script to populate a local
+ * or test environment with realistic sample data sets (regions, tax rates,
+ * categories, products, inventory, orders, and reviews).
+ *
+ * The script is intentionally idempotent for rerun safety where possible.
+ *
  * Usage:
  *   npx tsx scripts/seed.ts <api_url> <admin_key>
  *   npx tsx scripts/seed.ts http://localhost:8787 sk_...
+ *
+ * This file has two main responsibilities:
+ *  1. structural organization of data (PRODUCT_CATALOG, SEED_ADDRESSES, etc.)
+ *  2. orchestration functions that call the API in a safe order.
+ *
+ * When extending, add new seed helpers near the bottom and ensure the
+ * `seed()` orchestrator is updated.
  */
 
 // images are embedded as base64 so this file can run even after the PNGs are removed
@@ -43,6 +55,9 @@ import {
 import { readFileSync, existsSync } from 'node:fs';
 import { join as pathJoin, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import webpWasm from 'webp-wasm';
+import { PNG } from 'pngjs';
+import { decode as decodeJpeg } from 'jpeg-js';
 
 // Derive __dirname for ESM context (tsx/Node ESM do not expose __dirname natively)
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -67,6 +82,14 @@ First, start the API and create a store:
   process.exit(1);
 }
 
+/**
+ * Primary low-level API helper.
+ *
+ * @param path Relative endpoint path, e.g. '/v1/products'.
+ * @param body Optional JSON payload for POST requests (GET if omitted).
+ * @returns Parsed JSON body of the response.
+ * @throws if the request fails or returns non-2xx status.
+ */
 async function api(path: string, body?: any) {
   const res = await fetch(`${API_URL}${path}`, {
     method: body ? 'POST' : 'GET',
@@ -85,6 +108,15 @@ async function api(path: string, body?: any) {
   return res.json();
 }
 
+/**
+ * Retry wrapper around `api` for transient failures like rate limiting.
+ *
+ * @param path API path.
+ * @param body Optional request body for POST requests.
+ * @param maxRetries Maximum number of retry attempts (defaults to 5).
+ * @returns Response JSON as is from `api`.
+ * @throws last failure after retry exhaustion.
+ */
 async function apiWithRetry(path: string, body?: any, maxRetries = 5): Promise<any> {
   let attempt = 0;
 
@@ -115,8 +147,14 @@ async function apiWithRetry(path: string, body?: any, maxRetries = 5): Promise<a
 }
 
 /**
- * Convert cents at a given rate and round to the nearest cent.
- * Rates are expressed relative to EUR (base currency for seeded products).
+ * Convert currency amounts from EUR cents to target currency cents.
+ *
+ * This uses integer cents and rounds to avoid floating-point pricing errors
+ * in currency price conversions during seeding.
+ *
+ * @param cents Price in EUR cents.
+ * @param rate Exchange rate multiplier to target currency.
+ * @returns Rounded price in target currency cents.
  */
 function convertCents(cents: number, rate: number): number {
   return Math.round(cents * rate);
@@ -126,17 +164,107 @@ const EUR_TO_USD = 1.14;
 const EUR_TO_GBP = 0.86;
 
 /**
- * Read a PNG from ./img/<filename> at runtime and return a base64 data URI.
- * Returns null when the file is absent so callers can skip image_url.
+ * Nearest-neighbour resize of raw RGBA pixel data.
+ *
+ * This is a performance-oriented downscale helper used to generate thumbnails
+ * for seeded product images without external image libraries, besides WebP.
+ *
+ * @param src Source RGBA pixel buffer.
+ * @param srcW Source width in pixels.
+ * @param srcH Source height in pixels.
+ * @param dstW Destination width in pixels.
+ * @param dstH Destination height in pixels.
+ * @returns Resized RGBA buffer.
  */
-function readImageAsDataUri(filename: string): string | null {
-  const imgPath = pathJoin(__dirname, 'img', filename);
-  if (!existsSync(imgPath)) return null;
-  const data = readFileSync(imgPath);
-  return `data:image/png;base64,${data.toString('base64')}`;
+function nnsResize(
+  src: Uint8ClampedArray,
+  srcW: number, srcH: number,
+  dstW: number, dstH: number,
+): Uint8ClampedArray {
+  const dst = new Uint8ClampedArray(dstW * dstH * 4);
+  const xRatio = srcW / dstW;
+  const yRatio = srcH / dstH;
+  for (let y = 0; y < dstH; y++) {
+    for (let x = 0; x < dstW; x++) {
+      const sx = Math.min(Math.floor(x * xRatio), srcW - 1);
+      const sy = Math.min(Math.floor(y * yRatio), srcH - 1);
+      const si = (sy * srcW + sx) * 4;
+      const di = (y * dstW + x) * 4;
+      dst[di] = src[si]; dst[di + 1] = src[si + 1]; dst[di + 2] = src[si + 2]; dst[di + 3] = src[si + 3];
+    }
+  }
+  return dst;
 }
 
-/** PATCH helper (api() only handles GET / POST). */
+/**
+ * Decode a PNG/JPEG image source and re-encode as a WebP data URI.
+ *
+ * This helper supports images in either filesystem path (./img) or base64 data
+ * embedded in `seed-data` so the script remains self-contained.
+ *
+ * @param src Filename in ./img/ OR a data:image/...;base64,... string from imageMap.
+ * @param maxSide Pixel limit: scales proportionally when any dimension exceeds this.
+ * @param quality WebP quality 0-100.
+ * @returns Data URI string or null when source is missing/unreadable.
+ */
+async function toWebpDataUri(
+  src: string | null,
+  maxSide: number,
+  quality = 80,
+): Promise<string | null> {
+  if (!src) return null;
+
+  let rawBuffer: Buffer;
+  let ext: string;
+
+  if (src.startsWith('data:')) {
+    const comma = src.indexOf(',');
+    const header = src.slice(0, comma);
+    rawBuffer = Buffer.from(src.slice(comma + 1), 'base64');
+    ext = header.includes('png') ? 'png' : 'jpg';
+  } else {
+    const imgPath = pathJoin(__dirname, 'img', src);
+    if (!existsSync(imgPath)) return null;
+    rawBuffer = readFileSync(imgPath);
+    ext = src.split('.').pop()?.toLowerCase() ?? 'png';
+  }
+
+  let rgba: Uint8ClampedArray;
+  let width: number;
+  let height: number;
+
+  if (ext === 'png') {
+    const png = PNG.sync.read(rawBuffer);
+    width = png.width;
+    height = png.height;
+    rgba = new Uint8ClampedArray(png.data.buffer, png.data.byteOffset, png.data.byteLength);
+  } else {
+    const decoded = decodeJpeg(rawBuffer, { useTArray: true });
+    width = decoded.width;
+    height = decoded.height;
+    rgba = new Uint8ClampedArray(decoded.data.buffer, decoded.data.byteOffset, decoded.data.byteLength);
+  }
+
+  if (width > maxSide || height > maxSide) {
+    const scale = maxSide / Math.max(width, height);
+    const newW = Math.round(width * scale);
+    const newH = Math.round(height * scale);
+    rgba = nnsResize(rgba, width, height, newW, newH);
+    width = newW;
+    height = newH;
+  }
+
+  const webpBuf = await webpWasm.encode({ data: rgba, width, height } as any, { quality });
+  return `data:image/webp;base64,${Buffer.from(webpBuf).toString('base64')}`;
+}
+
+/**
+ * Helper for PATCH requests to the admin API.
+ *
+ * @param path API path.
+ * @param body JSON patch body.
+ * @returns Parsed JSON response.
+ */
 async function apiPatch(path: string, body: any): Promise<any> {
   const res = await fetch(`${API_URL}${path}`, {
     method: 'PATCH',
@@ -153,6 +281,12 @@ async function apiPatch(path: string, body: any): Promise<any> {
   return res.json();
 }
 
+/**
+ * Seed tax rates used by product prices.
+ *
+ * This function is usually safe to run repeatedly against the same database.
+ * It creates both a standard rate and a reduced food rate used for certain SKUs.
+ */
 async function seedTaxes() {
   console.log('💰 Creating VAT rates...');
   const vatNames = JSON.stringify({
@@ -179,6 +313,12 @@ async function seedTaxes() {
   return { tax20, tax5 };
 }
 
+/**
+ * Seed product categories and nested subcategories.
+ *
+ * Returns a map of category keys to category IDs, used by product-category
+ * assignments in seedProducts().
+ */
 async function seedCategories() {
   console.log('📁 Creating categories...');
 
@@ -433,6 +573,15 @@ async function seedCategories() {
 // Unified product catalog
 // Every product — legacy apparel or additional catalog — lives here.
 // To add a product: push a new entry; variants drive inventory & pricing.
+//
+// Each item in product catalog must include:
+// - key: short lookup key used by SEED_REVIEWS and seeds
+// - handle: API product handle
+// - categories: array of category handles
+// - variants: variant rows with sku/price_cents/stock
+//
+// Contributors: keeping this list in English + i18n maps encourages
+// consistent localization across all languages.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const PRODUCT_CATALOG = [
@@ -688,12 +837,24 @@ const PRODUCT_CATALOG = [
     categories: ['sports-outdoor'],
     title:       { 'en-US': 'Paraglider Wing EN-D',    'fr-FR': 'Voile de parapente EN-D',       'es-ES': 'Ala de parapente EN-D',         'zh-CN': '滑翔伞翼 EN-D',     'ar-SA': 'EN-D جناح طيران شراعي',    'he-IL': 'כנף מצנח רחיפה EN-D' },
     description: { 'en-US': 'Packed paraglider wing with branded canopy panel, delivered folded in transport configuration.', 'fr-FR': 'Voile de parapente emballée avec panneau de voile cousu, livrée pliée en configuration de transport.', 'es-ES': 'Ala de parapente embalada con panel de vela personalizado, entregada plegada para transporte.', 'ar-SA': 'جناح طيران شراعي معبأ مع جزء قماش يحمل العلامة، يُسلم مطوياً بوضعية النقل.', 'zh-CN': '带品牌伞翼面板的打包滑翔伞翼，折叠后按运输状态交付。', 'he-IL': 'כנף מצנח רחיפה ארוזה עם פאנל ממותג, מסופקת מקופלת לתצורת הובלה。' },
-    variants: [{ sku: 'PARAGLIDER-XS', title: 'PTV 40-60', price_cents: 329000, weight_g: 3200, stock: 1 },{ sku: 'PARAGLIDER-S', title: 'PTV 60-80', price_cents: 399000, weight_g: 3300, stock: 0 },{ sku: 'PARAGLIDER-M', title: 'PTV 80-100', price_cents: 499000, weight_g: 3400, stock: 2 },{ sku: 'PARAGLIDER-L', title: 'PTV 100-120', price_cents: 399000, weight_g: 3500, stock: 1 } ,{ sku: 'PARAGLIDER-XL', title: 'XXX-Large', price_cents: 699000, weight_g: 5500, stock: 5 }],
+    variants: [{ sku: 'PARAGLIDER-XS', title: 'PTV 40-60', price_cents: 329000, weight_g: 3200, stock: 1 },{ sku: 'PARAGLIDER-S', title: 'PTV 60-80', price_cents: 399000, weight_g: 3300, stock: 0 },{ sku: 'PARAGLIDER-M', title: 'PTV 80-100', price_cents: 499000, weight_g: 3400, stock: 2 },{ sku: 'PARAGLIDER-L', title: 'PTV 100-120', price_cents: 399000, weight_g: 3500, stock: 1 } ,{ sku: 'PARAGLIDER-BI', title: 'Tandem 90-220', price_cents: 699000, weight_g: 5500, stock: 5 }],
   },
 ] as const;
 
 type Product = typeof PRODUCT_CATALOG[number];
 
+/**
+ * Seed regions, warehouses, and shipping rates.
+ *
+ * This function depends on the regions and countries list being available in
+ * the database and performs a full multi-zone setup:
+ * - Europe (EUR)
+ * - United Kingdom (GBP)
+ * - North America (USD)
+ * - Rest of World (EUR)
+ *
+ * The result includes IDs required by other seeding steps.
+ */
 async function seedRegions() {
   console.log('📋 Fetching existing currencies and countries...');
 
@@ -889,6 +1050,8 @@ interface SeedReview { customer_email: string; product_key: string; rating: numb
 // ─────────────────────────────────────────────────────────────────────────────
 // Data: shipping addresses & orders for demo customers
 // To add a customer / order: add an entry to SEED_ADDRESSES then SEED_ORDERS.
+//
+// Region -> customer_email -> address. Used for /v1/orders/test seeds.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const SEED_ADDRESSES: Record<string, Record<string, any>> = {
@@ -909,6 +1072,7 @@ const SEED_ADDRESSES: Record<string, Record<string, any>> = {
 };
 
 const SEED_ORDERS: Record<string, Array<{ customer_email: string; items: Array<{ sku: string; qty: number }> }>> = {
+  // One entry per region; each test order is created with default shipping rules
   eu: [
     { customer_email: 'sarah@eu.example.com',  items: [{ sku: 'TEE-BLK-M',  qty: 2 }, { sku: 'CAP-BLK',    qty: 1 }] },
     { customer_email: 'mike@eu.example.com',   items: [{ sku: 'HOOD-BLK-L', qty: 1 }] },
@@ -957,7 +1121,15 @@ const SEED_REVIEWS: SeedReview[] = [
 /**
  * Create all products from PRODUCT_CATALOG with multi-currency pricing,
  * category assignments and warehouse inventory.
- * Returns a map of product key → product ID, consumed later by seedReviews().
+ *
+ * 1. Creates product metadata (titles/descriptions/translations)
+ * 2. Links product to categories
+ * 3. Creates variants with storage-agnostic images and prices
+ * 4. Sets inventory in relevant warehouses
+ *
+ * @param regionData Output from seedRegions()
+ * @param categoryData Output from seedCategories()
+ * @returns Map of product key -> product id.
  */
 async function seedProducts(regionData: any, categoryData: any): Promise<Record<string, string>> {
   const productIds: Record<string, string> = {};
@@ -977,6 +1149,7 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
   };
 
   for (const prod of PRODUCT_CATALOG) {
+    // Preserve localized vendor name for all defined locales.
     const i18nVendor = { 'en-US': prod.vendor, 'fr-FR': prod.vendor, 'es-ES': prod.vendor, 'zh-CN': prod.vendor, 'ar-SA': prod.vendor, 'he-IL': prod.vendor };
 
     console.log(`📦 Creating ${prod.title['en-US']}...`);
@@ -998,8 +1171,11 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
       const { stock, imageFile, ...variantBase } = v as any;
       const imgFile: string = imageFile ?? prod.file;
       const variantPayload: any = { ...variantBase, currency: 'EUR', tax_code: 'txcd_99999999' };
-      const imageUrl = imageMap[imgFile] ?? readImageAsDataUri(imgFile);
+      const rawSrc: string = imageMap[imgFile] ?? imgFile;
+      const imageUrl = await toWebpDataUri(rawSrc, 1200, 80);
+      const thumbnailUrl = await toWebpDataUri(rawSrc, 400, 80);
       if (imageUrl) variantPayload.image_url = imageUrl;
+      if (thumbnailUrl) variantPayload.thumbnail_url = thumbnailUrl;
 
       console.log(`   └─ ${v.sku}`);
       const created = await api(`/v1/products/${product.id}/variants`, variantPayload);
@@ -1008,6 +1184,8 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
       if (usdId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: usdId, price_cents: convertCents(v.price_cents, EUR_TO_USD) });
       if (gbpId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: gbpId, price_cents: convertCents(v.price_cents, EUR_TO_GBP) });
 
+      // Special mock distribution: TEE-BLK-S is split between IT/FR warehouses
+      // for regional stock testing; all other SKUs are stocked in FR.
       if (v.sku === 'TEE-BLK-S') {
         await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.it, delta: 10,         reason: 'restock' });
         await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock - 10, reason: 'restock' });
@@ -1024,6 +1202,8 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
  * Create all demo orders across regions.
  * Orders for customers in REVIEW_CUSTOMERS are immediately transitioned to
  * 'delivered' so they become review-eligible.
+ *
+ * This also simulates a payment session and attaches shipping metadata.
  */
 async function seedOrders(regionData: any): Promise<void> {
   console.log('\n🛒 Creating test orders...');
@@ -1059,6 +1239,8 @@ async function seedOrders(regionData: any): Promise<void> {
 /**
  * Seed demo reviews via the admin seed endpoint.
  * Idempotent — skips reviews that already exist (safe for re-runs).
+ *
+ * @param productIds Map from product key to product id.
  */
 async function seedReviews(productIds: Record<string, string>): Promise<void> {
   console.log('\n⭐ Seeding reviews...');
@@ -1094,11 +1276,19 @@ async function seedReviews(productIds: Record<string, string>): Promise<void> {
 async function seed() {
   console.log('🌱 Seeding demo data...\n');
 
+  // Step 1: Regions, tax, shipping, and warehouses.
   const regionData   = await seedRegions();
+
+  // Step 2: Categories, including parent-children links.
   const categoryData = await seedCategories();
 
+  // Step 3: Products + prices + inventory.
   const productIds = await seedProducts(regionData, categoryData);
+
+  // Step 4: Place sample orders and mark review-eligible orders as delivered.
   await seedOrders(regionData);
+
+  // Step 5: Seed review entries for delivered orders.
   await seedReviews(productIds);
 
   console.log('\n✅ Done! Demo data created.\n');

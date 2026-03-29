@@ -336,7 +336,7 @@ export default function CustomersPage() {
         }}
       >
         <Modal.Backdrop>
-          <Modal.Container>
+          <Modal.Container size="lg">
             <Modal.Dialog>
               {({ close }) => (
                 <>

@@ -478,7 +478,7 @@ export default function OrdersPage() {
           }}
         >
           <Modal.Backdrop>
-            <Modal.Container>
+            <Modal.Container size="lg">
               <Modal.Dialog>
                 {({ close }) => (
                   <>

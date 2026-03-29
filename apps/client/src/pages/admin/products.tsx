@@ -864,7 +864,7 @@ export default function ProductsPage() {
         }}
       >
         <Modal.Backdrop variant="blur">
-          <Modal.Container>
+          <Modal.Container size="cover">
             <Modal.Dialog>
               {({ close }) => (
                 <>
@@ -1236,7 +1236,7 @@ export default function ProductsPage() {
         }}
       >
         <Modal.Backdrop>
-          <Modal.Container>
+          <Modal.Container size="lg">
             <Modal.Dialog>
               {({ close }) => (
                 <>
