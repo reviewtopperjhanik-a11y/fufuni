@@ -732,5 +732,18 @@
   "admin-reviews-ai-reject-all": "拒绝所有 AI 标记 ({{count}})",
   "admin-reviews-ai-rec-approve": "批准",
   "admin-reviews-ai-rec-reject": "拒绝",
-  "next": "下一个"
+  "next": "下一个",
+  "admin-customers-contact-info": "联系信息",
+  "admin-customers-orders-stat": "订单",
+  "customer-name-placeholder": "客户名称",
+  "phone-number-placeholder": "电话号码",
+  "tracking-link-invalid-message": "无效链接 — 请检查您的电子邮件。",
+  "tracking-link-expired-message": "链接已过期或无效。",
+  "order-not-found-message": "订单未找到。",
+  "admin-products-invalid-price": "价格无效",
+  "admin-products-status-active": "活跃",
+  "admin-products-status-draft": "草稿",
+  "admin-products-error-loading": "加载产品出错",
+  "admin-customers-error-loading": "加载客户出错",
+  "submitting": "…"
 }

@@ -732,5 +732,18 @@
   "admin-reviews-ai-reject-all": "Rechazar todos los marcados por IA ({{count}})",
   "admin-reviews-ai-rec-approve": "Aprobar",
   "admin-reviews-ai-rec-reject": "Rechazar",
-  "next": "Próximo"
+  "next": "Próximo",
+  "admin-customers-contact-info": "Información de Contacto",
+  "admin-customers-orders-stat": "Pedidos",
+  "customer-name-placeholder": "Nombre del cliente",
+  "phone-number-placeholder": "Número de teléfono",
+  "tracking-link-invalid-message": "Enlace inválido — verifique su correo electrónico.",
+  "tracking-link-expired-message": "Enlace expirado o inválido.",
+  "order-not-found-message": "Pedido no encontrado.",
+  "admin-products-invalid-price": "Precio inválido",
+  "admin-products-status-active": "activo",
+  "admin-products-status-draft": "borrador",
+  "admin-products-error-loading": "Error al cargar el producto",
+  "admin-customers-error-loading": "Error al cargar el cliente",
+  "submitting": "…"
 }

@@ -303,7 +303,7 @@ export default function CustomersPage() {
                         onPress={goToPreviousPage}
                       >
                         <Pagination.PreviousIcon />
-                        <span>{t("previous") || "Previous"}</span>
+                        <span>{t("previous")}</span>
                       </Pagination.Previous>
                     </Pagination.Item>
                     <Pagination.Item>
@@ -311,7 +311,7 @@ export default function CustomersPage() {
                         isDisabled={!hasMore}
                         onPress={goToNextPage}
                       >
-                        <span>{t("next") || "Next"}</span>
+                        <span>{t("next")}</span>
                         <Pagination.NextIcon />
                       </Pagination.Next>
                     </Pagination.Item>
@@ -356,29 +356,29 @@ export default function CustomersPage() {
                             <Card>
                               <Card.Content className="gap-4">
                                 <h4 className="text-sm font-semibold">
-                                  Contact Info
+                                  {t("admin-customers-contact-info")}
                                 </h4>
                                 <TextField>
-                                  <Label>Name</Label>
+                                  <Label>{t("admin-customers-col-name")}</Label>
                                   <Input
                                     defaultValue={customerDetail.name || ""}
-                                    placeholder="Customer name"
+                                    placeholder={t("customer-name-placeholder")}
                                     onBlur={(e) =>
                                       updateField("name", e.target.value || "")
                                     }
                                   />
                                 </TextField>
                                 <div>
-                                  <Label className="text-xs">Email</Label>
+                                  <Label className="text-xs">{t("admin-customers-col-email")}</Label>
                                   <div className="mt-1 px-3 py-2 rounded-lg bg-default-100 text-sm ">
                                     {customerDetail.email}
                                   </div>
                                 </div>
                                 <TextField>
-                                  <Label>Phone</Label>
+                                  <Label>{t("account-phone")}</Label>
                                   <Input
                                     defaultValue={customerDetail.phone || ""}
-                                    placeholder="Phone number"
+                                    placeholder={t("phone-number-placeholder")}
                                     type="tel"
                                     onBlur={(e) =>
                                       updateField("phone", e.target.value || "")
@@ -393,7 +393,7 @@ export default function CustomersPage() {
                               <Card>
                                 <Card.Content className="items-center justify-center py-4">
                                   <p className="text-xs text-default-500 uppercase">
-                                    Orders
+                                    {t("admin-customers-orders-stat")}
                                   </p>
                                   <p className="text-2xl font-bold mt-2">
                                     {customerDetail.stats.order_count}
@@ -403,7 +403,7 @@ export default function CustomersPage() {
                               <Card>
                                 <Card.Content className="items-center justify-center py-4">
                                   <p className="text-xs text-default-500 uppercase">
-                                    Spent
+                                    {t("admin-customers-col-spent")}
                                   </p>
                                   <p className="text-xl font-bold mt-2">
                                     {formatMoney(

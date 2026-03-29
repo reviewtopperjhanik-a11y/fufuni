@@ -446,9 +446,7 @@ export default function ProductsPage() {
       setCategoriesModal(false);
     } catch (err) {
       console.error("Error saving categories", err);
-      alert(
-        t("admin-products-categories-save-error") || "Error saving categories",
-      );
+      alert(t("admin-products-categories-save-error"));
     }
   };
 
@@ -676,7 +674,7 @@ export default function ProductsPage() {
       const price = parseInt(variantPrice, 10);
 
       if (isNaN(price)) {
-        alert("Invalid price");
+        alert(t("admin-products-invalid-price"));
         setSubmittingVariant(false);
 
         return;
@@ -764,7 +762,7 @@ export default function ProductsPage() {
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>
-                  {opt ? opt : t("all")}
+                  {opt === "" ? t("all") : opt === "active" ? t("admin-products-status-active") : t("admin-products-status-draft")}
                 </option>
               ))}
             </select>

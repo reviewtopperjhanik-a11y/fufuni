@@ -727,5 +727,18 @@
   "admin-reviews-ai-reject-all": "Reject all AI-flagged ({{count}})",
   "admin-reviews-ai-rec-approve": "Approve",
   "admin-reviews-ai-rec-reject": "Reject",
-  "next": "Next"
+  "next": "Next",
+  "admin-customers-contact-info": "Contact Info",
+  "admin-customers-orders-stat": "Orders",
+  "customer-name-placeholder": "Customer name",
+  "phone-number-placeholder": "Phone number",
+  "tracking-link-invalid-message": "Invalid link — please check your email.",
+  "tracking-link-expired-message": "Link expired or invalid.",
+  "order-not-found-message": "Order not found.",
+  "admin-products-invalid-price": "Invalid price",
+  "admin-products-status-active": "active",
+  "admin-products-status-draft": "draft",
+  "admin-products-error-loading": "Error loading product",
+  "admin-customers-error-loading": "Error loading customer",
+  "submitting": "…"
 }

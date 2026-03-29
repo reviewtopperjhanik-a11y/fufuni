@@ -732,5 +732,18 @@
   "admin-reviews-ai-reject-all": "رفض جميع المُكتشَفة بالذكاء الاصطناعي ({{count}})",
   "admin-reviews-ai-rec-approve": "موافقة",
   "admin-reviews-ai-rec-reject": "رفض",
-  "next": "التالي"
+  "next": "التالي",
+  "admin-customers-contact-info": "معلومات الاتصال",
+  "admin-customers-orders-stat": "الطلبات",
+  "customer-name-placeholder": "اسم العميل",
+  "phone-number-placeholder": "رقم الهاتف",
+  "tracking-link-invalid-message": "رابط غير صحيح — يرجى التحقق من بريدك الإلكتروني.",
+  "tracking-link-expired-message": "الرابط انتهت صلاحيته أو غير صحيح.",
+  "order-not-found-message": "لم يتم العثور على الطلب.",
+  "admin-products-invalid-price": "السعر غير صحيح",
+  "admin-products-status-active": "نشط",
+  "admin-products-status-draft": "مسودة",
+  "admin-products-error-loading": "خطأ في تحميل المنتج",
+  "admin-customers-error-loading": "خطأ في تحميل العميل",
+  "submitting": "…"
 }

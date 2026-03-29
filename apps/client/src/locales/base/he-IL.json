@@ -732,5 +732,18 @@
   "admin-products-field-barcode": "ברקוד",
   "admin-products-field-compare-at-price": "השווה במחיר (סנט)",
   "admin-products-field-tax-code": "קוד מס",
-  "next": "הַבָּא"
+  "next": "הַבָּא",
+  "admin-customers-contact-info": "פרטי קשר",
+  "admin-customers-orders-stat": "הזמנות",
+  "customer-name-placeholder": "שם הלקוח",
+  "phone-number-placeholder": "מספר הטלפון",
+  "tracking-link-invalid-message": "קישור לא תקין — אנא בדוק את דוא״לך.",
+  "tracking-link-expired-message": "הקישור פג תוקף או לא תקין.",
+  "order-not-found-message": "ההזמנה לא נמצאה.",
+  "admin-products-invalid-price": "מחיר לא תקין",
+  "admin-products-status-active": "פעיל",
+  "admin-products-status-draft": "טיוטה",
+  "admin-products-error-loading": "שגיאה בטעינת המוצר",
+  "admin-customers-error-loading": "שגיאה בטעינת הלקוח",
+  "submitting": "…"
 }

@@ -62,15 +62,25 @@ function formatDate(dateStr: string, locale: string = "en-US") {
   }
 }
 
-// Maps database status values to display labels and colors
-const STATUS_LABELS: Record<string, { label: string; color: string }> = {
-  pending: { label: "Pending", color: "text-warning-600 bg-warning-100" },
-  paid: { label: "Paid", color: "text-success-600 bg-success-100" },
-  processing: { label: "Processing", color: "text-primary-600 bg-primary-100" },
-  shipped: { label: "Shipped", color: "text-primary-700 bg-primary-100" },
-  delivered: { label: "Delivered", color: "text-success-700 bg-success-100" },
-  refunded: { label: "Refunded", color: "text-default-600 bg-default-100" },
-  canceled: { label: "Canceled", color: "text-danger-600 bg-danger-100" },
+// Maps database status values to colors and i18n translation keys
+const STATUS_COLORS: Record<string, string> = {
+  pending: "text-warning-600 bg-warning-100",
+  paid: "text-success-600 bg-success-100",
+  processing: "text-primary-600 bg-primary-100",
+  shipped: "text-primary-700 bg-primary-100",
+  delivered: "text-success-700 bg-success-100",
+  refunded: "text-default-600 bg-default-100",
+  canceled: "text-danger-600 bg-danger-100",
+};
+
+const STATUS_I18N_KEYS: Record<string, string> = {
+  pending: "status-pending",
+  paid: "status-paid",
+  processing: "status-processing",
+  shipped: "status-shipped",
+  delivered: "status-delivered",
+  refunded: "status-refunded",
+  canceled: "status-canceled",
 };
 
 // Guest review form — uses the signed order token as auth proof.
@@ -202,11 +212,12 @@ export default function OrderPage() {
   const [order, setOrder] = useState<OrderStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [errorKey, setErrorKey] = useState<string | null>(null);
   const [activeReview, setActiveReview] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || !token) {
-      setError("Invalid link — please check your email.");
+      setErrorKey("tracking-link-invalid-message");
       setLoading(false);
       return;
     }
@@ -215,12 +226,20 @@ export default function OrderPage() {
     const merchantAPI = import.meta.env.API_BASE_URL || "http://localhost:8787";
     fetch(`${merchantAPI}/v1/orders/${id}/status?token=${encodeURIComponent(token)}`)
       .then((res) => {
-        if (res.status === 401) throw new Error("Link expired or invalid.");
-        if (!res.ok) throw new Error("Order not found.");
+        if (res.status === 401) {
+          setErrorKey("tracking-link-expired-message");
+          throw new Error("");
+        }
+        if (!res.ok) {
+          setErrorKey("order-not-found-message");
+          throw new Error("");
+        }
         return res.json();
       })
       .then((data) => setOrder(data))
-      .catch((err) => setError(err.message))
+      .catch((err) => {
+        if (!errorKey) setErrorKey("unable-to-load-order");
+      })
       .finally(() => setLoading(false));
   }, [id, token]);
 
@@ -234,7 +253,7 @@ export default function OrderPage() {
     );
   }
 
-  if (error || !order) {
+  if (error || errorKey || !order) {
     return (
       <DefaultLayout>
         <div className="max-w-2xl mx-auto py-12 px-6 text-center">
@@ -242,7 +261,7 @@ export default function OrderPage() {
             <div className="text-5xl mb-3">⚠️</div>
             <h1 className="text-2xl font-bold mb-2">{t("tracking-link-invalid")}</h1>
             <p className="text-default-500 mb-6">
-              {error || t("unable-to-load-order")}
+              {errorKey ? t(errorKey) : (error || t("unable-to-load-order"))}
             </p>
             <p className="text-sm text-default-400">
               {t("tracking-link-valid-30days")}
@@ -256,10 +275,9 @@ export default function OrderPage() {
     );
   }
 
-  const statusInfo = STATUS_LABELS[order.status] ?? {
-    label: order.status,
-    color: "text-default-600 bg-default-100",
-  };
+  const statusKey = STATUS_I18N_KEYS[order.status] || "status";
+  const statusColor =
+    STATUS_COLORS[order.status] || "text-default-600 bg-default-100";
 
   return (
     <DefaultLayout>
@@ -277,8 +295,8 @@ export default function OrderPage() {
         {/* Status */}
         <div className="rounded-lg border border-default-200 p-4 mb-6 flex items-center justify-between">
           <span className="text-sm font-medium text-default-600">{t("status")}</span>
-          <span className={`text-sm font-semibold px-3 py-1 rounded-full ${statusInfo.color}`}>
-            {statusInfo.label}
+          <span className={`text-sm font-semibold px-3 py-1 rounded-full ${statusColor}`}>
+            {t(statusKey)}
           </span>
         </div>
 
