@@ -303,8 +303,7 @@ const getMyOrders = createRoute({
                                         sku: z.string(),
                                         title: z.string(),
                                         qty: z.number(),
-                                        unit_price_cents: z.number(),
-                                    })
+                                        unit_price_cents: z.number(),                                        product_id: z.string().nullable(),                                    })
                                 ),
                             })
                         ),
@@ -353,7 +352,7 @@ app.openapi(getMyOrders, async (c) => {
         const orderIds = orderList.map((o: any) => o.id);
         const placeholders = orderIds.map(() => '?').join(', ');
         allItems = await db.query<any>(
-            `SELECT * FROM order_items WHERE order_id IN (${placeholders})`,
+            `SELECT oi.*, v.product_id FROM order_items oi LEFT JOIN variants v ON v.sku = oi.sku WHERE oi.order_id IN (${placeholders})`,
             orderIds
         );
     }
@@ -385,6 +384,7 @@ app.openapi(getMyOrders, async (c) => {
             title: i.title,
             qty: i.qty,
             unit_price_cents: i.unit_price_cents,
+            product_id: i.product_id ?? null,
         })),
     }));
 
@@ -439,6 +439,7 @@ const getOrderByNumber = createRoute({
                                 title: z.string(),
                                 qty: z.number(),
                                 unit_price_cents: z.number(),
+                                product_id: z.string().nullable(),
                             })
                         ),
                     }),
@@ -477,7 +478,7 @@ app.openapi(getOrderByNumber, async (c) => {
 
     // Fetch order items
     const items = await db.query<any>(
-        `SELECT * FROM order_items WHERE order_id = ?`,
+        `SELECT oi.*, v.product_id FROM order_items oi LEFT JOIN variants v ON v.sku = oi.sku WHERE oi.order_id = ?`,
         [order.id]
     );
 
@@ -500,6 +501,7 @@ app.openapi(getOrderByNumber, async (c) => {
                 title: i.title,
                 qty: i.qty,
                 unit_price_cents: i.unit_price_cents,
+                product_id: i.product_id ?? null,
             })),
         },
         200

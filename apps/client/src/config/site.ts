@@ -81,6 +81,11 @@ export const siteConfig = () => ({
       href: "/admin/orders",
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
+     {
+      label: i18next.t("reviews-title"),
+      href: "/admin/reviews",
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+    },
     {
       label: i18next.t("admin-webhooks-title"),
       href: "/admin/webhooks",

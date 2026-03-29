@@ -797,6 +797,7 @@ const getOrderByToken = createRoute({
                 title: z.string(),
                 qty: z.number(),
                 unit_price_cents: z.number(),
+                product_id: z.string().nullable(),
               })
             ),
           }),
@@ -840,7 +841,7 @@ publicApp.openapi(getOrderByToken, async (c) => {
 
   // Step 3: Fetch order items
   const orderItems = await db.query<any>(
-    `SELECT sku, title, qty, unit_price_cents FROM order_items WHERE order_id = ?`,
+    `SELECT oi.sku, oi.title, oi.qty, oi.unit_price_cents, v.product_id FROM order_items oi LEFT JOIN variants v ON v.sku = oi.sku WHERE oi.order_id = ?`,
     [orderId]
   );
 
@@ -863,6 +864,7 @@ publicApp.openapi(getOrderByToken, async (c) => {
         title: i.title,
         qty: i.qty,
         unit_price_cents: i.unit_price_cents,
+        product_id: i.product_id ?? null,
       })),
     },
     200

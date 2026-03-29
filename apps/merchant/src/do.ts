@@ -584,6 +584,30 @@ CREATE INDEX IF NOT EXISTS idx_orders_region ON orders(region_id);
 CREATE INDEX IF NOT EXISTS idx_orders_warehouse ON orders(warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_tax_rates_country ON tax_rates(country_code);
 CREATE INDEX IF NOT EXISTS idx_tax_rates_tax_code ON tax_rates(tax_code);
+
+CREATE TABLE IF NOT EXISTS product_reviews (
+  id           TEXT PRIMARY KEY,
+  product_id   TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  customer_id  TEXT REFERENCES customers(id) ON DELETE SET NULL,
+  author_name  TEXT NOT NULL,
+  author_email TEXT NOT NULL,
+  rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  title        TEXT,
+  body         TEXT,
+  status       TEXT NOT NULL DEFAULT 'pending'
+               CHECK (status IN ('pending', 'approved', 'rejected')),
+  is_verified_purchase INTEGER NOT NULL DEFAULT 0,
+  order_id     TEXT REFERENCES orders(id) ON DELETE SET NULL,
+  helpful_count INTEGER NOT NULL DEFAULT 0,
+  created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_reviews_product
+  ON product_reviews (product_id, status, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_product_reviews_customer
+  ON product_reviews (customer_id);
 `;
 
 export class MerchantDO extends DurableObject<MerchantEnv> {
@@ -917,6 +941,57 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
               UPDATE categories SET updated_at = datetime('now') WHERE id = NEW.id;
             END
           `,
+        },
+        // ── Migration 028 ── Product reviews ──────────────────────────────────────
+        // Allows authenticated customers to leave moderated star ratings.
+        {
+          name: '028_product_reviews_table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS product_reviews (
+              id           TEXT PRIMARY KEY,
+              product_id   TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+              customer_id  TEXT REFERENCES customers(id) ON DELETE SET NULL,
+              author_name  TEXT NOT NULL,
+              author_email TEXT NOT NULL,
+              rating       INTEGER NOT NULL CHECK (rating BETWEEN 1 AND 5),
+              title        TEXT,
+              body         TEXT,
+              status       TEXT NOT NULL DEFAULT 'pending'
+                           CHECK (status IN ('pending', 'approved', 'rejected')),
+              is_verified_purchase INTEGER NOT NULL DEFAULT 0,
+              order_id     TEXT REFERENCES orders(id) ON DELETE SET NULL,
+              helpful_count INTEGER NOT NULL DEFAULT 0,
+              created_at   TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+          `,
+        },
+        {
+          name: '028_idx_product_reviews_product',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_product_reviews_product ON product_reviews (product_id, status, created_at DESC)',
+        },
+        {
+          name: '028_idx_product_reviews_customer',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_product_reviews_customer ON product_reviews (customer_id)',
+        },
+        {
+          name: '028_trg_product_reviews_updated_at',
+          sql: `
+            CREATE TRIGGER IF NOT EXISTS trg_product_reviews_updated_at
+            AFTER UPDATE ON product_reviews
+            FOR EACH ROW
+            BEGIN
+              UPDATE product_reviews SET updated_at = datetime('now') WHERE id = NEW.id;
+            END
+          `,
+        },
+        {
+          name: '028_products_add_review_count',
+          sql: 'ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0',
+        },
+        {
+          name: '028_products_add_average_rating',
+          sql: 'ALTER TABLE products ADD COLUMN IF NOT EXISTS average_rating REAL NOT NULL DEFAULT 0.0',
         },
       ];
 

@@ -745,6 +745,29 @@ Rates are filtered by:
 
 ---
 
+### Reviews & Ratings
+
+- Customers can submit star ratings (1–5) and optional text reviews from the product page.
+- Reviews require moderation before appearing publicly (status: `pending → approved`).
+- Verified purchase badge appears when the reviewer has a delivered order containing the product.
+- Product rating cache (`review_count`, `average_rating` on `products` table) is updated on every moderation action.
+- Admin moderation panel at `/admin/reviews`.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/v1/products/:productId/reviews` | public | List approved reviews (cursor-paginated) |
+| `POST` | `/v1/products/:productId/reviews` | customer JWT | Submit a review |
+| `GET` | `/v1/reviews/admin` | `admin:store` | List reviews by status (`?status=pending\|approved\|rejected\|all`) |
+| `PATCH` | `/v1/reviews/:reviewId/status` | `admin:store` | Approve or reject a review |
+
+> **Implementation notes:**
+> - Duplicate reviews are blocked: one review per `(customer_id, product_id)` pair.
+> - Verified purchase is detected by joining `orders → order_items → variants` for delivered orders.
+> - Cursor pagination uses `created_at < ?` (not `id > ?`) — UUIDs are not chronologically ordered.
+> - SQL status filter uses parameterized queries — no user input is interpolated directly.
+
+---
+
 ### Webhooks
 
 | Method | Path | Auth | Description |

@@ -12,12 +12,14 @@ import { useAuth } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
 import { ORDER_STATUS_COLORS } from "@/config/order-status";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
+import { ProductReviews } from "@/components/product-reviews";
 
 interface OrderItem {
   sku: string;
   title: string;
   qty: number;
   unit_price_cents: number;
+  product_id: string | null;
 }
 
 interface Order {
@@ -54,6 +56,7 @@ export default function OrderHistory() {
   const [loading, setLoading] = useState(true);
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
+  const [activeReview, setActiveReview] = useState<string | null>(null);
   const apiBase = getApiBase();
 
   const fetchOrders = async (nextCursor?: string) => {
@@ -143,6 +146,52 @@ export default function OrderHistory() {
               </Button>
             </div>
           )}
+
+          {/* Review section: one entry per distinct product from delivered orders */}
+          {(() => {
+            const seen = new Set<string>();
+            const reviewableItems = orders
+              .filter((o) => o.status === "delivered")
+              .flatMap((o) => o.items)
+              .filter((i) => {
+                if (!i.product_id || seen.has(i.product_id)) return false;
+                seen.add(i.product_id);
+                return true;
+              });
+            if (reviewableItems.length === 0) return null;
+            return (
+              <div className="space-y-3">
+                <h2 className="text-xl font-semibold">
+                  {t("account-review-delivered")}
+                </h2>
+                {reviewableItems.map((item) => (
+                  <Card key={item.product_id}>
+                    <Card.Content className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{item.title}</span>
+                        <Button
+                          size="sm"
+                          variant="tertiary"
+                          onPress={() =>
+                            setActiveReview(
+                              activeReview === item.product_id
+                                ? null
+                                : item.product_id
+                            )
+                          }
+                        >
+                          {t("reviews-write")}
+                        </Button>
+                      </div>
+                      {activeReview === item.product_id && (
+                        <ProductReviews productId={item.product_id!} />
+                      )}
+                    </Card.Content>
+                  </Card>
+                ))}
+              </div>
+            );
+          })()}
         </>
       )}
     </div>

@@ -44,6 +44,7 @@ import { userPreferencesRouter } from './routes/user-preferences';
 import { savedCartsRouter } from './routes/saved-carts';
 import { publicCategories, adminCategories } from './routes/categories';
 import { analytics } from './routes/analytics';
+import { reviews, reviewsAdmin } from './routes/reviews';
 import { regions } from './routes/regions';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { ai } from './routes/ai';
@@ -107,12 +108,16 @@ app.get('/', (c) => c.json({ name: 'merchant', version: '0.1.0', ok: true }));
 
 app.route('/v1/setup', setup);
 app.route('/v1/ai', ai);
+// Mount reviews BEFORE catalog — catalog has app.use('*', authMiddleware) which
+// would otherwise intercept /v1/products/:productId/reviews/guest (a public route)
+app.route('/v1/products/:productId/reviews', reviews);
 app.route('/v1/products', catalog);
 app.route('/v1/inventory', inventory);
 app.route('/v1/carts', checkout);
 app.route('/v1/orders', orders);
 app.route('/v1/categories', adminCategories);
 app.route('/v1/analytics', analytics);
+app.route('/v1/reviews', reviewsAdmin);
 app.route('/v1/customers', customers);
 app.route('/v1/webhooks', webhooks);
 app.route('/v1/webhooks', webhooksRoutes);

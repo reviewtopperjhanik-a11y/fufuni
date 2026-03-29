@@ -19,8 +19,12 @@
 import { useEffect, useState } from "react";
 import { useParams, useSearchParams, Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { Star } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
+import { useAuth } from "@/authentication";
+import { ProductReviews } from "@/components/product-reviews";
+import { getApiBase } from "@/lib/api-base";
 
 // Shape of the order returned by GET /v1/orders/:id/status
 interface OrderStatus {
@@ -36,7 +40,7 @@ interface OrderStatus {
   tracking_number: string | null;
   tracking_url: string | null;
   shipped_at: string | null;
-  items: { sku: string; title: string; qty: number; unit_price_cents: number }[];
+  items: { sku: string; title: string; qty: number; unit_price_cents: number; product_id: string | null }[];
 }
 
 function formatPrice(cents: number, currency: string, locale: string = "en-US") {
@@ -69,15 +73,136 @@ const STATUS_LABELS: Record<string, { label: string; color: string }> = {
   canceled: { label: "Canceled", color: "text-danger-600 bg-danger-100" },
 };
 
+// Guest review form — uses the signed order token as auth proof.
+// Only rendered on the /order/:id page for delivered orders.
+function GuestReviewForm({
+  productId,
+  orderId,
+  orderToken,
+  onDone,
+}: {
+  productId: string;
+  orderId: string;
+  orderToken: string;
+  onDone: () => void;
+}) {
+  const { t } = useTranslation();
+  const apiBase = getApiBase();
+  const [rating, setRating] = useState(5);
+  const [title, setTitle] = useState("");
+  const [body, setBody] = useState("");
+  const [authorName, setAuthorName] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const handleSubmit = async () => {
+    setSubmitting(true);
+    setErr(null);
+    try {
+      const res = await fetch(
+        `${apiBase}/v1/products/${productId}/reviews/guest`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rating,
+            title: title || undefined,
+            body: body || undefined,
+            author_name: authorName || undefined,
+            order_id: orderId,
+            order_token: orderToken,
+          }),
+        }
+      );
+      if (res.status === 409) {
+        setErr(t("reviews-already-submitted"));
+        return;
+      }
+      if (!res.ok) {
+        setErr(t("reviews-error"));
+        return;
+      }
+      setSubmitted(true);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (submitted) {
+    return (
+      <p className="text-sm text-success py-2">{t("reviews-submitted")}</p>
+    );
+  }
+
+  return (
+    <div className="space-y-2 pt-3">
+      {/* Star selector */}
+      <div className="flex gap-1">
+        {[1, 2, 3, 4, 5].map((s) => (
+          <button key={s} type="button" onClick={() => setRating(s)}>
+            <Star
+              size={22}
+              className={s <= rating ? "fill-amber-400 text-amber-400" : "text-default-300"}
+            />
+          </button>
+        ))}
+      </div>
+      <input
+        className="w-full border border-default-200 rounded px-3 py-1.5 text-sm"
+        maxLength={80}
+        placeholder={t("reviews-guest-name-placeholder")}
+        value={authorName}
+        onChange={(e) => setAuthorName(e.target.value)}
+      />
+      <input
+        className="w-full border border-default-200 rounded px-3 py-1.5 text-sm"
+        maxLength={120}
+        placeholder={t("reviews-title-placeholder")}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+      />
+      <textarea
+        className="w-full border border-default-200 rounded px-3 py-1.5 text-sm"
+        maxLength={2000}
+        placeholder={t("reviews-body-placeholder")}
+        rows={3}
+        value={body}
+        onChange={(e) => setBody(e.target.value)}
+      />
+      {err && <p className="text-xs text-danger">{err}</p>}
+      <div className="flex gap-2">
+        <button
+          className="text-xs px-3 py-1.5 rounded bg-primary text-primary-foreground disabled:opacity-50"
+          disabled={submitting}
+          type="button"
+          onClick={handleSubmit}
+        >
+          {submitting ? "…" : t("reviews-submit")}
+        </button>
+        <button
+          className="text-xs px-3 py-1.5 rounded border border-default-200"
+          type="button"
+          onClick={onDone}
+        >
+          {t("cancel")}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function OrderPage() {
   const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const { t, i18n } = useTranslation();
+  const { isAuthenticated, loginWithRedirect } = useAuth() as any;
 
   const [order, setOrder] = useState<OrderStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [activeReview, setActiveReview] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id || !token) {
@@ -183,12 +308,62 @@ export default function OrderPage() {
         {/* Items */}
         <div className="border border-default-200 rounded-lg divide-y mb-6">
           {order.items.map((item) => (
-            <div key={item.sku} className="flex justify-between items-center p-4">
-              <div>
+            <div key={item.sku} className="flex justify-between items-start p-4 gap-4">
+              <div className="flex-1 min-w-0">
                 <p className="font-medium text-sm">{item.title}</p>
                 <p className="text-xs text-default-400">{t("qty")}: {item.qty}</p>
+                {order.status === "delivered" && item.product_id && (
+                  <div className="mt-2">
+                    {isAuthenticated ? (
+                      <>
+                        <button
+                          className="text-xs text-primary underline"
+                          type="button"
+                          onClick={() =>
+                            setActiveReview(
+                              activeReview === item.product_id ? null : item.product_id
+                            )
+                          }
+                        >
+                          {activeReview === item.product_id
+                            ? t("reviews-hide")
+                            : t("reviews-write")}
+                        </button>
+                        {activeReview === item.product_id && (
+                          <div className="mt-3 border-t border-default-100 pt-3">
+                            <ProductReviews productId={item.product_id} />
+                          </div>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          className="text-xs text-primary underline"
+                          type="button"
+                          onClick={() =>
+                            setActiveReview(
+                              activeReview === item.product_id ? null : item.product_id
+                            )
+                          }
+                        >
+                          {activeReview === item.product_id
+                            ? t("reviews-hide")
+                            : t("reviews-write")}
+                        </button>
+                        {activeReview === item.product_id && id && token && (
+                          <GuestReviewForm
+                            orderId={id}
+                            orderToken={token}
+                            productId={item.product_id}
+                            onDone={() => setActiveReview(null)}
+                          />
+                        )}
+                      </>
+                    )}
+                  </div>
+                )}
               </div>
-              <p className="text-sm font-medium">
+              <p className="text-sm font-medium shrink-0">
                 {formatPrice(item.unit_price_cents * item.qty, order.currency, i18n.language)}
               </p>
             </div>
