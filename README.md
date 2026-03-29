@@ -138,12 +138,21 @@ Visitors see an attractive landing page with a Log in button and direct links to
 - The backend exposes `GET /v1/ai/parameters` (key, model, URL) — **all AI calls are made client-side** so the LLM API key never leaves the browser via a server-side proxy
 - HTML-aware mode preserves Tiptap markup; plain-text mode for titles
 
+### � Analytics Dashboard
+- **Admin-only analytics** endpoint — all metrics computed server-side from existing tables, no external service needed
+- Period selector: **last 7 days**, **30 days**, **90 days**, or **all time**
+- KPIs: total revenue, order count, average order value, customer count (new vs returning), low-stock SKU count
+- **Top 10 products** by revenue with unit sales and revenue per product
+- **Orders by status** breakdown (paid, processing, shipped, delivered, …)
+- Multilingual product title decoding via `resolveTitle()` — JSON-localized titles render in the admin's active locale
+
 ### 🖥 Admin Panel
 Full-featured back-office covering:
 - Products, Variants, Inventory, Orders, Customers
 - Regions, Currencies, Countries, Warehouses
 - **Shipping Rates** + **Shipping Classes**
 - Webhooks, Discounts, Users & Permissions
+- **Analytics Dashboard** — store KPIs and top products
 - OpenAPI / Swagger UI integrated
 
 ### ⚙️ Infrastructure
@@ -696,6 +705,46 @@ Rates are filtered by:
 
 ---
 
+### Analytics
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/v1/analytics/dashboard` | `admin:store` | Store dashboard stats (`?period=7d\|30d\|90d\|all`) |
+
+**Response shape:**
+
+```json
+{
+  "revenue": {
+    "total_cents": 125000,
+    "order_count": 42,
+    "avg_order_cents": 2976
+  },
+  "customers": {
+    "total": 18,
+    "new": 5,
+    "returning": 9
+  },
+  "top_products": [
+    { "product_id": "uuid", "product_title": "{\"en-US\":\"Cap\"}", "units_sold": 12, "revenue_cents": 35880 }
+  ],
+  "orders_by_status": [
+    { "status": "delivered", "count": 30 },
+    { "status": "processing", "count": 5 }
+  ],
+  "low_stock_count": 3
+}
+```
+
+> **Implementation notes:**
+> - No DB migration required — all metrics are aggregated from `orders`, `order_items`, `customers`, and `inventory`.
+> - The `period` parameter is validated via a Zod enum before being interpolated into the SQL date expression — no user input reaches the query directly.
+> - `product_title` may be a plain string or a JSON locale map; the frontend decodes it with `resolveTitle(raw, i18n.language)`.
+> - Revenue counts only paid/processing/shipped/delivered orders (`status IN ('paid','processing','shipped','delivered')`).
+> - Low-stock threshold: `(on_hand - reserved) <= 5`.
+
+---
+
 ### Webhooks
 
 | Method | Path | Auth | Description |
@@ -1177,6 +1226,7 @@ Available at `/admin/*` — requires the permission configured in `ADMIN_STORE_P
 | `/admin/shipping-rates` | Shipping rate management (with class assignment) |
 | `/admin/shipping-classes` | Transport constraint groups |
 | `/admin/discounts` | Discount codes |
+| `/admin/analytics` | Store analytics dashboard (revenue, customers, top products, stock alerts) |
 | `/admin/users` | Auth0 user and permission management |
 | `/openapi` | Swagger UI |
 

@@ -682,5 +682,22 @@
   "admin-currencies-filter-placeholder": "بحث عن العملات...",
   "admin-products-field-barcode": "الباركود",
   "admin-products-field-compare-at-price": "قارن بالسعر (سنتا)",
-  "admin-products-field-tax-code": "قانون الضرائب"
+  "admin-products-field-tax-code": "قانون الضرائب",
+  "admin-analytics-title": "التحليلات",
+  "admin-analytics-loading": "جارٍ تحميل التحليلات...",
+  "admin-analytics-period-label": "الفترة",
+  "admin-analytics-period-7d": "آخر 7 أيام",
+  "admin-analytics-period-30d": "آخر 30 يوماً",
+  "admin-analytics-period-90d": "آخر 90 يوماً",
+  "admin-analytics-period-all": "كل الوقت",
+  "admin-analytics-revenue": "الإيرادات",
+  "admin-analytics-avg": "متوسط الطلب",
+  "admin-analytics-orders": "الطلبات",
+  "admin-analytics-customers": "العملاء",
+  "admin-analytics-customers-new": "جديد",
+  "admin-analytics-low-stock": "منتجات منخفضة المخزون",
+  "admin-analytics-top-products": "أفضل المنتجات",
+  "admin-analytics-top-products-empty": "لا مبيعات في هذه الفترة",
+  "admin-analytics-units": "وحدات",
+  "admin-analytics-orders-by-status": "الطلبات حسب الحالة"
 }

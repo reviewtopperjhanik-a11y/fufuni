@@ -54,6 +54,7 @@ import Addresses from "@/pages/account/addresses";
 import Preferences from "@/pages/account/preferences";
 import LoginPage from "@/pages/Login";
 import CategoriesPage from "./pages/admin/categories";
+import AnalyticsPage from "@/pages/admin/analytics";
 
 function App() {
   const { isLoading } = useAuth();
@@ -157,6 +158,10 @@ function App() {
         <Route
           element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><TaxRatesPage /></AuthenticationGuardWithPermission>}
           path="/admin/tax-rates"
+        />
+        <Route
+          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><AnalyticsPage /></AuthenticationGuardWithPermission>}
+          path="/admin/analytics"
         />
         <Route
           element={<AuthenticationGuard component={SwaggerPage} />}

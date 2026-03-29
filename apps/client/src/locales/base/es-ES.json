@@ -682,5 +682,22 @@
   "admin-currencies-filter-placeholder": "Buscar monedas...",
   "admin-products-field-barcode": "Código de barras",
   "admin-products-field-compare-at-price": "Comparar al precio (centavos)",
-  "admin-products-field-tax-code": "código fiscal"
+  "admin-products-field-tax-code": "código fiscal",
+  "admin-analytics-title": "Analytics",
+  "admin-analytics-loading": "Cargando analytics...",
+  "admin-analytics-period-label": "Período",
+  "admin-analytics-period-7d": "Últimos 7 días",
+  "admin-analytics-period-30d": "Últimos 30 días",
+  "admin-analytics-period-90d": "Últimos 90 días",
+  "admin-analytics-period-all": "Todo el tiempo",
+  "admin-analytics-revenue": "Ingresos",
+  "admin-analytics-avg": "Pedido prom.",
+  "admin-analytics-orders": "Pedidos",
+  "admin-analytics-customers": "Clientes",
+  "admin-analytics-customers-new": "nuevos",
+  "admin-analytics-low-stock": "SKUs con bajo stock",
+  "admin-analytics-top-products": "Productos más vendidos",
+  "admin-analytics-top-products-empty": "Sin ventas en este período",
+  "admin-analytics-units": "unidades",
+  "admin-analytics-orders-by-status": "Pedidos por estado"
 }

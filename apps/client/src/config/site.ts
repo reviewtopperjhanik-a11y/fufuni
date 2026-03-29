@@ -51,6 +51,11 @@ export const siteConfig = () => ({
       permissions: [], // No permissions required, visible to all
     },
     // admin pages - visible to all for now. guards can be handled on the page itself
+        {
+      label: i18next.t("dashboard"),
+      href: "/admin/analytics",
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+    },
     {
       label: i18next.t("admin-products-title"),
       href: "/admin/products",

@@ -682,5 +682,22 @@
   "admin-currencies-filter-placeholder": "搜索货币...",
   "admin-products-field-barcode": "条码",
   "admin-products-field-compare-at-price": "比较价格（分）",
-  "admin-products-field-tax-code": "税码"
+  "admin-products-field-tax-code": "税码",
+  "admin-analytics-title": "数据分析",
+  "admin-analytics-loading": "加载中...",
+  "admin-analytics-period-label": "时间段",
+  "admin-analytics-period-7d": "最近7天",
+  "admin-analytics-period-30d": "最近30天",
+  "admin-analytics-period-90d": "最近90天",
+  "admin-analytics-period-all": "全部时间",
+  "admin-analytics-revenue": "营收",
+  "admin-analytics-avg": "平均订单",
+  "admin-analytics-orders": "订单",
+  "admin-analytics-customers": "客户",
+  "admin-analytics-customers-new": "新客户",
+  "admin-analytics-low-stock": "低库存SKU",
+  "admin-analytics-top-products": "热销产品",
+  "admin-analytics-top-products-empty": "此时段暂无销售记录",
+  "admin-analytics-units": "件",
+  "admin-analytics-orders-by-status": "按状态分类的订单"
 }
