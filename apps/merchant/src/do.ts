@@ -219,6 +219,8 @@ CREATE TABLE IF NOT EXISTS products (
   tags TEXT,
   handle TEXT UNIQUE,
   status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'draft')),
+  review_count   INTEGER NOT NULL DEFAULT 0,
+  average_rating REAL    NOT NULL DEFAULT 0.0,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -987,11 +989,11 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
         },
         {
           name: '028_products_add_review_count',
-          sql: 'ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count INTEGER NOT NULL DEFAULT 0',
+          sql: 'ALTER TABLE products ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0',
         },
         {
           name: '028_products_add_average_rating',
-          sql: 'ALTER TABLE products ADD COLUMN IF NOT EXISTS average_rating REAL NOT NULL DEFAULT 0.0',
+          sql: 'ALTER TABLE products ADD COLUMN average_rating REAL NOT NULL DEFAULT 0.0',
         },
       ];
 

@@ -548,4 +548,93 @@ adminApp.openapi(moderateReviewRoute, async (c) => {
   return c.json({ ok: true }, 200);
 });
 
+// ── Admin: seed a review directly (for test/demo data population) ──────────
+
+const seedReviewRoute = createRoute({
+  method: 'post',
+  path: '/admin/seed',
+  tags: ['Reviews'],
+  summary: 'Insert a seeded review directly (admin, bypasses purchase check)',
+  security: [{ bearerAuth: ['admin:store'] }],
+  middleware: [authMiddleware, adminOnly] as const,
+  request: {
+    body: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            product_id: z.string().uuid(),
+            customer_email: z.string().email(),
+            rating: z.number().int().min(1).max(5),
+            title: z.string().max(120).optional(),
+            body: z.string().max(2000).optional(),
+            status: z.enum(['approved', 'pending']),
+          }),
+        },
+      },
+    },
+  },
+  responses: {
+    201: {
+      description: 'Review seeded',
+      content: { 'application/json': { schema: z.object({ id: z.string(), status: z.string() }) } },
+    },
+    409: {
+      description: 'Review already exists',
+      content: { 'application/json': { schema: z.object({ message: z.string() }) } },
+    },
+  },
+});
+
+adminApp.openapi(seedReviewRoute, async (c) => {
+  const { product_id, customer_email, rating, title, body, status } = c.req.valid('json');
+  const db = getDb(c.var.db);
+
+  const [customer] = await db.query<{ id: string; name: string | null }>(
+    `SELECT id, name FROM customers WHERE email = ? LIMIT 1`,
+    [customer_email]
+  );
+  if (!customer) throw ApiError.notFound(`Customer not found: ${customer_email}`);
+
+  // Skip silently if already reviewed (idempotent for re-runs)
+  const [existing] = await db.query<{ id: string }>(
+    `SELECT id FROM product_reviews WHERE product_id = ? AND customer_id = ? LIMIT 1`,
+    [product_id, customer.id]
+  );
+  if (existing) return c.json({ id: existing.id, status: 'already_exists' }, 201);
+
+  const id = uuid();
+  const timestamp = now();
+
+  await db.run(
+    `INSERT INTO product_reviews
+       (id, product_id, customer_id, author_name, author_email, rating, title, body,
+        is_verified_purchase, status, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?)`,
+    [
+      id,
+      product_id,
+      customer.id,
+      customer.name ?? customer_email.split('@')[0],
+      customer_email,
+      rating,
+      title ?? null,
+      body ?? null,
+      status,
+      timestamp,
+      timestamp,
+    ]
+  );
+
+  // Recompute cached rating columns on the product
+  await db.run(
+    `UPDATE products SET
+       review_count   = (SELECT COUNT(*) FROM product_reviews WHERE product_id = ? AND status = 'approved'),
+       average_rating = COALESCE((SELECT AVG(rating) FROM product_reviews WHERE product_id = ? AND status = 'approved'), 0)
+     WHERE id = ?`,
+    [product_id, product_id, product_id]
+  );
+
+  return c.json({ id, status }, 201);
+});
+
 export { adminApp as reviewsAdmin };

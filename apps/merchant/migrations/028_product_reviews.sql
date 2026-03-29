@@ -30,5 +30,5 @@ CREATE INDEX IF NOT EXISTS idx_product_reviews_customer
 
 -- Computed rating cache: avoid recalculating on every page load.
 -- SQLite 3.35+ (used in Cloudflare DO) supports ADD COLUMN IF NOT EXISTS.
-ALTER TABLE products ADD COLUMN IF NOT EXISTS review_count   INTEGER NOT NULL DEFAULT 0;
-ALTER TABLE products ADD COLUMN IF NOT EXISTS average_rating REAL    NOT NULL DEFAULT 0.0;
+ALTER TABLE products ADD COLUMN review_count   INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE products ADD COLUMN average_rating REAL    NOT NULL DEFAULT 0.0;

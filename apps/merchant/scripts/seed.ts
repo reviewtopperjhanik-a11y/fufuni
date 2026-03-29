@@ -40,6 +40,12 @@ import {
   US_COUNTRIES,
   OTHER_COUNTRIES,
 } from './seed-data';
+import { readFileSync, existsSync } from 'node:fs';
+import { join as pathJoin, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Derive __dirname for ESM context (tsx/Node ESM do not expose __dirname natively)
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // helper converting SKUs to the filenames we generated above
 const skuToImage: Record<string, string> = {
@@ -139,6 +145,34 @@ function convertCents(cents: number, rate: number): number {
 
 const EUR_TO_USD = 1.14;
 const EUR_TO_GBP = 0.86;
+
+/**
+ * Read a PNG from ./img/<filename> at runtime and return a base64 data URI.
+ * Returns null when the file is absent so callers can skip image_url.
+ */
+function readImageAsDataUri(filename: string): string | null {
+  const imgPath = pathJoin(__dirname, 'img', filename);
+  if (!existsSync(imgPath)) return null;
+  const data = readFileSync(imgPath);
+  return `data:image/png;base64,${data.toString('base64')}`;
+}
+
+/** PATCH helper (api() only handles GET / POST). */
+async function apiPatch(path: string, body: any): Promise<any> {
+  const res = await fetch(`${API_URL}${path}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${API_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(`PATCH ${path}: ${(err as any).error?.message || res.statusText}`);
+  }
+  return res.json();
+}
 
 async function seedTaxes() {
   console.log('💰 Creating VAT rates...');
@@ -1224,7 +1258,8 @@ async function seedAdditionalProducts(categoryData: any, regionData: any) {
       tax_code: 'txcd_99999999',
     };
 
-    const imageUrl = (imageMap as any)[productData.file];
+    // imageMap holds baked-in base64 for legacy images; fall back to runtime disk read
+    const imageUrl = imageMap[productData.file] ?? readImageAsDataUri(productData.file);
     if (imageUrl) {
       variantPayload.image_url = imageUrl;
     }
@@ -1424,48 +1459,31 @@ async function seedRegions() {
   };
 }
 
-async function seed() {
-  console.log('🌱 Seeding demo data...\n');
+// ─────────────────────────────────────────────────────────────────────────────
+// Type definitions
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // Create regions and other data
-  const regionData = await seedRegions();
+interface I18nText {
+  'en-US': string; 'fr-FR': string; 'es-ES': string;
+  'zh-CN': string; 'ar-SA': string; 'he-IL': string;
+}
+interface VariantDef { sku: string; title: string; price_cents: number; weight_g: number; stock: number; }
+interface LegacyProduct { key: string; title: I18nText; description: I18nText; vendor: string; categoryKey: string; variants: VariantDef[]; }
+interface SeedReview { customer_email: string; product_key: string; rating: number; title: string; body: string; status: 'approved' | 'pending'; }
 
-  // Create categories
-  const categoryData = await seedCategories();
+// ─────────────────────────────────────────────────────────────────────────────
+// Data: legacy product catalog (Classic Tee · Hoodie · Cap · Sticker Pack)
+// To add a new legacy product: push a new entry here.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  // Create the new products from catalog CSV and attach them to categories
-  await seedAdditionalProducts(categoryData, regionData);
-
-  // Products with their category mapping
-  const products = [
-    {
-      title: '{"en-US":"Classic Tee", "fr-FR":"T-Shirt Classique", "es-ES":"Camiseta Clásica","zh-CN":"经典T恤","ar-SA":"تي شيرت كلاسيكي" ,"he-IL":"טי שירט קלאסי" }',
-      description: '{"en-US":"<p>Premium cotton t-shirt. Soft, breathable, and built to last, with our logo…</p>", "fr-FR":"<p>T-shirt en coton premium. Doux, respirant et conçu pour durer, avec notre logo…</p>", "es-ES":"<p>Camiseta de algodón premium. Suave, transpirable y duradera, con nuestro logo…</p>","zh-CN":"<p>优质棉质T恤。柔软、透气、经久耐用，印有我们的标志…</p>","ar-SA":"<p>تي شيرت قطني فاخر. ناعم، قابل للتنفس، ومصمم ليدوم طويلاً، مع شعارنا…</p>" ,"he-IL":"<p>חולצת טי כותנה פרימיום. רכה, נושמת ובנויה להחזיק מעמד, עם הלוגו שלנו…</p>" }',
-      vendor: '{"en-US":"SCTG","fr-FR":"SCTG","es-ES":"SCTG","zh-CN":"SCTG","ar-SA":"SCTG","he-IL":"SCTG"}',
-      category_id: categoryData.classicTees,
-    },
-    {
-      title: '{"en-US":"Hoodie", "fr-FR":"Sweat à capuche", "es-ES":"Sudadera con capucha", "zh-CN":"连帽衫", "ar-SA":"هودي", "he-IL":"סווטשירט עם כובע" }',
-      description: '{"en-US":"<p>Cozy pullover hoodie with large logo. Perfect for coding sessions…</p>","fr-FR":"<p>Sweat à capuche confortable avec grand logo. Parfait pour les sessions de codage…</p>", "es-ES":"<p>Sudadera con capucha cómoda y gran logo. Perfecta para sesiones de programación…</p>","zh-CN":"<p>舒适的连帽衫，带有大标志。非常适合编码会话…</p>","ar-SA":"<p>سويت بالكلاو مريح مع شعار كبير. مثالية لجلسات البرمجة…</p>" ,"he-IL":"<p>חולצת קפואה נוחה עם לוגו גדול. מושלמת לישיבות תכנות…</p>" }',
-      vendor: '{"en-US":"SCTG","fr-FR":"SCTG","es-ES":"SCTG","zh-CN":"SCTG","ar-SA":"SCTG","he-IL":"SCTG"}',
-      category_id: categoryData.hoodies,
-    },
-    {
-      title: '{"en-US":"Cap", "fr-FR":"Casquette", "es-ES":"Gorra", "zh-CN":"棒球帽", "ar-SA":"قبعة", "he-IL":"כובע" }',
-      description: '{"en-US":"<p><strong>Embroidered</strong> baseball cap with logo. One size fits all heads…</p>", "fr-FR":"<p>Casquette de baseball brodée avec logo. Une taille convient à toutes les têtes…</p>", "es-ES":"<p>Gorra de béisbol bordada con logo. Talla única para todas las cabezas…</p>","zh-CN":"<p>刺绣棒球帽，带有标志。适合所有头型…</p>","ar-SA":"<p>قبعة بيسبول مخيطة بشعار. مقاس واحد يناسب جميع الرؤوس…</p>" ,"he-IL":"<p>כובע בייסבול רקום עם לוגו. גודל אחד מתאים לכל הראש…</p>" }',
-      vendor: '{"en-US":"SCTG","fr-FR":"SCTG","es-ES":"SCTG","zh-CN":"SCTG","ar-SA":"SCTG","he-IL":"SCTG"}',
-      category_id: categoryData.caps,
-    },
-    {
-      title: '{"en-US":"Sticker Pack", "fr-FR":"Pack d’autocollants", "es-ES":"Paquete de pegatinas", "zh-CN":"贴纸包", "ar-SA":"مجموعة ملصقات", "he-IL":"חבילת מדבקות" }',
-      description: '{"en-US":"<p>Set of 5 die-cut vinyl stickers. Beautiful, waterproof and durable…</p>", "fr-FR":"<p>Ensemble de 5 autocollants en vinyle découpés. Beaux, imperméables et durables…</p>", "es-ES":"<p>Set de 5 pegatinas de vinilo recortadas. Hermosas, impermeables y duraderas…</p>","zh-CN":"<p>5件套模切乙烯基贴纸。美观、防水且耐用…</ p>","ar-SA":"<p>مجموعة من 5 ملصقات فينيل مقطوعة. جميلة، مقاومة للماء ومتينة…</ p>" ,"he-IL":"< p>סט של 5 מדבקות ויניל חתוכות. יפות, עמידות למים ועמידות…</ p>" }',
-      vendor: '{"en-US":"SCTG","fr-FR":"SCTG","es-ES":"SCTG","zh-CN":"SCTG","ar-SA":"SCTG","he-IL":"SCTG"}',
-      category_id: categoryData.stickers,
-    },
-  ];
-
-  const variants: Record<string, any[]> = {
-    'Classic Tee': [
+const LEGACY_PRODUCT_CATALOG: LegacyProduct[] = [
+  {
+    key: 'tee',
+    categoryKey: 'classicTees',
+    vendor: 'SCTG',
+    title: { 'en-US': 'Classic Tee', 'fr-FR': 'T-Shirt Classique', 'es-ES': 'Camiseta Clásica', 'zh-CN': '经典T恤', 'ar-SA': 'تي شيرت كلاسيكي', 'he-IL': 'טי שירט קלאסי' },
+    description: { 'en-US': '<p>Premium cotton t-shirt. Soft, breathable, and built to last, with our logo…</p>', 'fr-FR': '<p>T-shirt en coton premium. Doux, respirant et conçu pour durer, avec notre logo…</p>', 'es-ES': '<p>Camiseta de algodón premium. Suave, transpirable y duradera, con nuestro logo…</p>', 'zh-CN': '<p>优质棉质T恤。柔软、透气、经久耐用，印有我们的标志…</p>', 'ar-SA': '<p>تي شيرت قطني فاخر. ناعم، قابل للتنفس، ومصمم ليدوم طويلاً، مع شعارنا…</p>', 'he-IL': '<p>חולצת טי כותנה פרימיום. רכה, נושמת ובנויה להחזיק מעמד, עם הלוגו שלנו…</p>' },
+    variants: [
       { sku: 'TEE-BLK-S', title: 'Black / S', price_cents: 2999, weight_g: 180, stock: 50 },
       { sku: 'TEE-BLK-M', title: 'Black / M', price_cents: 2999, weight_g: 200, stock: 75 },
       { sku: 'TEE-BLK-L', title: 'Black / L', price_cents: 2999, weight_g: 220, stock: 60 },
@@ -1473,320 +1491,256 @@ async function seed() {
       { sku: 'TEE-WHT-M', title: 'White / M', price_cents: 2999, weight_g: 200, stock: 55 },
       { sku: 'TEE-WHT-L', title: 'White / L', price_cents: 2999, weight_g: 220, stock: 45 },
     ],
-    Hoodie: [
+  },
+  {
+    key: 'hoodie',
+    categoryKey: 'hoodies',
+    vendor: 'SCTG',
+    title: { 'en-US': 'Hoodie', 'fr-FR': 'Sweat à capuche', 'es-ES': 'Sudadera con capucha', 'zh-CN': '连帽衫', 'ar-SA': 'هودي', 'he-IL': 'סווטשירט עם כובע' },
+    description: { 'en-US': '<p>Cozy pullover hoodie with large logo. Perfect for coding sessions…</p>', 'fr-FR': '<p>Sweat à capuche confortable avec grand logo. Parfait pour les sessions de codage…</p>', 'es-ES': '<p>Sudadera con capucha cómoda y gran logo. Perfecta para sesiones de programación…</p>', 'zh-CN': '<p>舒适的连帽衫，带有大标志。非常适合编码会话…</p>', 'ar-SA': '<p>سويت بالكلاو مريح مع شعار كبير. مثالية لجلسات البرمجة…</p>', 'he-IL': '<p>חולצת קפואה נוחה עם לוגו גדול. מושלמת לישיבות תכנות…</p>' },
+    variants: [
       { sku: 'HOOD-BLK-M', title: 'Black / M', price_cents: 5999, weight_g: 520, stock: 30 },
       { sku: 'HOOD-BLK-L', title: 'Black / L', price_cents: 5999, weight_g: 560, stock: 25 },
-      { sku: 'HOOD-GRY-M', title: 'Gray / M', price_cents: 5999, weight_g: 520, stock: 20 },
-      { sku: 'HOOD-GRY-L', title: 'Gray / L', price_cents: 5999, weight_g: 560, stock: 15 },
+      { sku: 'HOOD-GRY-M', title: 'Gray / M',  price_cents: 5999, weight_g: 520, stock: 20 },
+      { sku: 'HOOD-GRY-L', title: 'Gray / L',  price_cents: 5999, weight_g: 560, stock: 15 },
     ],
-    Cap: [
+  },
+  {
+    key: 'cap',
+    categoryKey: 'caps',
+    vendor: 'SCTG',
+    title: { 'en-US': 'Cap', 'fr-FR': 'Casquette', 'es-ES': 'Gorra', 'zh-CN': '棒球帽', 'ar-SA': 'قبعة', 'he-IL': 'כובע' },
+    description: { 'en-US': '<p><strong>Embroidered</strong> baseball cap with logo. One size fits all heads…</p>', 'fr-FR': '<p>Casquette de baseball brodée avec logo. Une taille convient à toutes les têtes…</p>', 'es-ES': '<p>Gorra de béisbol bordada con logo. Talla única para todas las cabezas…</p>', 'zh-CN': '<p>刺绣棒球帽，带有标志。适合所有头型…</p>', 'ar-SA': '<p>قبعة بيسبول مخيطة بشعار. مقاس واحد يناسب جميع الرؤوس…</p>', 'he-IL': '<p>כובע בייסבול רקום עם לוגו. גודל אחד מתאים לכל הראש…</p>' },
+    variants: [
       { sku: 'CAP-BLK', title: 'Black', price_cents: 2499, weight_g: 120, stock: 100 },
-      { sku: 'CAP-NVY', title: 'Navy', price_cents: 2499, weight_g: 120, stock: 80 },
+      { sku: 'CAP-NVY', title: 'Navy',  price_cents: 2499, weight_g: 120, stock: 80 },
     ],
-    'Sticker Pack': [
+  },
+  {
+    key: 'sticker',
+    categoryKey: 'stickers',
+    vendor: 'SCTG',
+    title: { 'en-US': 'Sticker Pack', 'fr-FR': "Pack d'autocollants", 'es-ES': 'Paquete de pegatinas', 'zh-CN': '贴纸包', 'ar-SA': 'مجموعة ملصقات', 'he-IL': 'חבילת מדבקות' },
+    description: { 'en-US': '<p>Set of 5 die-cut vinyl stickers. Beautiful, waterproof and durable…</p>', 'fr-FR': '<p>Ensemble de 5 autocollants en vinyle découpés. Beaux, imperméables et durables…</p>', 'es-ES': '<p>Set de 5 pegatinas de vinilo recortadas. Hermosas, impermeables y duraderas…</p>', 'zh-CN': '<p>5件套模切乙烯基贴纸。美观、防水且耐用…</p>', 'ar-SA': '<p>مجموعة من 5 ملصقات فينيل مقطوعة. جميلة، مقاومة للماء ومتينة…</p>', 'he-IL': '<p>סט של 5 מדבקות ויניל חתוכות. יפות, עמידות למים ועמידות…</p>' },
+    variants: [
       { sku: 'STICKER-5PK', title: '5 Pack', price_cents: 999, weight_g: 30, stock: 200 },
     ],
-  };
+  },
+];
 
-  // Helper `JSON.parse` wrapper to avoid throwing on invalid JSON
-  const safeJsonParse = (value: string) => {
-    try {
-      return JSON.parse(value);
-    } catch {
-      return null;
-    }
-  };
+// ─────────────────────────────────────────────────────────────────────────────
+// Data: shipping addresses & orders for demo customers
+// To add a customer / order: add an entry to SEED_ADDRESSES then SEED_ORDERS.
+// ─────────────────────────────────────────────────────────────────────────────
 
-  for (const prod of products) {
-    const rawTitle = prod.title;
+const SEED_ADDRESSES: Record<string, Record<string, any>> = {
+  eu: {
+    'sarah@eu.example.com':  { name: 'Sarah Dupont',   line1: '123 Rue de la Paix',        city: 'Paris',      postal_code: '75001',    country: 'FR' },
+    'mike@eu.example.com':   { name: 'Mike Schmidt',   line1: '456 Hauptstrasse',           city: 'Berlin',     postal_code: '10115',    country: 'DE' },
+    'emma@eu.example.com':   { name: 'Emma García',    line1: '789 Calle Principal',        city: 'Madrid',     postal_code: '28001',    country: 'ES' },
+    'oliver@eu.example.com': { name: 'Oliver Rossi',   line1: '321 Via Roma',               city: 'Roma',       postal_code: '00184',    country: 'IT' },
+  },
+  uk: {
+    'james@uk.example.com':  { name: 'James Williams', line1: '100 Oxford Street',          city: 'London',     postal_code: 'W1D 1LL',  country: 'GB', state: 'England' },
+    'olivia@uk.example.com': { name: 'Olivia Brown',   line1: '50 Regent Street',           city: 'Manchester', postal_code: 'M1 1JQ',   country: 'GB', state: 'England' },
+  },
+  us: {
+    'noah@us.example.com':   { name: 'Noah Johnson',   line1: '1600 Pennsylvania Avenue NW', city: 'Washington', postal_code: '20500',    country: 'US', state: 'DC' },
+    'ava@us.example.com':    { name: 'Ava Smith',      line1: '350 5th Avenue',             city: 'New York',   postal_code: '10118',    country: 'US', state: 'NY' },
+  },
+};
 
-    // Normalize title to a canonical key used in the `variants` map.
-    // `prod.title` can be a plain string or a JSON string representing a locale map.
-    const parsedTitleObj =
-      typeof rawTitle === 'string' && rawTitle.trim().startsWith('{')
-        ? safeJsonParse(rawTitle)
-        : null;
+const SEED_ORDERS: Record<string, Array<{ customer_email: string; items: Array<{ sku: string; qty: number }> }>> = {
+  eu: [
+    { customer_email: 'sarah@eu.example.com',  items: [{ sku: 'TEE-BLK-M',  qty: 2 }, { sku: 'CAP-BLK',    qty: 1 }] },
+    { customer_email: 'mike@eu.example.com',   items: [{ sku: 'HOOD-BLK-L', qty: 1 }] },
+    { customer_email: 'emma@eu.example.com',   items: [{ sku: 'TEE-WHT-S',  qty: 1 }, { sku: 'TEE-WHT-M',  qty: 1 }, { sku: 'CAP-NVY', qty: 2 }] },
+    { customer_email: 'oliver@eu.example.com', items: [{ sku: 'STICKER-5PK',qty: 3 }, { sku: 'TEE-BLK-S',  qty: 1 }] },
+  ],
+  uk: [
+    { customer_email: 'james@uk.example.com',  items: [{ sku: 'HOOD-GRY-M', qty: 1 }, { sku: 'TEE-BLK-L',  qty: 2 }] },
+    { customer_email: 'olivia@uk.example.com', items: [{ sku: 'CAP-BLK',    qty: 1 }] },
+  ],
+  us: [
+    { customer_email: 'noah@us.example.com',   items: [{ sku: 'TEE-BLK-S',  qty: 1 }, { sku: 'TEE-WHT-L',  qty: 1 }, { sku: 'HOOD-BLK-M', qty: 1 }] },
+    { customer_email: 'ava@us.example.com',    items: [{ sku: 'HOOD-GRY-L', qty: 2 }] },
+  ],
+};
 
-    const titleObj =
-      typeof rawTitle === 'object' && rawTitle !== null
-        ? rawTitle
-        : parsedTitleObj || null;
+// Customers whose orders are immediately set to 'delivered' (review eligibility)
+const REVIEW_CUSTOMERS = new Set([
+  'ava@us.example.com',
+  'noah@us.example.com',
+  'olivia@uk.example.com',
+  'james@uk.example.com',
+  'oliver@eu.example.com',
+]);
 
-    const titleKey =
-      typeof rawTitle === 'string' && !titleObj
-        ? rawTitle
-        : (titleObj && (titleObj['en-US'] || Object.values(titleObj)[0])) ||
-        (typeof rawTitle === 'string' ? rawTitle : String(rawTitle));
+// ─────────────────────────────────────────────────────────────────────────────
+// Data: demo reviews
+// status 'approved' → visible immediately · status 'pending' → awaiting moderation
+// ─────────────────────────────────────────────────────────────────────────────
 
-    const displayTitle =
-      (titleObj && (titleObj['en-US'] || Object.values(titleObj)[0])) ||
-      (typeof rawTitle === 'string' ? rawTitle : String(rawTitle));
+const SEED_REVIEWS: SeedReview[] = [
+  { customer_email: 'ava@us.example.com',    product_key: 'hoodie',  rating: 5, title: 'Amazing quality!',    body: 'Love this hoodie — great fit and the logo looks fantastic.',        status: 'approved' },
+  { customer_email: 'noah@us.example.com',   product_key: 'tee',     rating: 5, title: 'Perfect shirt',        body: 'Super comfortable and the print quality is excellent.',             status: 'approved' },
+  { customer_email: 'noah@us.example.com',   product_key: 'hoodie',  rating: 5, title: 'Great hoodie',         body: 'Warm, stylish, and great for everyday wear.',                       status: 'approved' },
+  { customer_email: 'olivia@uk.example.com', product_key: 'cap',     rating: 5, title: 'Love this cap',        body: 'Fits perfectly and looks great.',                                   status: 'approved' },
+  { customer_email: 'james@uk.example.com',  product_key: 'hoodie',  rating: 5, title: 'Excellent hoodie',     body: 'Really good quality, very happy with this purchase.',               status: 'pending'  },
+  { customer_email: 'james@uk.example.com',  product_key: 'tee',     rating: 5, title: 'Quality tee',          body: 'Nice and comfortable, love the logo placement.',                    status: 'pending'  },
+  { customer_email: 'oliver@eu.example.com', product_key: 'sticker', rating: 5, title: 'Great stickers',       body: 'Vibrant colors and they stick really well.',                        status: 'pending'  },
+  { customer_email: 'oliver@eu.example.com', product_key: 'tee',     rating: 5, title: 'Classic and comfy',    body: 'Nice and comfortable, the logo placement is perfect.',              status: 'pending'  },
+];
 
-    console.log(`📦 Creating ${displayTitle}...`);
+// ─────────────────────────────────────────────────────────────────────────────
+// Seeding functions
+// ─────────────────────────────────────────────────────────────────────────────
 
-    // Send only the supported product fields to the API (exclude our helper keys if any)
-    const { handle, category_id, ...productPayload } = prod as any;
-    const product = await api('/v1/products', productPayload);
+/**
+ * Create legacy branded products (tees, hoodies, caps, stickers) with
+ * multi-currency pricing and warehouse inventory.
+ * Returns a map of product key → product ID, consumed later by seedReviews().
+ */
+async function seedLegacyProducts(regionData: any, categoryData: any): Promise<Record<string, string>> {
+  const productIds: Record<string, string> = {};
+  const { EUR: eurId, USD: usdId, GBP: gbpId } = regionData.currencyMap as Record<string, string>;
 
-    // Add product to its category
-    if (category_id) {
-      await api(`/v1/categories/${category_id}/products`, {
-        product_ids: [product.id],
-      });
-    }
+  for (const prod of LEGACY_PRODUCT_CATALOG) {
+    const categoryId = categoryData[prod.categoryKey];
+    const i18nVendor: I18nText = { 'en-US': prod.vendor, 'fr-FR': prod.vendor, 'es-ES': prod.vendor, 'zh-CN': prod.vendor, 'ar-SA': prod.vendor, 'he-IL': prod.vendor };
 
-    const productVariants = variants[titleKey];
-    if (!productVariants) {
-      throw new Error(`No variants defined for product title key: ${titleKey}`);
-    }
+    console.log(`📦 Creating ${prod.title['en-US']}...`);
+    const product = await api('/v1/products', {
+      title: JSON.stringify(prod.title),
+      description: JSON.stringify(prod.description),
+      vendor: JSON.stringify(i18nVendor),
+    });
 
-    for (const v of productVariants) {
-      const { stock, ...variant } = v;
+    productIds[prod.key] = product.id;
+    if (categoryId) await api(`/v1/categories/${categoryId}/products`, { product_ids: [product.id] });
 
-      // attach an image if we know which file corresponds to this SKU
-      const imgFile = skuToImage[variant.sku];
-      if (imgFile) {
-        variant.image_url = imageMap[imgFile];
-      }
+    for (const v of prod.variants) {
+      const { stock, ...variantBase } = v;
+      const variantPayload: any = { ...variantBase, currency: 'EUR', tax_code: 'txcd_99999999' };
 
-      console.log(`   └─ ${variant.sku}`);
+      const imgFile = skuToImage[v.sku];
+      if (imgFile) variantPayload.image_url = imageMap[imgFile] ?? readImageAsDataUri(imgFile);
 
-      // Create variant (base price is in EUR)
-      const createdVariant = await api(`/v1/products/${product.id}/variants`, {
-        ...variant,
-        currency: 'EUR',
-        tax_code: 'txcd_99999999',
-      });
+      console.log(`   └─ ${v.sku}`);
+      const createdVariant = await api(`/v1/products/${product.id}/variants`, variantPayload);
 
-      // Add EUR/USD/GBP prices based on fixed conversion rates (EUR is the base currency here)
-      const eurCurrencyId = regionData.currencyMap?.EUR;
-      const usdCurrencyId = regionData.currencyMap?.USD;
-      const gbpCurrencyId = regionData.currencyMap?.GBP;
+      if (eurId) await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, { currency_id: eurId, price_cents: v.price_cents });
+      if (usdId) await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, { currency_id: usdId, price_cents: convertCents(v.price_cents, EUR_TO_USD) });
+      if (gbpId) await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, { currency_id: gbpId, price_cents: convertCents(v.price_cents, EUR_TO_GBP) });
 
-      if (eurCurrencyId) {
-        await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, {
-          currency_id: eurCurrencyId,
-          price_cents: variant.price_cents,
-        });
-      }
-
-      if (usdCurrencyId) {
-        await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, {
-          currency_id: usdCurrencyId,
-          price_cents: convertCents(variant.price_cents, EUR_TO_USD),
-        });
-      }
-      if (gbpCurrencyId) {
-        await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, {
-          currency_id: gbpCurrencyId,
-          price_cents: convertCents(variant.price_cents, EUR_TO_GBP),
-        });
-      }
-
-      // Add warehouse inventory
-      // Special case: 10 TEE-BLK-S in Italy, rest in France
-      if (variant.sku === 'TEE-BLK-S') {
-        // 10 in Italy
-        await api(`/v1/inventory/${encodeURIComponent(variant.sku)}/warehouse-adjust`, {
-          warehouse_id: regionData.warehouses.it,
-          delta: 10,
-          reason: 'restock',
-        });
-        // Rest (40, 35, 10) in France based on sizes
-        const stock_fr = stock - 10;
-        await api(`/v1/inventory/${encodeURIComponent(variant.sku)}/warehouse-adjust`, {
-          warehouse_id: regionData.warehouses.fr,
-          delta: stock_fr,
-          reason: 'restock',
-        });
+      if (v.sku === 'TEE-BLK-S') {
+        await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.it, delta: 10,         reason: 'restock' });
+        await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock - 10, reason: 'restock' });
       } else {
-        // All other SKUs go to France warehouse
-        await api(`/v1/inventory/${encodeURIComponent(variant.sku)}/warehouse-adjust`, {
-          warehouse_id: regionData.warehouses.fr,
-          delta: stock,
-          reason: 'restock',
-        });
+        await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock, reason: 'restock' });
       }
     }
-  };
+  }
 
-  // Create test orders across different regions
+  return productIds;
+}
+
+/**
+ * Create all demo orders across regions.
+ * Orders for customers in REVIEW_CUSTOMERS are immediately transitioned to
+ * 'delivered' so they become review-eligible.
+ */
+async function seedOrders(regionData: any): Promise<void> {
   console.log('\n🛒 Creating test orders...');
+  const shippingCentsByRegion: Record<string, number> = { eu: 999, uk: 799, us: 1299 };
 
-  // Addresses for each test customer/region
-  const addressesByRegion: Record<string, Record<string, any>> = {
-    eu: {
-      'sarah@eu.example.com': {
-        name: 'Sarah Dupont',
-        line1: '123 Rue de la Paix',
-        city: 'Paris',
-        postal_code: '75001',
-        country: 'FR',
-      },
-      'mike@eu.example.com': {
-        name: 'Mike Schmidt',
-        line1: '456 Hauptstrasse',
-        city: 'Berlin',
-        postal_code: '10115',
-        country: 'DE',
-      },
-      'emma@eu.example.com': {
-        name: 'Emma García',
-        line1: '789 Calle Principal',
-        city: 'Madrid',
-        postal_code: '28001',
-        country: 'ES',
-      },
-      'oliver@eu.example.com': {
-        name: 'Oliver Rossi',
-        line1: '321 Via Roma',
-        city: 'Roma',
-        postal_code: '00184',
-        country: 'IT',
-      },
-    },
-    uk: {
-      'james@uk.example.com': {
-        name: 'James Williams',
-        line1: '100 Oxford Street',
-        city: 'London',
-        state: 'England',
-        postal_code: 'W1D 1LL',
-        country: 'GB',
-      },
-      'olivia@uk.example.com': {
-        name: 'Olivia Brown',
-        line1: '50 Regent Street',
-        city: 'Manchester',
-        state: 'England',
-        postal_code: 'M1 1JQ',
-        country: 'GB',
-      },
-    },
-    us: {
-      'noah@us.example.com': {
-        name: 'Noah Johnson',
-        line1: '1600 Pennsylvania Avenue NW',
-        city: 'Washington',
-        state: 'DC',
-        postal_code: '20500',
-        country: 'US',
-      },
-      'ava@us.example.com': {
-        name: 'Ava Smith',
-        line1: '350 5th Avenue',
-        city: 'New York',
-        state: 'NY',
-        postal_code: '10118',
-        country: 'US',
-      },
-    },
-  };
-
-  const testOrdersByRegion: Record<string, Array<{ customer_email: string; items: Array<{ sku: string; qty: number }> }>> = {
-    eu: [
-      {
-        customer_email: 'sarah@eu.example.com',
-        items: [
-          { sku: 'TEE-BLK-M', qty: 2 },
-          { sku: 'CAP-BLK', qty: 1 },
-        ],
-      },
-      {
-        customer_email: 'mike@eu.example.com',
-        items: [{ sku: 'HOOD-BLK-L', qty: 1 }],
-      },
-      {
-        customer_email: 'emma@eu.example.com',
-        items: [
-          { sku: 'TEE-WHT-S', qty: 1 },
-          { sku: 'TEE-WHT-M', qty: 1 },
-          { sku: 'CAP-NVY', qty: 2 },
-        ],
-      },
-      {
-        customer_email: 'oliver@eu.example.com',
-        items: [
-          { sku: 'STICKER-5PK', qty: 3 },
-          { sku: 'TEE-BLK-S', qty: 1 },
-        ],
-      },
-    ],
-    uk: [
-      {
-        customer_email: 'james@uk.example.com',
-        items: [
-          { sku: 'HOOD-GRY-M', qty: 1 },
-          { sku: 'TEE-BLK-L', qty: 2 },
-        ],
-      },
-      {
-        customer_email: 'olivia@uk.example.com',
-        items: [{ sku: 'CAP-BLK', qty: 1 }],
-      },
-    ],
-    us: [
-      {
-        customer_email: 'noah@us.example.com',
-        items: [
-          { sku: 'TEE-BLK-S', qty: 1 },
-          { sku: 'TEE-WHT-L', qty: 1 },
-          { sku: 'HOOD-BLK-M', qty: 1 },
-        ],
-      },
-      {
-        customer_email: 'ava@us.example.com',
-        items: [{ sku: 'HOOD-GRY-L', qty: 2 }],
-      },
-    ],
-  };
-
-  // Create orders for each region
-  for (const [regionKey, orders] of Object.entries(testOrdersByRegion)) {
+  for (const [regionKey, orders] of Object.entries(SEED_ORDERS)) {
     const regionId = regionData.regions[regionKey as keyof typeof regionData.regions];
-    const shippingRateId = regionData.shippingRate.id; // from seedRegions()
-
-    // Use region-specific shipping prices
-    let shippingCents = 999; // EUR default
-    if (regionKey === 'uk') shippingCents = 799; // GBP
-    if (regionKey === 'us') shippingCents = 1299; // USD
+    const shippingCents = shippingCentsByRegion[regionKey] ?? 999;
 
     for (const order of orders) {
-      const address = addressesByRegion[regionKey]?.[order.customer_email];
-
+      const address = SEED_ADDRESSES[regionKey]?.[order.customer_email];
       const result = await api('/v1/orders/test', {
         ...order,
         region_id: regionId,
         shipping_address: address,
-        shipping_rate_id: shippingRateId,
+        shipping_rate_id: regionData.shippingRate.id,
         shipping_cents: shippingCents,
-        stripe_checkout_session_id: `cs_test_${Math.random().toString(36).substr(2, 20).toUpperCase()}`,
-        stripe_payment_intent_id: `pi_test_${Math.random().toString(36).substr(2, 20).toUpperCase()}`,
+        stripe_checkout_session_id: `cs_test_${Math.random().toString(36).substring(2, 22).toUpperCase()}`,
+        stripe_payment_intent_id:   `pi_test_${Math.random().toString(36).substring(2, 22).toUpperCase()}`,
       });
+
       const itemsSummary = order.items.map((i) => `${i.qty}x ${i.sku}`).join(', ');
       console.log(`   └─ [${regionKey.toUpperCase()}] ${result.number}: ${order.customer_email} (${itemsSummary})`);
+
+      if (REVIEW_CUSTOMERS.has(order.customer_email)) {
+        await apiPatch(`/v1/orders/${result.id}`, { status: 'delivered' });
+        console.log(`      ✓ marked delivered (review-eligible)`);
+      }
     }
   }
+}
+
+/**
+ * Seed demo reviews via the admin seed endpoint.
+ * Idempotent — skips reviews that already exist (safe for re-runs).
+ */
+async function seedReviews(productIds: Record<string, string>): Promise<void> {
+  console.log('\n⭐ Seeding reviews...');
+
+  for (const review of SEED_REVIEWS) {
+    const productId = productIds[review.product_key];
+    if (!productId) {
+      console.warn(`   ⚠️  Unknown product key '${review.product_key}' — skipping review for ${review.customer_email}`);
+      continue;
+    }
+    const result = await api('/v1/reviews/admin/seed', {
+      product_id: productId,
+      customer_email: review.customer_email,
+      rating: review.rating,
+      title: review.title,
+      body: review.body,
+      status: review.status,
+    });
+
+    if (result.status === 'already_exists') {
+      console.log(`   ↩  ${review.customer_email} → ${review.product_key} (already exists)`);
+    } else {
+      const icon = review.status === 'approved' ? '✅' : '🕐';
+      console.log(`   ${icon} ${review.customer_email} → ${review.product_key}: "${review.title}" [${review.status}]`);
+    }
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Main orchestrator
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function seed() {
+  console.log('🌱 Seeding demo data...\n');
+
+  const regionData   = await seedRegions();
+  const categoryData = await seedCategories();
+
+  await seedAdditionalProducts(categoryData, regionData);
+  const legacyProductIds = await seedLegacyProducts(regionData, categoryData);
+  await seedOrders(regionData);
+  await seedReviews(legacyProductIds);
 
   console.log('\n✅ Done! Demo data created.\n');
 
-  // Show summary
   const { items: allProducts } = await api('/v1/products');
-  const { items: allOrders } = await api('/v1/orders');
-  console.log(`Products: ${allProducts.length}`);
-  console.log(
-    `Variants: ${allProducts.reduce((sum: number, p: any) => sum + p.variants.length, 0)}`
-  );
-  console.log(`Orders: ${allOrders.length}`);
-
+  const { items: allOrders }   = await api('/v1/orders');
+  console.log(`Products : ${allProducts.length}`);
+  console.log(`Variants : ${allProducts.reduce((sum: number, p: any) => sum + p.variants.length, 0)}`);
+  console.log(`Orders   : ${allOrders.length}`);
   const totalRevenue = allOrders.reduce((sum: number, o: any) => sum + o.amounts.total_cents, 0);
-  console.log(`Revenue: $${(totalRevenue / 100).toFixed(2)}`);
-
-  console.log(`\n📊 Admin dashboard: cd admin && npm run dev`);
-  console.log(`   Connect with: ${API_URL}`);
+  console.log(`Revenue  : €${(totalRevenue / 100).toFixed(2)}`);
+  console.log(`\n📊 Admin: ${API_URL}`);
 }
 
 seed().catch((err) => {
   console.error('❌ Error:', err.message);
   process.exit(1);
 });
+
