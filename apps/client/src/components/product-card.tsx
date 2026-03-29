@@ -153,7 +153,7 @@ export const ProductCard: React.FC<Props> = ({
                 title: `${displayTitle}${variant.title ? ` - ${variant.title}` : ""}`,
                 price_cents: variant.price_cents,
                 currency: variant.currency ?? "USD",
-                image_url: variant.image_url || product.image_url,
+                image_url: variant.thumbnail_url ?? variant.image_url ?? product.image_url,
                 qty: 1,
               });
             }}
