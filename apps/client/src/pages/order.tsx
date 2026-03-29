@@ -197,7 +197,7 @@ export default function OrderPage() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get("token");
   const { t, i18n } = useTranslation();
-  const { isAuthenticated, loginWithRedirect } = useAuth() as any;
+  const { isAuthenticated } = useAuth() as any;
 
   const [order, setOrder] = useState<OrderStatus | null>(null);
   const [loading, setLoading] = useState(true);
