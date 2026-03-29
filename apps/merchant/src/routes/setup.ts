@@ -170,8 +170,12 @@ app.openapi(resetDatabase, async (c) => {
   await db.run('PRAGMA foreign_keys = OFF');
 
   const tables = [
+    'product_reviews',
+    'product_categories',
+    'categories',
     'order_items',
     'orders',
+    'saved_carts',
     'cart_items',
     'carts',
     'inventory_logs',
@@ -187,9 +191,11 @@ app.openapi(resetDatabase, async (c) => {
     'regions',
     'shipping_rate_prices',
     'shipping_rates',
+    'shipping_classes',
     'warehouses',
     'countries',
     'currencies',
+    'tax_rates',
     'discount_usage',
     'discounts',
     'refunds',
