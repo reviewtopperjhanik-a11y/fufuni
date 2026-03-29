@@ -761,14 +761,14 @@ export default function OrdersPage() {
                           <Separator />
 
                           {/* Footer: Timestamp + Refund */}
-                          <div className="flex items-center justify-between">
-                            <p className="text-xs  text-default-500">
-                              {t("admin-orders-created")}{" "}
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="text-xs text-default-500 min-w-0">
+                              {t("admin-orders-created")} {" "}
                               {new Date(
                                 selectedOrder.created_at,
                               ).toLocaleString()}
                             </p>
-                            <div className="flex items-center gap-3">
+                            <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
                               <Button
                                 isDisabled={
                                   resendConfirmationMutation.isPending
