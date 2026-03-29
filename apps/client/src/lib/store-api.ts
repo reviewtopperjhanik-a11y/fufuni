@@ -176,7 +176,7 @@ export interface StoreProduct {
  */
 export async function getProducts(): Promise<StoreProduct[]> {
   const resp = await request<{ items: StoreProduct[] }>(
-    `/v1/products?limit=100&status=active`,
+    `/v1/products?limit=10&status=active`,
   );
 
   // match example logic: keep only products with at least one variant

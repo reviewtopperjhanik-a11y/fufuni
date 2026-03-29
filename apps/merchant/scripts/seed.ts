@@ -47,27 +47,6 @@ import { fileURLToPath } from 'node:url';
 // Derive __dirname for ESM context (tsx/Node ESM do not expose __dirname natively)
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// helper converting SKUs to the filenames we generated above
-const skuToImage: Record<string, string> = {
-  // tee variants all use the same image regardless of size
-  'TEE-BLK-S': 'tee-black.png',
-  'TEE-BLK-M': 'tee-black.png',
-  'TEE-BLK-L': 'tee-black.png',
-  'TEE-WHT-S': 'tee-white.png',
-  'TEE-WHT-M': 'tee-white.png',
-  'TEE-WHT-L': 'tee-white.png',
-  // hoodies share by colour
-  'HOOD-BLK-M': 'hoodie-black.png',
-  'HOOD-BLK-L': 'hoodie-black.png',
-  'HOOD-GRY-M': 'hoodie-white.png',
-  'HOOD-GRY-L': 'hoodie-white.png',
-  // caps
-  'CAP-BLK': 'cap-black.png',
-  'CAP-NVY': 'cap-navy.png',
-  // sticker pack
-  'STICKER-5PK': 'stickers.png',
-};
-
 const API_URL = process.argv[2] || 'http://localhost:8787';
 const API_KEY = process.argv[3];
 
@@ -450,829 +429,270 @@ async function seedCategories() {
   };
 }
 
-const additionalProducts = [
+// ─────────────────────────────────────────────────────────────────────────────
+// Unified product catalog
+// Every product — legacy apparel or additional catalog — lives here.
+// To add a product: push a new entry; variants drive inventory & pricing.
+// ─────────────────────────────────────────────────────────────────────────────
+
+const PRODUCT_CATALOG = [
+  // ── SCTG Branded Apparel ───────────────────────────────────────────────────
   {
-    file: 'backpack.png',
-    handle: 'backpack',
-    title: { 'en-US': 'Backpack' },
-    description: { 'en-US': 'Packaged backpack with front compartment and full-color logo print, suitable for everyday carry.' },
-    price_cents: 2990,
-    weight_g: 700,
+    key: 'tee', file: 'tee-black.png', handle: 'classic-tee', vendor: 'SCTG',
+    categories: ['classic-tees'],
+    title:       { 'en-US': 'Classic Tee',          'fr-FR': 'T-Shirt Classique',       'es-ES': 'Camiseta Clásica',         'zh-CN': '经典T恤',       'ar-SA': 'تي شيرت كلاسيكي',   'he-IL': 'טי שירט קלאסי' },
+    description: { 'en-US': '<p>Premium cotton t-shirt. Soft, breathable, and built to last, with our logo…</p>', 'fr-FR': '<p>T-shirt en coton premium. Doux, respirant et conçu pour durer, avec notre logo…</p>', 'es-ES': '<p>Camiseta de algodón premium. Suave, transpirable y duradera, con nuestro logo…</p>', 'zh-CN': '<p>优质棉质T恤。柔软、透气、经久耐用，印有我们的标志…</p>', 'ar-SA': '<p>تي شيرت قطني فاخر. ناعم، قابل للتنفس، ومصمم ليدوم طويلاً، مع شعارنا…</p>', 'he-IL': '<p>חולצת טי כותנה פרימיום. רכה, נושמת ובנויה להחזיק מעמד, עם הלוגו שלנו…</p>' },
+    variants: [
+      { sku: 'TEE-BLK-S', title: 'Black / S', price_cents: 2999, weight_g: 180, stock: 50, imageFile: 'tee-black.png' },
+      { sku: 'TEE-BLK-M', title: 'Black / M', price_cents: 2999, weight_g: 200, stock: 75, imageFile: 'tee-black.png' },
+      { sku: 'TEE-BLK-L', title: 'Black / L', price_cents: 2999, weight_g: 220, stock: 60, imageFile: 'tee-black.png' },
+      { sku: 'TEE-WHT-S', title: 'White / S', price_cents: 2999, weight_g: 180, stock: 40, imageFile: 'tee-white.png' },
+      { sku: 'TEE-WHT-M', title: 'White / M', price_cents: 2999, weight_g: 200, stock: 55, imageFile: 'tee-white.png' },
+      { sku: 'TEE-WHT-L', title: 'White / L', price_cents: 2999, weight_g: 220, stock: 45, imageFile: 'tee-white.png' },
+    ],
+  },
+  {
+    key: 'hoodie', file: 'hoodie-black.png', handle: 'hoodie', vendor: 'SCTG',
+    categories: ['hoodies'],
+    title:       { 'en-US': 'Hoodie',             'fr-FR': 'Sweat à capuche',          'es-ES': 'Sudadera con capucha',     'zh-CN': '连帽衫',       'ar-SA': 'هودي',               'he-IL': 'סווטשירט עם כובע' },
+    description: { 'en-US': '<p>Cozy pullover hoodie with large logo. Perfect for coding sessions…</p>', 'fr-FR': '<p>Sweat à capuche confortable avec grand logo. Parfait pour les sessions de codage…</p>', 'es-ES': '<p>Sudadera con capucha cómoda y gran logo. Perfecta para sesiones de programación…</p>', 'zh-CN': '<p>舒适的连帽衫，带有大标志。非常适合编码会话…</p>', 'ar-SA': '<p>سويت بالكلاو مريح مع شعار كبير. مثالية لجلسات البرمجة…</p>', 'he-IL': '<p>חולצת קפואה נוחה עם לוגו גדול. מושלמת לישיבות תכנות…</p>' },
+    variants: [
+      { sku: 'HOOD-BLK-M', title: 'Black / M', price_cents: 5999, weight_g: 520, stock: 30, imageFile: 'hoodie-black.png' },
+      { sku: 'HOOD-BLK-L', title: 'Black / L', price_cents: 5999, weight_g: 560, stock: 25, imageFile: 'hoodie-black.png' },
+      { sku: 'HOOD-GRY-M', title: 'Gray / M',  price_cents: 5999, weight_g: 520, stock: 20, imageFile: 'hoodie-white.png' },
+      { sku: 'HOOD-GRY-L', title: 'Gray / L',  price_cents: 5999, weight_g: 560, stock: 15, imageFile: 'hoodie-white.png' },
+    ],
+  },
+  {
+    key: 'cap', file: 'cap-black.png', handle: 'cap', vendor: 'SCTG',
+    categories: ['caps'],
+    title:       { 'en-US': 'Cap',                'fr-FR': 'Casquette',                'es-ES': 'Gorra',                    'zh-CN': '棒球帽',       'ar-SA': 'قبعة',               'he-IL': 'כובע' },
+    description: { 'en-US': '<p><strong>Embroidered</strong> baseball cap with logo. One size fits all heads…</p>', 'fr-FR': '<p>Casquette de baseball brodée avec logo. Une taille convient à toutes les têtes…</p>', 'es-ES': '<p>Gorra de béisbol bordada con logo. Talla única para todas las cabezas…</p>', 'zh-CN': '<p>刺绣棒球帽，带有标志。适合所有头型…</p>', 'ar-SA': '<p>قبعة بيسبول مخيطة بشعار. مقاس واحد يناسب جميع الرؤوس…</p>', 'he-IL': '<p>כובע בייסבול רקום עם לוגו. גודל אחד מתאים לכל הראש…</p>' },
+    variants: [
+      { sku: 'CAP-BLK', title: 'Black', price_cents: 2499, weight_g: 120, stock: 100, imageFile: 'cap-black.png' },
+      { sku: 'CAP-NVY', title: 'Navy',  price_cents: 2499, weight_g: 120, stock: 80,  imageFile: 'cap-navy.png'  },
+    ],
+  },
+  {
+    key: 'sticker', file: 'stickers.png', handle: 'sticker-pack', vendor: 'SCTG',
+    categories: ['stickers'],
+    title:       { 'en-US': 'Sticker Pack',       'fr-FR': "Pack d'autocollants",      'es-ES': 'Paquete de pegatinas',     'zh-CN': '贴纸包',       'ar-SA': 'مجموعة ملصقات',      'he-IL': 'חבילת מדבקות' },
+    description: { 'en-US': '<p>Set of 5 die-cut vinyl stickers. Beautiful, waterproof and durable…</p>', 'fr-FR': '<p>Ensemble de 5 autocollants en vinyle découpés. Beaux, imperméables et durables…</p>', 'es-ES': '<p>Set de 5 pegatinas de vinilo recortadas. Hermosas, impermeables y duraderas…</p>', 'zh-CN': '<p>5件套模切乙烯基贴纸。美观、防水且耐用…</p>', 'ar-SA': '<p>مجموعة من 5 ملصقات فينيل مقطوعة. جميلة، مقاومة للماء ومتينة…</p>', 'he-IL': '<p>סט של 5 מדבקות ויניל חתוכות. יפות, עמידות למים ועמידות…</p>' },
+    variants: [
+      { sku: 'STICKER-5PK', title: '5 Pack', price_cents: 999, weight_g: 30, stock: 200 },
+    ],
+  },
+
+  // ── Bags & Carry ───────────────────────────────────────────────────────────
+  {
+    key: 'backpack', file: 'backpack.png', handle: 'backpack', vendor: 'Fufuni',
     categories: ['bags-carry'],
+    title:       { 'en-US': 'Backpack',           'fr-FR': 'Sac à dos',                'es-ES': 'Mochila',                  'zh-CN': '双肩背包',     'ar-SA': 'حقيبة ظهر',          'he-IL': 'תיק גב' },
+    description: { 'en-US': 'Packaged backpack with front compartment and full-color logo print, suitable for everyday carry.', 'fr-FR': "Sac à dos emballé avec compartiment avant et marquage logo en couleur, adapté à un usage quotidien.", 'es-ES': 'Mochila empaquetada con compartimento frontal e impresión del logotipo a color, adecuada para uso diario.', 'ar-SA': 'حقيبة ظهر معبأة مع جيب أمامي وطباعة شعار بالألوان الكاملة، مناسبة للاستخدام اليومي.', 'zh-CN': '带前袋和彩色标志印刷的包装双肩背包，适合日常使用。', 'he-IL': 'תיק גב ארוז עם תא קדמי והדפסת לוגו צבעונית, מתאים לשימוש יומיומי。' },
+    variants: [{ sku: 'BACKPACK', title: 'Standard', price_cents: 2990, weight_g: 700, stock: 40 }],
   },
   {
-    file: 'beach-towel.png',
-    handle: 'beach-towel',
-    title: { 'en-US': 'Beach Towel' },
-    description: { 'en-US': 'Folded beach towel in retail packaging with large central logo print for leisure and travel use.' },
-    price_cents: 2490,
-    weight_g: 650,
-    categories: ['home-living', 'sports-outdoor'],
+    key: 'duffle-bag', file: 'large-bag.png', handle: 'duffle-bag', vendor: 'Fufuni',
+    categories: ['bags-carry'],
+    title:       { 'en-US': 'Duffle Bag',         'fr-FR': 'Grand sac de voyage',      'es-ES': 'Bolsa de viaje grande',    'zh-CN': '大号旅行袋',   'ar-SA': 'حقيبة سفر كبيرة',    'he-IL': 'תיק נסיעות גדול' },
+    description: { 'en-US': 'Packaged duffle bag with shoulder strap, zip pockets and side logo placement.', 'fr-FR': 'Grand sac de voyage emballé avec bandoulière, poches zippées et logo sur le côté.', 'es-ES': 'Bolsa de viaje grande empaquetada con correa de hombro, bolsillos con cremallera y logotipo lateral.', 'ar-SA': 'حقيبة سفر كبيرة معبأة مع حزام كتف وجيوب بسحاب وشعار جانبي.', 'zh-CN': '带肩带、拉链口袋和侧面标志位置的包装旅行袋。', 'he-IL': 'תיק נסיעות גדול ארוז עם רצועת כתף, כיסי רוכסן ומיקום לוגו בצד。' },
+    variants: [{ sku: 'LARGE_BAG', title: 'Standard', price_cents: 3990, weight_g: 900, stock: 35 }],
   },
   {
-    file: 'beachflag.png',
-    handle: 'beach-flag',
-    title: { 'en-US': 'Beach Flag' },
-    description: { 'en-US': 'Packaged feather beach flag with pole set and printed textile, designed for outdoor promotion.' },
-    price_cents: 8900,
-    weight_g: 3200,
-    categories: ['events-signage', 'sports-outdoor'],
+    key: 'tote-bag', file: 'tote-bag.png', handle: 'tote-bag', vendor: 'Fufuni',
+    categories: ['bags-carry'],
+    title:       { 'en-US': 'Tote Bag',           'fr-FR': 'Tote bag',                 'es-ES': 'Bolsa tote',               'zh-CN': '帆布手提袋',   'ar-SA': 'حقيبة قماش',         'he-IL': 'תיק טוט' },
+    description: { 'en-US': 'Packaged fabric tote bag with long handles and large centered logo print.', 'fr-FR': 'Tote bag en tissu emballé avec longues anses et grand logo centré.', 'es-ES': 'Bolsa tote de tela empaquetada con asas largas y gran logotipo centrado.', 'ar-SA': 'حقيبة قماش معبأة بمقابض طويلة وشعار كبير في المنتصف.', 'zh-CN': '带长提手和中央大幅标志印刷的包装布质手提袋。', 'he-IL': 'תיק טוט מבד ארוז עם ידיות ארוכות ולוגו גדול במרכז。' },
+    variants: [{ sku: 'TOTE_BAG', title: 'Standard', price_cents: 1290, weight_g: 140, stock: 50 }],
   },
   {
-    file: 'beanbag.png',
-    handle: 'bean-bag',
-    title: { 'en-US': 'Bean Bag' },
-    description: { 'en-US': 'Packaged bean bag seat with printed upper panel, intended for indoor lounge and event spaces.' },
-    price_cents: 7900,
-    weight_g: 3500,
-    categories: ['home-living'],
-  },
-  {
-    file: 'bottle-aluminium.png',
-    handle: 'aluminium-bottle',
-    title: { 'en-US': 'Aluminium Bottle' },
-    description: { 'en-US': 'Packaged aluminium bottle with screw cap or sports top and front logo print.' },
-    price_cents: 1990,
-    weight_g: 320,
-    categories: ['drinkware', 'sports-outdoor'],
-  },
-  {
-    file: 'entry-carpet-hard.png',
-    handle: 'coir-doormat',
-    title: { 'en-US': 'Coir Doormat' },
-    description: { 'en-US': 'Packaged coir doormat with printed center area, made for durable entryway use.' },
-    price_cents: 2490,
-    weight_g: 2600,
-    categories: ['events-signage', 'home-living'],
-  },
-  {
-    file: 'entry-carpet.png',
-    handle: 'entry-mat',
-    title: { 'en-US': 'Entry Mat' },
-    description: { 'en-US': 'Packaged entry mat with printed logo area and non-slip backing for indoor or covered entry use.' },
-    price_cents: 2990,
-    weight_g: 1900,
-    categories: ['events-signage', 'home-living'],
-  },
-  {
-    file: 'flag.png',
-    handle: 'flag',
-    title: { 'en-US': 'Flag' },
-    description: { 'en-US': 'Packaged printed flag for indoor or outdoor display, folded for compact shipping.' },
-    price_cents: 1490,
-    weight_g: 180,
-    categories: ['events-signage'],
-  },
-  {
-    file: 'golf-bag.png',
-    handle: 'golf-bag',
-    title: { 'en-US': 'Golf Bag' },
-    description: { 'en-US': 'Packaged golf bag with club compartments and logo panel, intended for full-course transport.' },
-    price_cents: 14900,
-    weight_g: 3500,
+    key: 'golf-bag', file: 'golf-bag.png', handle: 'golf-bag', vendor: 'Fufuni',
     categories: ['bags-carry', 'sports-outdoor'],
+    title:       { 'en-US': 'Golf Bag',           'fr-FR': 'Sac de golf',              'es-ES': 'Bolsa de golf',            'zh-CN': '高尔夫球包',   'ar-SA': 'حقيبة غولف',         'he-IL': 'תיק גולף' },
+    description: { 'en-US': 'Packaged golf bag with club compartments and logo panel, intended for full-course transport.', 'fr-FR': 'Sac de golf emballé avec compartiments pour clubs et panneau logo, destiné au transport sur parcours.', 'es-ES': 'Bolsa de golf empaquetada con compartimentos para palos y panel con logotipo, destinada al transporte en el campo.', 'ar-SA': 'حقيبة غولف معبأة مع أقسام للمضارب ولوحة شعار، مخصصة للنقل في الملعب.', 'zh-CN': '带球杆分仓和标志面板的包装高尔夫球包，适合全场携带。', 'he-IL': 'תיק גולף ארוז עם תאים למקלות ופאנל לוגו, מיועד לנשיאה במגרש。' },
+    variants: [{ sku: 'GOLF_BAG', title: 'Standard', price_cents: 14900, weight_g: 3500, stock: 10 }],
+  },
+
+  // ── Drinkware ──────────────────────────────────────────────────────────────
+  {
+    key: 'aluminium-bottle', file: 'bottle-aluminium.png', handle: 'aluminium-bottle', vendor: 'Fufuni',
+    categories: ['drinkware', 'sports-outdoor'],
+    title:       { 'en-US': 'Aluminium Bottle',   'fr-FR': 'Gourde aluminium',         'es-ES': 'Botella de aluminio',      'zh-CN': '铝制水壶',     'ar-SA': 'قارورة ألمنيوم',      'he-IL': 'בקבוק אלומיניום' },
+    description: { 'en-US': 'Packaged aluminium bottle with screw cap or sports top and front logo print.', 'fr-FR': 'Gourde aluminium emballée avec bouchon vissé ou sport et logo imprimé en face avant.', 'es-ES': 'Botella de aluminio empaquetada con tapón de rosca o deportivo y logotipo impreso en la parte frontal.', 'ar-SA': 'قارورة ألمنيوم معبأة بغطاء لولبي أو رياضي مع شعار مطبوع في الواجهة الأمامية.', 'zh-CN': '带螺旋盖或运动盖并正面印有标志的包装铝制水壶。', 'he-IL': 'בקבוק אלומיניום ארוז עם פקק הברגה או ספורט ולוגו מודפס בחזית。' },
+    variants: [{ sku: 'BOTTLE_ALUMINIUM', title: 'Standard', price_cents: 1990, weight_g: 320, stock: 60 }],
   },
   {
-    file: 'golf-ball-x1.png',
-    handle: 'golf-ball-x1',
-    title: { 'en-US': 'Golf Ball' },
-    description: { 'en-US': 'Single packaged golf ball with printed logo, suitable for play or promotional gifting.' },
-    price_cents: 490,
-    weight_g: 52,
-    categories: ['sports-outdoor'],
-  },
-  {
-    file: 'golf-balls-x12-box.png',
-    handle: 'golf-balls-x12-box',
-    title: { 'en-US': 'Box of 12 Golf Balls' },
-    description: { 'en-US': 'Retail box of twelve logo-printed golf balls, packaged for sale or premium events.' },
-    price_cents: 3990,
-    weight_g: 700,
-    categories: ['sports-outdoor'],
-  },
-  {
-    file: 'golf-club-protectors-3-set.png',
-    handle: 'golf-club-protectors-3-set',
-    title: { 'en-US': 'Set of 3 Golf Club Headcovers' },
-    description: { 'en-US': 'Packaged set of three padded golf club headcovers with logo print for driver and woods protection.' },
-    price_cents: 2490,
-    weight_g: 450,
-    categories: ['sports-outdoor'],
-  },
-  {
-    file: 'golf-tees.png',
-    handle: 'golf-tees',
-    title: { 'en-US': 'Pack of Golf Tees' },
-    description: { 'en-US': 'Packaged golf tees in a transparent bag, intended for promotional resale or course accessories.' },
-    price_cents: 890,
-    weight_g: 120,
-    categories: ['sports-outdoor'],
-  },
-  {
-    file: 'golf-umbrella.png',
-    handle: 'golf-umbrella',
-    title: { 'en-US': 'Golf Umbrella' },
-    description: { 'en-US': 'Packaged oversized golf umbrella with alternating panels and large printed logo section.' },
-    price_cents: 3990,
-    weight_g: 850,
-    categories: ['sports-outdoor'],
-  },
-  {
-    file: 'iphone-case.png',
-    handle: 'iphone-17-case',
-    title: { 'en-US': 'iPhone 17 Case' },
-    description: { 'en-US': 'Packaged protective case for iPhone 17 with centered logo print and slim everyday profile.' },
-    price_cents: 2490,
-    weight_g: 55,
-    categories: ['accessories-tech'],
-  },
-  {
-    file: 'key-holder.png',
-    handle: 'acrylic-keychain',
-    title: { 'en-US': 'Acrylic Keychain' },
-    description: { 'en-US': 'Packaged acrylic keychain with metal ring and full-color insert featuring the product logo.' },
-    price_cents: 690,
-    weight_g: 35,
-    categories: ['accessories-tech'],
-  },
-  {
-    file: 'large-bag.png',
-    handle: 'duffle-bag',
-    title: { 'en-US': 'Duffle Bag' },
-    description: { 'en-US': 'Packaged duffle bag with shoulder strap, zip pockets and side logo placement.' },
-    price_cents: 3990,
-    weight_g: 900,
-    categories: ['bags-carry'],
-  },
-  {
-    file: 'lux-pen.png',
-    handle: 'luxury-metal-pen',
-    title: { 'en-US': 'Luxury Metal Pen' },
-    description: { 'en-US': 'Packaged premium metal pen with glossy finish and discreet logo branding.' },
-    price_cents: 1490,
-    weight_g: 80,
-    categories: ['accessories-tech'],
-  },
-  {
-    file: 'mouse-pad.png',
-    handle: 'mouse-pad',
-    title: { 'en-US': 'Mouse Pad' },
-    description: { 'en-US': 'Packaged mouse pad with smooth top surface and centered full-color logo print.' },
-    price_cents: 1290,
-    weight_g: 140,
-    categories: ['accessories-tech'],
-  },
-  {
-    file: 'mug.png',
-    handle: 'ceramic-mug',
-    title: { 'en-US': 'Ceramic Mug' },
-    description: { 'en-US': 'Packaged ceramic mug with printed front logo, suitable for office or home beverage use.' },
-    price_cents: 1290,
-    weight_g: 380,
+    key: 'ceramic-mug', file: 'mug.png', handle: 'ceramic-mug', vendor: 'Fufuni',
     categories: ['drinkware', 'home-living'],
+    title:       { 'en-US': 'Ceramic Mug',        'fr-FR': 'Mug en céramique',         'es-ES': 'Taza de cerámica',         'zh-CN': '陶瓷马克杯',   'ar-SA': 'كوب سيراميك',        'he-IL': 'ספל קרמי' },
+    description: { 'en-US': 'Packaged ceramic mug with printed front logo, suitable for office or home beverage use.', 'fr-FR': "Mug en céramique emballé avec logo imprimé en face avant, adapté à un usage bureau ou maison.", 'es-ES': 'Taza de cerámica empaquetada con logotipo impreso en la parte frontal, adecuada para oficina o hogar.', 'ar-SA': 'كوب سيراميك معبأ مع شعار مطبوع في الواجهة الأمامية، مناسب للمكتب أو المنزل.', 'zh-CN': '带正面标志印刷的包装陶瓷马克杯，适合办公室或家用。', 'he-IL': 'ספל קרמי ארוז עם לוגו מודפס בחזית, מתאים למשרד או לבית。' },
+    variants: [{ sku: 'MUG', title: 'Standard', price_cents: 1290, weight_g: 380, stock: 60 }],
   },
+
+  // ── Accessories & Tech ─────────────────────────────────────────────────────
   {
-    file: 'paraglider.png',
-    handle: 'paraglider-wing',
-    title: { 'en-US': 'Paraglider Wing' },
-    description: { 'en-US': 'Packed paraglider wing with branded canopy panel, delivered folded in transport configuration.' },
-    price_cents: 329000,
-    weight_g: 6500,
-    categories: ['sports-outdoor'],
-  },
-  {
-    file: 'paragliding-windsock.png',
-    handle: 'paragliding-windsock',
-    title: { 'en-US': 'Paragliding Windsock' },
-    description: { 'en-US': 'Packaged paragliding windsock for wind direction indication on launch or landing areas.' },
-    price_cents: 3990,
-    weight_g: 250,
-    categories: ['events-signage', 'sports-outdoor'],
-  },
-  {
-    file: 'pen-4-colors.png',
-    handle: 'pen-4-colors',
-    title: { 'en-US': '4-Color Pen' },
-    description: { 'en-US': 'Packaged multi-ink pen with four writing colors and compact logo print area.' },
-    price_cents: 490,
-    weight_g: 35,
+    key: 'iphone-case', file: 'iphone-case.png', handle: 'iphone-17-case', vendor: 'Fufuni',
     categories: ['accessories-tech'],
+    title:       { 'en-US': 'iPhone 17 Case',     'fr-FR': 'Coque iPhone 17',          'es-ES': 'Funda para iPhone 17',     'zh-CN': 'iPhone 17 手机壳', 'ar-SA': 'غطاء iPhone 17',  'he-IL': 'כיסוי iPhone 17' },
+    description: { 'en-US': 'Packaged protective case for iPhone 17 with centered logo print and slim everyday profile.', 'fr-FR': 'Coque de protection emballée pour iPhone 17 avec logo centré et profil fin pour un usage quotidien.', 'es-ES': 'Funda protectora empaquetada para iPhone 17 con logotipo centrado y perfil fino para uso diario.', 'ar-SA': 'غطاء حماية معبأ لهاتف iPhone 17 مع شعار في الوسط وتصميم نحيف للاستخدام اليومي.', 'zh-CN': '适用于 iPhone 17 的包装保护壳，中央带标志印刷，日常使用轻薄。', 'he-IL': 'כיסוי מגן ארוז ל‑iPhone 17 עם לוגו ממורכז ופרופיל דק לשימוש יומיומי。' },
+    variants: [{ sku: 'IPHONE_CASE', title: 'Standard', price_cents: 2490, weight_g: 55, stock: 80 }],
   },
   {
-    file: 'pins.png',
-    handle: 'badge-pins-set',
-    title: { 'en-US': 'Badge Pins Set' },
-    description: { 'en-US': 'Packaged set of round badge pins with logo artwork for events, giveaways and accessories.' },
-    price_cents: 990,
-    weight_g: 40,
+    key: 'acrylic-keychain', file: 'key-holder.png', handle: 'acrylic-keychain', vendor: 'Fufuni',
+    categories: ['accessories-tech'],
+    title:       { 'en-US': 'Acrylic Keychain',   'fr-FR': 'Porte-clés acrylique',     'es-ES': 'Llavero acrílico',         'zh-CN': '亚克力钥匙扣', 'ar-SA': 'سلسلة مفاتيح أكريليك', 'he-IL': 'מחזיק מפתחות אקרילי' },
+    description: { 'en-US': 'Packaged acrylic keychain with metal ring and full-color insert featuring the product logo.', 'fr-FR': 'Porte-clés acrylique emballé avec anneau métallique et insert couleur au logo du produit.', 'es-ES': 'Llavero acrílico empaquetado con anilla metálica e inserto a color con el logotipo del producto.', 'ar-SA': 'سلسلة مفاتيح أكريليك معبأة مع حلقة معدنية وإدخال ملون يحمل شعار المنتج.', 'zh-CN': '带金属环和彩色内芯标志图案的包装亚克力钥匙扣。', 'he-IL': 'מחזיק מפתחות אקרילי ארוז עם טבעת מתכת והדפסה צבעונית של הלוגו。' },
+    variants: [{ sku: 'KEY_HOLDER', title: 'Standard', price_cents: 690, weight_g: 35, stock: 120 }],
+  },
+  {
+    key: 'lux-pen', file: 'lux-pen.png', handle: 'luxury-metal-pen', vendor: 'Fufuni',
+    categories: ['accessories-tech'],
+    title:       { 'en-US': 'Luxury Metal Pen',   'fr-FR': 'Stylo métal premium',      'es-ES': 'Bolígrafo metálico premium', 'zh-CN': '高端金属笔', 'ar-SA': 'قلم معدني فاخر',      'he-IL': 'עט מתכת יוקרתי' },
+    description: { 'en-US': 'Packaged premium metal pen with glossy finish and discreet logo branding.', 'fr-FR': 'Stylo métal premium emballé avec finition brillante et marquage logo discret.', 'es-ES': 'Bolígrafo metálico premium empaquetado con acabado brillante y marcado de logotipo discreto.', 'ar-SA': 'قلم معدني فاخر معبأ بلمسة لامعة وعلامة شعار أنيقة.', 'zh-CN': '带亮面处理和低调标志的包装高端金属笔。', 'he-IL': 'עט מתכת יוקרתי ארוז עם גימור מבריק ומיתוג לוגו עדין。' },
+    variants: [{ sku: 'LUX_PEN', title: 'Standard', price_cents: 1490, weight_g: 80, stock: 100 }],
+  },
+  {
+    key: 'mouse-pad', file: 'mouse-pad.png', handle: 'mouse-pad', vendor: 'Fufuni',
+    categories: ['accessories-tech'],
+    title:       { 'en-US': 'Mouse Pad',          'fr-FR': 'Tapis de souris',          'es-ES': 'Alfombrilla de ratón',     'zh-CN': '鼠标垫',       'ar-SA': 'لوحة فأرة',          'he-IL': 'משטח עכבר' },
+    description: { 'en-US': 'Packaged mouse pad with smooth top surface and centered full-color logo print.', 'fr-FR': 'Tapis de souris emballé avec surface supérieure lisse et logo couleur centré.', 'es-ES': 'Alfombrilla de ratón empaquetada con superficie lisa y logotipo a color centrado.', 'ar-SA': 'لوحة فأرة معبأة بسطح علوي أملس وشعار ملون في المنتصف.', 'zh-CN': '带顺滑表面和中央彩色标志印刷的包装鼠标垫。', 'he-IL': 'משטח עכבר ארוז עם משטח עליון חלק ולוגו צבעוני במרכז。' },
+    variants: [{ sku: 'MOUSE_PAD', title: 'Standard', price_cents: 1290, weight_g: 140, stock: 75 }],
+  },
+  {
+    key: 'pen-4-colors', file: 'pen-4-colors.png', handle: 'pen-4-colors', vendor: 'Fufuni',
+    categories: ['accessories-tech'],
+    title:       { 'en-US': '4-Color Pen',        'fr-FR': 'Stylo 4 couleurs',         'es-ES': 'Bolígrafo de 4 colores',   'zh-CN': '四色圆珠笔',   'ar-SA': 'قلم بأربعة ألوان',    'he-IL': 'עט 4 צבעים' },
+    description: { 'en-US': 'Packaged multi-ink pen with four writing colors and compact logo print area.', 'fr-FR': 'Stylo multi-encre emballé avec quatre couleurs d\'écriture et zone de logo compacte.', 'es-ES': 'Bolígrafo multitinta empaquetado con cuatro colores de escritura y zona compacta para logotipo.', 'ar-SA': 'قلم متعدد الأحبار معبأ بأربعة ألوان كتابة ومساحة مدمجة للشعار.', 'zh-CN': '带四种书写颜色和紧凑标志印刷区的包装多色圆珠笔。', 'he-IL': 'עט רב-דיו ארוז עם ארבעה צבעי כתיבה ואזור לוגו קומפקטי。' },
+    variants: [{ sku: 'PEN_4_COLORS', title: 'Standard', price_cents: 490, weight_g: 35, stock: 150 }],
+  },
+  {
+    key: 'badge-pins', file: 'pins.png', handle: 'badge-pins-set', vendor: 'Fufuni',
     categories: ['accessories-tech', 'events-signage'],
+    title:       { 'en-US': 'Badge Pins Set',     'fr-FR': 'Lot de badges',            'es-ES': 'Lote de badges',           'zh-CN': '徽章套装',     'ar-SA': 'مجموعة شارات',       'he-IL': 'סט סיכות תג' },
+    description: { 'en-US': 'Packaged set of round badge pins with logo artwork for events, giveaways and accessories.', 'fr-FR': 'Lot emballé de badges ronds avec visuel logo pour événements, giveaways et accessoires.', 'es-ES': 'Lote empaquetado de chapas redondas con arte del logotipo para eventos, regalos y accesorios.', 'ar-SA': 'مجموعة معبأة من الشارات الدائرية برسومات الشعار للفعاليات والهدايا والإكسسوارات.', 'zh-CN': '带标志图案的圆形徽章套装包装，适用于活动、赠品和配饰。', 'he-IL': 'סט ארוז של סיכות תג עגולות עם גרפיקת לוגו לאירועים, מתנות ואביזרים。' },
+    variants: [{ sku: 'PINS', title: 'Standard', price_cents: 990, weight_g: 40, stock: 100 }],
   },
   {
-    file: 'tennis-protector.png',
-    handle: 'tennis-racket-cover',
-    title: { 'en-US': 'Tennis Racket Cover' },
-    description: { 'en-US': 'Packaged tennis racket cover with zipper closure and centered logo placement.' },
-    price_cents: 1490,
-    weight_g: 220,
-    categories: ['sports-outdoor'],
-  },
-  {
-    file: 'tote-bag.png',
-    handle: 'tote-bag',
-    title: { 'en-US': 'Tote Bag' },
-    description: { 'en-US': 'Packaged fabric tote bag with long handles and large centered logo print.' },
-    price_cents: 1290,
-    weight_g: 140,
-    categories: ['bags-carry'],
-  },
-  {
-    file: 'totem.png',
-    handle: 'roll-up-banner',
-    title: { 'en-US': 'Roll-up Banner' },
-    description: { 'en-US': 'Packaged roll-up banner stand with printed graphic panel for trade shows and retail display.' },
-    price_cents: 9900,
-    weight_g: 3200,
-    categories: ['events-signage'],
-  },
-  {
-    file: 'usb-key.png',
-    handle: 'usb-flash-drive',
-    title: { 'en-US': 'USB Flash Drive' },
-    description: { 'en-US': 'Packaged USB flash drive with logo print, suitable for data transfer or promotional bundles.' },
-    price_cents: 990,
-    weight_g: 25,
+    key: 'usb-key', file: 'usb-key.png', handle: 'usb-flash-drive', vendor: 'Fufuni',
     categories: ['accessories-tech'],
+    title:       { 'en-US': 'USB Flash Drive',    'fr-FR': 'Clé USB',                  'es-ES': 'Memoria USB',              'zh-CN': 'U盘',          'ar-SA': 'ذاكرة USB',           'he-IL': 'דיסק און קי' },
+    description: { 'en-US': 'Packaged USB flash drive with logo print, suitable for data transfer or promotional bundles.', 'fr-FR': 'Clé USB emballée avec logo imprimé, adaptée au transfert de données ou aux bundles promotionnels.', 'es-ES': 'Memoria USB empaquetada con logotipo impreso, adecuada para transferencia de datos o packs promocionales.', 'ar-SA': 'ذاكرة USB معبأة مع شعار مطبوع، مناسبة لنقل البيانات أو الباقات الترويجية.', 'zh-CN': '带标志印刷的包装U盘，适合数据传输或促销套装。', 'he-IL': 'דיסק און קי ארוז עם לוגו מודפס, מתאים להעברת נתונים או למארזים שיווקיים。' },
+    variants: [{ sku: 'USB_KEY', title: 'Standard', price_cents: 990, weight_g: 25, stock: 120 }],
   },
-];
 
-const additionalProductTranslations: Record<string, {title: Record<string,string>, description: Record<string,string>}> = {
-  'backpack.png': {
-    title: {
-      'en-US': "Backpack",
-      'fr-FR': "Sac à dos",
-      'es-ES': "Mochila",
-      'ar-SA': "حقيبة ظهر",
-      'zh-CN': "双肩背包",
-      'he-IL': "תיק גב",
-    },
-    description: {
-      'en-US': "Packaged backpack with front compartment and full-color logo print, suitable for everyday carry.",
-      'fr-FR': "Sac à dos emballé avec compartiment avant et marquage logo en couleur, adapté à un usage quotidien.",
-      'es-ES': "Mochila empaquetada con compartimento frontal e impresión del logotipo a color, adecuada para uso diario.",
-      'ar-SA': "حقيبة ظهر معبأة مع جيب أمامي وطباعة شعار بالألوان الكاملة، مناسبة للاستخدام اليومي.",
-      'zh-CN': "带前袋和彩色标志印刷的包装双肩背包，适合日常使用。",
-      'he-IL': "תיק גב ארוז עם תא קדמי והדפסת לוגו צבעונית, מתאים לשימוש יומיומי。",
-    },
+  // ── Home & Living ──────────────────────────────────────────────────────────
+  {
+    key: 'beach-towel', file: 'beach-towel.png', handle: 'beach-towel', vendor: 'Fufuni',
+    categories: ['home-living', 'sports-outdoor'],
+    title:       { 'en-US': 'Beach Towel',        'fr-FR': 'Serviette de plage',       'es-ES': 'Toalla de playa',          'zh-CN': '沙滩巾',       'ar-SA': 'منشفة شاطئ',         'he-IL': 'מגבת חוף' },
+    description: { 'en-US': 'Folded beach towel in retail packaging with large central logo print for leisure and travel use.', 'fr-FR': "Serviette de plage pliée en emballage retail avec grand logo centré, idéale pour les loisirs et le voyage.", 'es-ES': 'Toalla de playa plegada en embalaje retail con gran logotipo centrado, ideal para ocio y viaje.', 'ar-SA': 'منشفة شاطئ مطوية في عبوة بيع مع شعار كبير في الوسط، مناسبة للترفيه والسفر.', 'zh-CN': '零售包装折叠沙滩巾，中央大幅标志印刷，适合休闲与旅行。', 'he-IL': 'מגבת חוף מקופלת באריזת קמעונאות עם לוגו גדול במרכז, מתאימה לפנאי ולטיולים。' },
+    variants: [{ sku: 'BEACH_TOWEL', title: 'Standard', price_cents: 2490, weight_g: 650, stock: 50 }],
   },
-  'beach-towel.png': {
-    title: {
-      'en-US': "Beach Towel",
-      'fr-FR': "Serviette de plage",
-      'es-ES': "Toalla de playa",
-      'ar-SA': "منشفة شاطئ",
-      'zh-CN': "沙滩巾",
-      'he-IL': "מגבת חוף",
-    },
-    description: {
-      'en-US': "Folded beach towel in retail packaging with large central logo print for leisure and travel use.",
-      'fr-FR': "Serviette de plage pliée en emballage retail avec grand logo centré, idéale pour les loisirs et le voyage.",
-      'es-ES': "Toalla de playa plegada en embalaje retail con gran logotipo centrado, ideal para ocio y viaje.",
-      'ar-SA': "منشفة شاطئ مطوية في عبوة بيع مع شعار كبير في الوسط، مناسبة للترفيه والسفر.",
-      'zh-CN': "零售包装折叠沙滩巾，中央大幅标志印刷，适合休闲与旅行。",
-      'he-IL': "מגבת חוף מקופלת באריזת קמעונאות עם לוגו גדול במרכז, מתאימה לפנאי ולטיולים。",
-    },
+  {
+    key: 'bean-bag', file: 'beanbag.png', handle: 'bean-bag', vendor: 'Fufuni',
+    categories: ['home-living'],
+    title:       { 'en-US': 'Bean Bag',           'fr-FR': 'Pouf poire',               'es-ES': 'Puf tipo pera',            'zh-CN': '懒人沙发',     'ar-SA': 'بين باغ',             'he-IL': 'פוף' },
+    description: { 'en-US': 'Packaged bean bag seat with printed upper panel, intended for indoor lounge and event spaces.', 'fr-FR': 'Pouf emballé avec panneau supérieur imprimé, destiné aux espaces lounge et événementiels.', 'es-ES': 'Puf empaquetado con panel superior impreso, destinado a zonas lounge y eventos.', 'ar-SA': 'مقعد بين باغ معبأ مع لوحة علوية مطبوعة، مناسب لمساحات الاستراحة والفعاليات.', 'zh-CN': '带印花上表面的包装懒人沙发，适用于室内休闲和活动空间。', 'he-IL': 'פוף ארוז עם חלק עליון מודפס, מיועד לחללי ישיבה ואירועים。' },
+    variants: [{ sku: 'BEANBAG', title: 'Standard', price_cents: 7900, weight_g: 3500, stock: 10 }],
   },
-  'beachflag.png': {
-    title: {
-      'en-US': "Beach Flag",
-      'fr-FR': "Drapeau publicitaire plume",
-      'es-ES': "Bandera publicitaria tipo pluma",
-      'ar-SA': "علم شاطئي إعلاني",
-      'zh-CN': "沙滩旗",
-      'he-IL': "דגל חוף פרסומי",
-    },
-    description: {
-      'en-US': "Packaged feather beach flag with pole set and printed textile, designed for outdoor promotion.",
-      'fr-FR': "Drapeau plume emballé avec mât et textile imprimé, conçu pour la communication extérieure.",
-      'es-ES': "Bandera pluma empaquetada con mástil y textil impreso, diseñada para promoción exterior.",
-      'ar-SA': "علم شاطئي من نوع الريشة معبأ مع عمود ونسيج مطبوع، مخصص للدعاية الخارجية.",
-      'zh-CN': "含旗杆组件和印花旗面的包装沙滩旗，适用于户外宣传。",
-      'he-IL': "דגל חוף מסוג נוצה ארוז עם מוט ובד מודפס, מיועד לפרסום חוץ。",
-    },
+  {
+    key: 'coir-doormat', file: 'entry-carpet-hard.png', handle: 'coir-doormat', vendor: 'Fufuni',
+    categories: ['events-signage', 'home-living'],
+    title:       { 'en-US': 'Coir Doormat',       'fr-FR': 'Paillasson coco',          'es-ES': 'Felpudo de coco',          'zh-CN': '椰棕门垫',     'ar-SA': 'ممسحة باب من ألياف جوز الهند', 'he-IL': 'שטיח כניסה קוקוס' },
+    description: { 'en-US': 'Packaged coir doormat with printed center area, made for durable entryway use.', 'fr-FR': 'Paillasson coco emballé avec zone centrale imprimée, conçu pour un usage d\'entrée durable.', 'es-ES': 'Felpudo de coco empaquetado con zona central impresa, pensado para un uso duradero en la entrada.', 'ar-SA': 'ممسحة باب من ألياف جوز الهند معبأة مع منطقة مركزية مطبوعة، مصممة للاستخدام المتين عند المدخل.', 'zh-CN': '带中央印刷区域的包装椰棕门垫，适合耐用型入口使用。', 'he-IL': 'שטיח כניסה מקוקוס ארוז עם אזור מרכזי מודפס, מיועד לשימוש עמיד בפתח הבית。' },
+    variants: [{ sku: 'ENTRY_CARPET_HARD', title: 'Standard', price_cents: 2490, weight_g: 2600, stock: 15 }],
   },
-  'beanbag.png': {
-    title: {
-      'en-US': "Bean Bag",
-      'fr-FR': "Pouf poire",
-      'es-ES': "Puf tipo pera",
-      'ar-SA': "بين باغ",
-      'zh-CN': "懒人沙发",
-      'he-IL': "פוף",
-    },
-    description: {
-      'en-US': "Packaged bean bag seat with printed upper panel, intended for indoor lounge and event spaces.",
-      'fr-FR': "Pouf emballé avec panneau supérieur imprimé, destiné aux espaces lounge et événementiels.",
-      'es-ES': "Puf empaquetado con panel superior impreso, destinado a zonas lounge y eventos.",
-      'ar-SA': "مقعد بين باغ معبأ مع لوحة علوية مطبوعة، مناسب لمساحات الاستراحة والفعاليات.",
-      'zh-CN': "带印花上表面的包装懒人沙发，适用于室内休闲和活动空间。",
-      'he-IL': "פוף ארוז עם חלק עליון מודפס, מיועד לחללי ישיבה ואירועים。",
-    },
+  {
+    key: 'entry-mat', file: 'entry-carpet.png', handle: 'entry-mat', vendor: 'Fufuni',
+    categories: ['events-signage', 'home-living'],
+    title:       { 'en-US': 'Entry Mat',          'fr-FR': "Tapis d'entrée",           'es-ES': 'Alfombra de entrada',      'zh-CN': '入门地垫',     'ar-SA': 'سجادة مدخل',         'he-IL': 'שטיח כניסה' },
+    description: { 'en-US': 'Packaged entry mat with printed logo area and non-slip backing for indoor or covered entry use.', 'fr-FR': 'Tapis d\'entrée emballé avec zone logo imprimée et sous-couche antidérapante pour usage intérieur ou abrité.', 'es-ES': 'Alfombra de entrada empaquetada con zona de logotipo impresa y base antideslizante para interior o zonas cubiertas.', 'ar-SA': 'سجادة مدخل معبأة مع مساحة شعار مطبوعة وظهر مانع للانزلاق للاستخدام الداخلي أو في الأماكن المغطاة.', 'zh-CN': '带印刷标志区域和防滑底面的包装入门地垫，适用于室内或遮蔽入口。', 'he-IL': 'שטיח כניסה ארוז עם אזור לוגו מודפס ותחתית מונעת החלקה לשימוש פנימי או בכניסה מקורה。' },
+    variants: [{ sku: 'ENTRY_CARPET', title: 'Standard', price_cents: 2990, weight_g: 1900, stock: 15 }],
   },
-  'bottle-aluminium.png': {
-    title: {
-      'en-US': "Aluminium Bottle",
-      'fr-FR': "Gourde aluminium",
-      'es-ES': "Botella de aluminio",
-      'ar-SA': "قارورة ألمنيوم",
-      'zh-CN': "铝制水壶",
-      'he-IL': "בקבוק אלומיניום",
-    },
-    description: {
-      'en-US': "Packaged aluminium bottle with screw cap or sports top and front logo print.",
-      'fr-FR': "Gourde aluminium emballée avec bouchon vissé ou sport et logo imprimé en face avant.",
-      'es-ES': "Botella de aluminio empaquetada con tapón de rosca o deportivo y logotipo impreso en la parte frontal.",
-      'ar-SA': "قارورة ألمنيوم معبأة بغطاء لولبي أو رياضي مع شعار مطبوع في الواجهة الأمامية.",
-      'zh-CN': "带螺旋盖或运动盖并正面印有标志的包装铝制水壶。",
-      'he-IL': "בקבוק אלומיניום ארוז עם פקק הברגה או ספורט ולוגו מודפס בחזית。",
-    },
-  },
-  'entry-carpet-hard.png': {
-    title: {
-      'en-US': "Coir Doormat",
-      'fr-FR': "Paillasson coco",
-      'es-ES': "Felpudo de coco",
-      'ar-SA': "ممسحة باب من ألياف جوز الهند",
-      'zh-CN': "椰棕门垫",
-      'he-IL': "שטיח כניסה קוקוס",
-    },
-    description: {
-      'en-US': "Packaged coir doormat with printed center area, made for durable entryway use.",
-      'fr-FR': "Paillasson coco emballé avec zone centrale imprimée, conçu pour un usage d’entrée durable.",
-      'es-ES': "Felpudo de coco empaquetado con zona central impresa, pensado para un uso duradero en la entrada.",
-      'ar-SA': "ممسحة باب من ألياف جوز الهند معبأة مع منطقة مركزية مطبوعة، مصممة للاستخدام المتين عند المدخل.",
-      'zh-CN': "带中央印刷区域的包装椰棕门垫，适合耐用型入口使用。",
-      'he-IL': "שטיח כניסה מקוקוס ארוז עם אזור מרכזי מודפס, מיועד לשימוש עמיד בפתח הבית。",
-    },
-  },
-  'entry-carpet.png': {
-    title: {
-      'en-US': "Entry Mat",
-      'fr-FR': "Tapis d’entrée",
-      'es-ES': "Alfombra de entrada",
-      'ar-SA': "سجادة مدخل",
-      'zh-CN': "入门地垫",
-      'he-IL': "שטיח כניסה",
-    },
-    description: {
-      'en-US': "Packaged entry mat with printed logo area and non-slip backing for indoor or covered entry use.",
-      'fr-FR': "Tapis d’entrée emballé avec zone logo imprimée et sous-couche antidérapante pour usage intérieur ou abrité.",
-      'es-ES': "Alfombra de entrada empaquetada con zona de logotipo impresa y base antideslizante para interior o zonas cubiertas.",
-      'ar-SA': "سجادة مدخل معبأة مع مساحة شعار مطبوعة وظهر مانع للانزلاق للاستخدام الداخلي أو في الأماكن المغطاة.",
-      'zh-CN': "带印刷标志区域和防滑底面的包装入门地垫，适用于室内或遮蔽入口。",
-      'he-IL': "שטיח כניסה ארוז עם אזור לוגו מודפס ותחתית מונעת החלקה לשימוש פנימי או בכניסה מקורה。",
-    },
-  },
-  'flag.png': {
-    title: {
-      'en-US': "Flag",
-      'fr-FR': "Drapeau",
-      'es-ES': "Bandera",
-      'ar-SA': "علم",
-      'zh-CN': "旗帜",
-      'he-IL': "דגל",
-    },
-    description: {
-      'en-US': "Packaged printed flag for indoor or outdoor display, folded for compact shipping.",
-      'fr-FR': "Drapeau imprimé emballé pour affichage intérieur ou extérieur, plié pour un transport compact.",
-      'es-ES': "Bandera impresa empaquetada para exhibición interior o exterior, plegada para un envío compacto.",
-      'ar-SA': "علم مطبوع معبأ للعرض الداخلي أو الخارجي، مطوي لشحن مدمج.",
-      'zh-CN': "适用于室内或室外展示的包装印刷旗帜，折叠后便于运输。",
-      'he-IL': "דגל מודפס ארוז לתצוגה פנימית או חיצונית, מקופל למשלוח קומפקטי。",
-    },
-  },
-  'golf-bag.png': {
-    title: {
-      'en-US': "Golf Bag",
-      'fr-FR': "Sac de golf",
-      'es-ES': "Bolsa de golf",
-      'ar-SA': "حقيبة غولف",
-      'zh-CN': "高尔夫球包",
-      'he-IL': "תיק גולף",
-    },
-    description: {
-      'en-US': "Packaged golf bag with club compartments and logo panel, intended for full-course transport.",
-      'fr-FR': "Sac de golf emballé avec compartiments pour clubs et panneau logo, destiné au transport sur parcours.",
-      'es-ES': "Bolsa de golf empaquetada con compartimentos para palos y panel con logotipo, destinada al transporte en el campo.",
-      'ar-SA': "حقيبة غولف معبأة مع أقسام للمضارب ولوحة شعار، مخصصة للنقل في الملعب.",
-      'zh-CN': "带球杆分仓和标志面板的包装高尔夫球包，适合全场携带。",
-      'he-IL': "תיק גולף ארוז עם תאים למקלות ופאנל לוגו, מיועד לנשיאה במגרש。",
-    },
-  },
-  'golf-ball-x1.png': {
-    title: {
-      'en-US': "Golf Ball",
-      'fr-FR': "Balle de golf",
-      'es-ES': "Pelota de golf",
-      'ar-SA': "كرة غولف",
-      'zh-CN': "高尔夫球",
-      'he-IL': "כדור גולף",
-    },
-    description: {
-      'en-US': "Single packaged golf ball with printed logo, suitable for play or promotional gifting.",
-      'fr-FR': "Balle de golf emballée à l’unité avec logo imprimé, adaptée au jeu ou au cadeau promotionnel.",
-      'es-ES': "Pelota de golf empaquetada individualmente con logotipo impreso, apta para juego o regalo promocional.",
-      'ar-SA': "كرة غولف معبأة بشكل فردي مع شعار مطبوع، مناسبة للعب أو للهدايا الترويجية.",
-      'zh-CN': "单颗包装高尔夫球，带印刷标志，适合打球或促销赠品。",
-      'he-IL': "כדור גולף ארוז בנפרד עם לוגו מודפס, מתאים למשחק או כמתנה שיווקית。",
-    },
-  },
-  'golf-balls-x12-box.png': {
-    title: {
-      'en-US': "Box of 12 Golf Balls",
-      'fr-FR': "Boîte de 12 balles de golf",
-      'es-ES': "Caja de 12 pelotas de golf",
-      'ar-SA': "علبة 12 كرة غولف",
-      'zh-CN': "12只装高尔夫球盒",
-      'he-IL': "קופסת 12 כדורי גולף",
-    },
-    description: {
-      'en-US': "Retail box of twelve logo-printed golf balls, packaged for sale or premium events.",
-      'fr-FR': "Boîte retail de douze balles de golf imprimées au logo, emballée pour la vente ou les événements premium.",
-      'es-ES': "Caja retail de doce pelotas de golf con logotipo impreso, empaquetada para venta o eventos premium.",
-      'ar-SA': "علبة بيع تحتوي على اثنتي عشرة كرة غولف مطبوعة بالشعار، مناسبة للبيع أو للفعاليات المميزة.",
-      'zh-CN': "零售盒装十二只印有标志的高尔夫球，适合销售或高端活动。",
-      'he-IL': "קופסת קמעונאות עם שנים-עשר כדורי גולף מודפסי לוגו, מתאימה למכירה או לאירועי פרימיום。",
-    },
-  },
-  'golf-club-protectors-3-set.png': {
-    title: {
-      'en-US': "Set of 3 Golf Club Headcovers",
-      'fr-FR': "Jeu de 3 protège-têtes de clubs de golf",
-      'es-ES': "Set de 3 protectores para palos de golf",
-      'ar-SA': "مجموعة من 3 أغطية رؤوس مضارب الغولف",
-      'zh-CN': "3件套高尔夫球杆头套",
-      'he-IL': "סט 3 כיסויי ראש למקלות גולף",
-    },
-    description: {
-      'en-US': "Packaged set of three padded golf club headcovers with logo print for driver and woods protection.",
-      'fr-FR': "Jeu emballé de trois protège-têtes rembourrés pour clubs de golf avec logo imprimé, pour driver et bois.",
-      'es-ES': "Set empaquetado de tres fundas acolchadas para palos de golf con logotipo impreso, para driver y maderas.",
-      'ar-SA': "مجموعة معبأة من ثلاثة أغطية مبطنة لرؤوس مضارب الغولف مع شعار مطبوع، لحماية الدرايفر والأخشاب.",
-      'zh-CN': "三件套包装高尔夫球杆头套，带标志印刷，用于一号木和球道木保护。",
-      'he-IL': "סט ארוז של שלושה כיסויי ראש מרופדים למקלות גולף עם לוגו מודפס, להגנת דרייבר ועצים。",
-    },
-  },
-  'golf-tees.png': {
-    title: {
-      'en-US': "Pack of Golf Tees",
-      'fr-FR': "Sachet de tees de golf",
-      'es-ES': "Bolsa de tees de golf",
-      'ar-SA': "عبوة تيز غولف",
-      'zh-CN': "高尔夫球钉套装",
-      'he-IL': "חבילת טיז לגולף",
-    },
-    description: {
-      'en-US': "Packaged golf tees in a transparent bag, intended for promotional resale or course accessories.",
-      'fr-FR': "Tees de golf emballés en sachet transparent, destinés à la revente promotionnelle ou aux accessoires de parcours.",
-      'es-ES': "Tees de golf empaquetados en bolsa transparente, destinados a reventa promocional o accesorios de campo.",
-      'ar-SA': "تيز غولف معبأة في كيس شفاف، مناسبة للبيع الترويجي أو كملحقات للملاعب.",
-      'zh-CN': "透明袋包装高尔夫球钉，适合促销零售或球场配件。",
-      'he-IL': "טיז לגולף ארוזים בשקית שקופה, מתאימים למכירה שיווקית או כאביזרי מגרש。",
-    },
-  },
-  'golf-umbrella.png': {
-    title: {
-      'en-US': "Golf Umbrella",
-      'fr-FR': "Parapluie de golf",
-      'es-ES': "Paraguas de golf",
-      'ar-SA': "مظلة غولف",
-      'zh-CN': "高尔夫伞",
-      'he-IL': "מטריית גולף",
-    },
-    description: {
-      'en-US': "Packaged oversized golf umbrella with alternating panels and large printed logo section.",
-      'fr-FR': "Parapluie de golf oversize emballé avec panneaux alternés et grande zone logo imprimée.",
-      'es-ES': "Paraguas de golf de gran tamaño empaquetado con paneles alternos y gran zona de logotipo impresa.",
-      'ar-SA': "مظلة غولف كبيرة معبأة بألواح متناوبة ومساحة شعار مطبوعة كبيرة.",
-      'zh-CN': "超大号包装高尔夫伞，带拼色伞面和大面积标志印刷区域。",
-      'he-IL': "מטריית גולף גדולה ארוזה עם פאנלים מתחלפים ואזור לוגו מודפס גדול。",
-    },
-  },
-  'iphone-case.png': {
-    title: {
-      'en-US': "iPhone 17 Case",
-      'fr-FR': "Coque iPhone 17",
-      'es-ES': "Funda para iPhone 17",
-      'ar-SA': "غطاء iPhone 17",
-      'zh-CN': "iPhone 17 手机壳",
-      'he-IL': "כיסוי iPhone 17",
-    },
-    description: {
-      'en-US': "Packaged protective case for iPhone 17 with centered logo print and slim everyday profile.",
-      'fr-FR': "Coque de protection emballée pour iPhone 17 avec logo centré et profil fin pour un usage quotidien.",
-      'es-ES': "Funda protectora empaquetada para iPhone 17 con logotipo centrado y perfil fino para uso diario.",
-      'ar-SA': "غطاء حماية معبأ لهاتف iPhone 17 مع شعار في الوسط وتصميم نحيف للاستخدام اليومي.",
-      'zh-CN': "适用于 iPhone 17 的包装保护壳，中央带标志印刷，日常使用轻薄。",
-      'he-IL': "כיסוי מגן ארוז ל‑iPhone 17 עם לוגו ממורכז ופרופיל דק לשימוש יומיומי。",
-    },
-  },
-  'key-holder.png': {
-    title: {
-      'en-US': "Acrylic Keychain",
-      'fr-FR': "Porte-clés acrylique",
-      'es-ES': "Llavero acrílico",
-      'ar-SA': "سلسلة مفاتيح أكريليك",
-      'zh-CN': "亚克力钥匙扣",
-      'he-IL': "מחזיק מפתחות אקרילי",
-    },
-    description: {
-      'en-US': "Packaged acrylic keychain with metal ring and full-color insert featuring the product logo.",
-      'fr-FR': "Porte-clés acrylique emballé avec anneau métallique et insert couleur au logo du produit.",
-      'es-ES': "Llavero acrílico empaquetado con anilla metálica e inserto a color con el logotipo del producto.",
-      'ar-SA': "سلسلة مفاتيح أكريليك معبأة مع حلقة معدنية وإدخال ملون يحمل شعار المنتج.",
-      'zh-CN': "带金属环和彩色内芯标志图案的包装亚克力钥匙扣。",
-      'he-IL': "מחזיק מפתחות אקרילי ארוז עם טבעת מתכת והדפסה צבעונית של הלוגו。",
-    },
-  },
-  'large-bag.png': {
-    title: {
-      'en-US': "Duffle Bag",
-      'fr-FR': "Grand sac de voyage",
-      'es-ES': "Bolsa de viaje grande",
-      'ar-SA': "حقيبة سفر كبيرة",
-      'zh-CN': "大号旅行袋",
-      'he-IL': "תיק נסיעות גדול",
-    },
-    description: {
-      'en-US': "Packaged duffle bag with shoulder strap, zip pockets and side logo placement.",
-      'fr-FR': "Grand sac de voyage emballé avec bandoulière, poches zippées et logo sur le côté.",
-      'es-ES': "Bolsa de viaje grande empaquetada con correa de hombro, bolsillos con cremallera y logotipo lateral.",
-      'ar-SA': "حقيبة سفر كبيرة معبأة مع حزام كتف وجيوب بسحاب وشعار جانبي.",
-      'zh-CN': "带肩带、拉链口袋和侧面标志位置的包装旅行袋。",
-      'he-IL': "תיק נסיעות גדול ארוז עם רצועת כתף, כיסי רוכסן ומיקום לוגו בצד。",
-    },
-  },
-  'lux-pen.png': {
-    title: {
-      'en-US': "Luxury Metal Pen",
-      'fr-FR': "Stylo métal premium",
-      'es-ES': "Bolígrafo metálico premium",
-      'ar-SA': "قلم معدني فاخر",
-      'zh-CN': "高端金属笔",
-      'he-IL': "עט מתכת יוקרתי",
-    },
-    description: {
-      'en-US': "Packaged premium metal pen with glossy finish and discreet logo branding.",
-      'fr-FR': "Stylo métal premium emballé avec finition brillante et marquage logo discret.",
-      'es-ES': "Bolígrafo metálico premium empaquetado con acabado brillante y marcado de logotipo discreto.",
-      'ar-SA': "قلم معدني فاخر معبأ بلمسة لامعة وعلامة شعار أنيقة.",
-      'zh-CN': "带亮面处理和低调标志的包装高端金属笔。",
-      'he-IL': "עט מתכת יוקרתי ארוז עם גימור מבריק ומיתוג לוגו עדין。",
-    },
-  },
-  'mouse-pad.png': {
-    title: {
-      'en-US': "Mouse Pad",
-      'fr-FR': "Tapis de souris",
-      'es-ES': "Alfombrilla de ratón",
-      'ar-SA': "لوحة فأرة",
-      'zh-CN': "鼠标垫",
-      'he-IL': "משטח עכבר",
-    },
-    description: {
-      'en-US': "Packaged mouse pad with smooth top surface and centered full-color logo print.",
-      'fr-FR': "Tapis de souris emballé avec surface supérieure lisse et logo couleur centré.",
-      'es-ES': "Alfombrilla de ratón empaquetada con superficie lisa y logotipo a color centrado.",
-      'ar-SA': "لوحة فأرة معبأة بسطح علوي أملس وشعار ملون في المنتصف.",
-      'zh-CN': "带顺滑表面和中央彩色标志印刷的包装鼠标垫。",
-      'he-IL': "משטח עכבר ארוז עם משטח עליון חלק ולוגו צבעוני במרכז。",
-    },
-  },
-  'mug.png': {
-    title: {
-      'en-US': "Ceramic Mug",
-      'fr-FR': "Mug en céramique",
-      'es-ES': "Taza de cerámica",
-      'ar-SA': "كوب سيراميك",
-      'zh-CN': "陶瓷马克杯",
-      'he-IL': "ספל קרמי",
-    },
-    description: {
-      'en-US': "Packaged ceramic mug with printed front logo, suitable for office or home beverage use.",
-      'fr-FR': "Mug en céramique emballé avec logo imprimé en face avant, adapté à un usage bureau ou maison.",
-      'es-ES': "Taza de cerámica empaquetada con logotipo impreso en la parte frontal, adecuada para oficina o hogar.",
-      'ar-SA': "كوب سيراميك معبأ مع شعار مطبوع في الواجهة الأمامية، مناسب للمكتب أو المنزل.",
-      'zh-CN': "带正面标志印刷的包装陶瓷马克杯，适合办公室或家用。",
-      'he-IL': "ספל קרמי ארוז עם לוגו מודפס בחזית, מתאים למשרד או לבית。",
-    },
-  },
-  'paraglider.png': {
-    title: {
-      'en-US': "Paraglider Wing",
-      'fr-FR': "Voile de parapente",
-      'es-ES': "Ala de parapente",
-      'ar-SA': "جناح طيران شراعي",
-      'zh-CN': "滑翔伞翼",
-      'he-IL': "כנף מצנח רחיפה",
-    },
-    description: {
-      'en-US': "Packed paraglider wing with branded canopy panel, delivered folded in transport configuration.",
-      'fr-FR': "Voile de parapente emballée avec panneau de voile brandé, livrée pliée en configuration de transport.",
-      'es-ES': "Ala de parapente embalada con panel de vela personalizado, entregada plegada para transporte.",
-      'ar-SA': "جناح طيران شراعي معبأ مع جزء قماش يحمل العلامة، يُسلم مطوياً بوضعية النقل.",
-      'zh-CN': "带品牌伞翼面板的打包滑翔伞翼，折叠后按运输状态交付。",
-      'he-IL': "כנף מצנח רחיפה ארוזה עם פאנל ממותג, מסופקת מקופלת לתצורת הובלה。",
-    },
-  },
-  'paragliding-windsock.png': {
-    title: {
-      'en-US': "Paragliding Windsock",
-      'fr-FR': "Manche à air de parapente",
-      'es-ES': "Manga de viento para parapente",
-      'ar-SA': "كيس رياح للطيران الشراعي",
-      'zh-CN': "滑翔伞风向袋",
-      'he-IL': "שרוול רוח לרחיפה",
-    },
-    description: {
-      'en-US': "Packaged paragliding windsock for wind direction indication on launch or landing areas.",
-      'fr-FR': "Manche à air de parapente emballée pour l’indication du vent sur zone de décollage ou d’atterrissage.",
-      'es-ES': "Manga de viento para parapente empaquetada para indicar la dirección del viento en despegue o aterrizaje.",
-      'ar-SA': "كيس رياح للطيران الشراعي معبأ لبيان اتجاه الرياح في مناطق الإقلاع أو الهبوط.",
-      'zh-CN': "用于起飞或降落区域风向指示的包装滑翔伞风向袋。",
-      'he-IL': "שרוול רוח לרחיפה ארוז לציון כיוון הרוח באזורי המראה או נחיתה。",
-    },
-  },
-  'pen-4-colors.png': {
-    title: {
-      'en-US': "4-Color Pen",
-      'fr-FR': "Stylo 4 couleurs",
-      'es-ES': "Bolígrafo de 4 colores",
-      'ar-SA': "قلم بأربعة ألوان",
-      'zh-CN': "四色圆珠笔",
-      'he-IL': "עט 4 צבעים",
-    },
-    description: {
-      'en-US': "Packaged multi-ink pen with four writing colors and compact logo print area.",
-      'fr-FR': "Stylo multi-encre emballé avec quatre couleurs d’écriture et zone de logo compacte.",
-      'es-ES': "Bolígrafo multitinta empaquetado con cuatro colores de escritura y zona compacta para logotipo.",
-      'ar-SA': "قلم متعدد الأحبار معبأ بأربعة ألوان كتابة ومساحة مدمجة للشعار.",
-      'zh-CN': "带四种书写颜色和紧凑标志印刷区的包装多色圆珠笔。",
-      'he-IL': "עט רב-דיו ארוז עם ארבעה צבעי כתיבה ואזור לוגו קומפקטי。",
-    },
-  },
-  'pins.png': {
-    title: {
-      'en-US': "Badge Pins Set",
-      'fr-FR': "Lot de badges",
-      'es-ES': "Lote de badges",
-      'ar-SA': "مجموعة شارات",
-      'zh-CN': "徽章套装",
-      'he-IL': "סט סיכות תג",
-    },
-    description: {
-      'en-US': "Packaged set of round badge pins with logo artwork for events, giveaways and accessories.",
-      'fr-FR': "Lot emballé de badges ronds avec visuel logo pour événements, giveaways et accessoires.",
-      'es-ES': "Lote empaquetado de chapas redondas con arte del logotipo para eventos, regalos y accesorios.",
-      'ar-SA': "مجموعة معبأة من الشارات الدائرية برسومات الشعار للفعاليات والهدايا والإكسسوارات.",
-      'zh-CN': "带标志图案的圆形徽章套装包装，适用于活动、赠品和配饰。",
-      'he-IL': "סט ארוז של סיכות תג עגולות עם גרפיקת לוגו לאירועים, מתנות ואביזרים。",
-    },
-  },
-  'tennis-protector.png': {
-    title: {
-      'en-US': "Tennis Racket Cover",
-      'fr-FR': "Housse de raquette de tennis",
-      'es-ES': "Funda para raqueta de tenis",
-      'ar-SA': "غطاء مضرب تنس",
-      'zh-CN': "网球拍套",
-      'he-IL': "כיסוי למחבט טניס",
-    },
-    description: {
-      'en-US': "Packaged tennis racket cover with zipper closure and centered logo placement.",
-      'fr-FR': "Housse de raquette de tennis emballée avec fermeture zippée et logo centré.",
-      'es-ES': "Funda para raqueta de tenis empaquetada con cierre de cremallera y logotipo centrado.",
-      'ar-SA': "غطاء مضرب تنس معبأ بسحاب وإظهار للشعار في الوسط.",
-      'zh-CN': "带拉链封口和中央标志位置的包装网球拍套。",
-      'he-IL': "כיסוי למחבט טניס ארוז עם רוכסן ומיקום לוגו ממורכז。",
-    },
-  },
-  'tote-bag.png': {
-    title: {
-      'en-US': "Tote Bag",
-      'fr-FR': "Tote bag",
-      'es-ES': "Bolsa tote",
-      'ar-SA': "حقيبة قماش",
-      'zh-CN': "帆布手提袋",
-      'he-IL': "תיק טוט",
-    },
-    description: {
-      'en-US': "Packaged fabric tote bag with long handles and large centered logo print.",
-      'fr-FR': "Tote bag en tissu emballé avec longues anses et grand logo centré.",
-      'es-ES': "Bolsa tote de tela empaquetada con asas largas y gran logotipo centrado.",
-      'ar-SA': "حقيبة قماش معبأة بمقابض طويلة وشعار كبير في المنتصف.",
-      'zh-CN': "带长提手和中央大幅标志印刷的包装布质手提袋。",
-      'he-IL': "תיק טוט מבד ארוז עם ידיות ארוכות ולוגו גדול במרכז。",
-    },
-  },
-  'totem.png': {
-    title: {
-      'en-US': "Roll-up Banner",
-      'fr-FR': "Kakemono roll-up",
-      'es-ES': "Roll-up publicitario",
-      'ar-SA': "حامل رول أب إعلاني",
-      'zh-CN': "易拉宝展架",
-      'he-IL': "רול-אפ פרסומי",
-    },
-    description: {
-      'en-US': "Packaged roll-up banner stand with printed graphic panel for trade shows and retail display.",
-      'fr-FR': "Kakemono roll-up emballé avec visuel imprimé pour salons, événements et présentation retail.",
-      'es-ES': "Roll-up publicitario empaquetado con panel gráfico impreso para ferias y exposición retail.",
-      'ar-SA': "حامل رول أب إعلاني معبأ مع لوحة مطبوعة للمعارض والعرض داخل المتاجر.",
-      'zh-CN': "带印刷画面的包装易拉宝展架，适用于展会和零售展示。",
-      'he-IL': "רול-אפ פרסומי ארוז עם גרפיקה מודפסת לתערוכות ולתצוגה בחנות。",
-    },
-  },
-  'usb-key.png': {
-    title: {
-      'en-US': "USB Flash Drive",
-      'fr-FR': "Clé USB",
-      'es-ES': "Memoria USB",
-      'ar-SA': "ذاكرة USB",
-      'zh-CN': "U盘",
-      'he-IL': "דיסק און קי",
-    },
-    description: {
-      'en-US': "Packaged USB flash drive with logo print, suitable for data transfer or promotional bundles.",
-      'fr-FR': "Clé USB emballée avec logo imprimé, adaptée au transfert de données ou aux bundles promotionnels.",
-      'es-ES': "Memoria USB empaquetada con logotipo impreso, adecuada para transferencia de datos o packs promocionales.",
-      'ar-SA': "ذاكرة USB معبأة مع شعار مطبوع، مناسبة لنقل البيانات أو الباقات الترويجية.",
-      'zh-CN': "带标志印刷的包装U盘，适合数据传输或促销套装。",
-      'he-IL': "דיסק און קי ארוז עם לוגו מודפס, מתאים להעברת נתונים או למארזים שיווקיים。",
-    },
-  },
-};
 
-async function seedAdditionalProducts(categoryData: any, regionData: any) {
-  const categoryByHandle: Record<string, string> = {
-    'bags-carry': categoryData.bagsCarry,
-    'drinkware': categoryData.drinkware,
-    'accessories-tech': categoryData.accessoriesTech,
-    'home-living': categoryData.homeLiving,
-    'events-signage': categoryData.eventsSignage,
-    'sports-outdoor': categoryData.sportsOutdoor,
-  };
+  // ── Events & Signage ───────────────────────────────────────────────────────
+  {
+    key: 'beach-flag', file: 'beachflag.png', handle: 'beach-flag', vendor: 'Fufuni',
+    categories: ['events-signage', 'sports-outdoor'],
+    title:       { 'en-US': 'Beach Flag',         'fr-FR': 'Drapeau publicitaire plume', 'es-ES': 'Bandera publicitaria tipo pluma', 'zh-CN': '沙滩旗', 'ar-SA': 'علم شاطئي إعلاني', 'he-IL': 'דגל חוף פרסומי' },
+    description: { 'en-US': 'Packaged feather beach flag with pole set and printed textile, designed for outdoor promotion.', 'fr-FR': 'Drapeau plume emballé avec mât et textile imprimé, conçu pour la communication extérieure.', 'es-ES': 'Bandera pluma empaquetada con mástil y textil impreso, diseñada para promoción exterior.', 'ar-SA': 'علم شاطئي من نوع الريشة معبأ مع عمود ونسيج مطبوع، مخصص للدعاية الخارجية.', 'zh-CN': '含旗杆组件和印花旗面的包装沙滩旗，适用于户外宣传。', 'he-IL': 'דגל חוף מסוג נוצה ארוז עם מוט ובד מודפס, מיועד לפרסום חוץ。' },
+    variants: [{ sku: 'BEACHFLAG', title: 'Standard', price_cents: 8900, weight_g: 3200, stock: 15 }],
+  },
+  {
+    key: 'flag', file: 'flag.png', handle: 'flag', vendor: 'Fufuni',
+    categories: ['events-signage'],
+    title:       { 'en-US': 'Flag',               'fr-FR': 'Drapeau',                  'es-ES': 'Bandera',                  'zh-CN': '旗帜',         'ar-SA': 'علم',                 'he-IL': 'דגל' },
+    description: { 'en-US': 'Packaged printed flag for indoor or outdoor display, folded for compact shipping.', 'fr-FR': 'Drapeau imprimé emballé pour affichage intérieur ou extérieur, plié pour un transport compact.', 'es-ES': 'Bandera impresa empaquetada para exhibición interior o exterior, plegada para un envío compacto.', 'ar-SA': 'علم مطبوع معبأ للعرض الداخلي أو الخارجي، مطوي لشحن مدمج.', 'zh-CN': '适用于室内或室外展示的包装印刷旗帜，折叠后便于运输。', 'he-IL': 'דגל מודפס ארוז לתצוגה פנימית או חיצונית, מקופל למשלוח קומפקטי。' },
+    variants: [{ sku: 'FLAG', title: 'Standard', price_cents: 1490, weight_g: 180, stock: 50 }],
+  },
+  {
+    key: 'totem', file: 'totem.png', handle: 'roll-up-banner', vendor: 'Fufuni',
+    categories: ['events-signage'],
+    title:       { 'en-US': 'Roll-up Banner',     'fr-FR': 'Kakemono roll-up',         'es-ES': 'Roll-up publicitario',     'zh-CN': '易拉宝展架',   'ar-SA': 'حامل رول أب إعلاني', 'he-IL': 'רול-אפ פרסומי' },
+    description: { 'en-US': 'Packaged roll-up banner stand with printed graphic panel for trade shows and retail display.', 'fr-FR': 'Kakemono roll-up emballé avec visuel imprimé pour salons, événements et présentation retail.', 'es-ES': 'Roll-up publicitario empaquetado con panel gráfico impreso para ferias y exposición retail.', 'ar-SA': 'حامل رول أب إعلاني معبأ مع لوحة مطبوعة للمعارض والعرض داخل المتاجر.', 'zh-CN': '带印刷画面的包装易拉宝展架，适用于展会和零售展示。', 'he-IL': 'רול-אפ פרסומי ארוז עם גרפיקה מודפסת לתערוכות ולתצוגה בחנות。' },
+    variants: [{ sku: 'TOTEM', title: 'Standard', price_cents: 9900, weight_g: 3200, stock: 10 }],
+  },
+  {
+    key: 'paragliding-windsock', file: 'paragliding-windsock.png', handle: 'paragliding-windsock', vendor: 'Fufuni',
+    categories: ['events-signage', 'sports-outdoor'],
+    title:       { 'en-US': 'Paragliding Windsock', 'fr-FR': 'Manche à air de parapente', 'es-ES': 'Manga de viento para parapente', 'zh-CN': '滑翔伞风向袋', 'ar-SA': 'كيس رياح للطيران الشراعي', 'he-IL': 'שרוול רוח לרחיפה' },
+    description: { 'en-US': 'Packaged paragliding windsock for wind direction indication on launch or landing areas.', 'fr-FR': "Manche à air de parapente emballée pour l'indication du vent sur zone de décollage ou d'atterrissage.", 'es-ES': 'Manga de viento para parapente empaquetada para indicar la dirección del viento en despegue o aterrizaje.', 'ar-SA': 'كيس رياح للطيران الشراعي معبأ لبيان اتجاه الرياح في مناطق الإقلاع أو الهبوط.', 'zh-CN': '用于起飞或降落区域风向指示的包装滑翔伞风向袋。', 'he-IL': 'שרוול רוח לרחיפה ארוז לציון כיוון הרוח באזורי המראה או נחיתה。' },
+    variants: [{ sku: 'PARAGLIDING_WINDSOCK', title: 'Standard', price_cents: 3990, weight_g: 250, stock: 20 }],
+  },
 
-  for (const productData of additionalProducts) {
-    const translation = additionalProductTranslations[productData.file];
-    const fullTitle = translation ? translation.title : productData.title;
-    const fullDescription = translation ? translation.description : productData.description;
+  // ── Sports & Outdoor ───────────────────────────────────────────────────────
+  {
+    key: 'golf-ball-x1', file: 'golf-ball-x1.png', handle: 'golf-ball-x1', vendor: 'Fufuni',
+    categories: ['sports-outdoor'],
+    title:       { 'en-US': 'Golf Ball',          'fr-FR': 'Balle de golf',            'es-ES': 'Pelota de golf',           'zh-CN': '高尔夫球',     'ar-SA': 'كرة غولف',            'he-IL': 'כדור גולף' },
+    description: { 'en-US': 'Single packaged golf ball with printed logo, suitable for play or promotional gifting.', 'fr-FR': 'Balle de golf emballée à l\'unité avec logo imprimé, adaptée au jeu ou au cadeau promotionnel.', 'es-ES': 'Pelota de golf empaquetada individualmente con logotipo impreso, apta para juego o regalo promocional.', 'ar-SA': 'كرة غولف معبأة بشكل فردي مع شعار مطبوع، مناسبة للعب أو للهدايا الترويجية.', 'zh-CN': '单颗包装高尔夫球，带印刷标志，适合打球或促销赠品。', 'he-IL': 'כדור גולף ארוז בנפרד עם לוגו מודפס, מתאים למשחק או כמתנה שיווקית。' },
+    variants: [{ sku: 'GOLF_BALL_X1', title: 'Standard', price_cents: 490, weight_g: 52, stock: 150 }],
+  },
+  {
+    key: 'golf-balls-x12-box', file: 'golf-balls-x12-box.png', handle: 'golf-balls-x12-box', vendor: 'Fufuni',
+    categories: ['sports-outdoor'],
+    title:       { 'en-US': 'Box of 12 Golf Balls', 'fr-FR': 'Boîte de 12 balles de golf', 'es-ES': 'Caja de 12 pelotas de golf', 'zh-CN': '12只装高尔夫球盒', 'ar-SA': 'علبة 12 كرة غولف', 'he-IL': 'קופסת 12 כדורי גולף' },
+    description: { 'en-US': 'Retail box of twelve logo-printed golf balls, packaged for sale or premium events.', 'fr-FR': 'Boîte retail de douze balles de golf imprimées au logo, emballée pour la vente ou les événements premium.', 'es-ES': 'Caja retail de doce pelotas de golf con logotipo impreso, empaquetada para venta o eventos premium.', 'ar-SA': 'علبة بيع تحتوي على اثنتي عشرة كرة غولف مطبوعة بالشعار، مناسبة للبيع أو للفعاليات المميزة.', 'zh-CN': '零售盒装十二只印有标志的高尔夫球，适合销售或高端活动。', 'he-IL': 'קופסת קמעונאות עם שנים-עשר כדורי גולף מודפסי לוגו, מתאימה למכירה או לאירועי פרימיום。' },
+    variants: [{ sku: 'GOLF_BALLS_X12_BOX', title: 'Standard', price_cents: 3990, weight_g: 700, stock: 30 }],
+  },
+  {
+    key: 'golf-club-protectors', file: 'golf-club-protectors-3-set.png', handle: 'golf-club-protectors-3-set', vendor: 'Fufuni',
+    categories: ['sports-outdoor'],
+    title:       { 'en-US': 'Set of 3 Golf Club Headcovers', 'fr-FR': 'Jeu de 3 protège-têtes de clubs de golf', 'es-ES': 'Set de 3 protectores para palos de golf', 'zh-CN': '3件套高尔夫球杆头套', 'ar-SA': 'مجموعة من 3 أغطية رؤوس مضارب الغولف', 'he-IL': 'סט 3 כיסויי ראש למקלות גולף' },
+    description: { 'en-US': 'Packaged set of three padded golf club headcovers with logo print for driver and woods protection.', 'fr-FR': 'Jeu emballé de trois protège-têtes rembourrés pour clubs de golf avec logo imprimé, pour driver et bois.', 'es-ES': 'Set empaquetado de tres fundas acolchadas para palos de golf con logotipo impreso, para driver y maderas.', 'ar-SA': 'مجموعة معبأة من ثلاثة أغطية مبطنة لرؤوس مضارب الغولف مع شعار مطبوع، لحماية الدرايفر والأخشاب.', 'zh-CN': '三件套包装高尔夫球杆头套，带标志印刷，用于一号木和球道木保护。', 'he-IL': 'סט ארוז של שלושה כיסויי ראש מרופדים למקלות גולף עם לוגו מודפס, להגנת דרייבר ועצים。' },
+    variants: [{ sku: 'GOLF_CLUB_PROTECTORS_3_SET', title: 'Standard', price_cents: 2490, weight_g: 450, stock: 25 }],
+  },
+  {
+    key: 'golf-tees', file: 'golf-tees.png', handle: 'golf-tees', vendor: 'Fufuni',
+    categories: ['sports-outdoor'],
+    title:       { 'en-US': 'Pack of Golf Tees',  'fr-FR': 'Sachet de tees de golf',   'es-ES': 'Bolsa de tees de golf',    'zh-CN': '高尔夫球钉套装', 'ar-SA': 'عبوة تيز غولف',     'he-IL': 'חבילת טיז לגולף' },
+    description: { 'en-US': 'Packaged golf tees in a transparent bag, intended for promotional resale or course accessories.', 'fr-FR': 'Tees de golf emballés en sachet transparent, destinés à la revente promotionnelle ou aux accessoires de parcours.', 'es-ES': 'Tees de golf empaquetados en bolsa transparente, destinados a reventa promocional o accesorios de campo.', 'ar-SA': 'تيز غولف معبأة في كيس شفاف، مناسبة للبيع الترويجي أو كملحقات للملاعب.', 'zh-CN': '透明袋包装高尔夫球钉，适合促销零售或球场配件。', 'he-IL': 'טיז לגולף ארוזים בשקית שקופה, מתאימים למכירה שיווקית או כאביזרי מגרש。' },
+    variants: [{ sku: 'GOLF_TEES', title: 'Standard', price_cents: 890, weight_g: 120, stock: 150 }],
+  },
+  {
+    key: 'golf-umbrella', file: 'golf-umbrella.png', handle: 'golf-umbrella', vendor: 'Fufuni',
+    categories: ['sports-outdoor'],
+    title:       { 'en-US': 'Golf Umbrella',      'fr-FR': 'Parapluie de golf',        'es-ES': 'Paraguas de golf',         'zh-CN': '高尔夫伞',     'ar-SA': 'مظلة غولف',          'he-IL': 'מטריית גולף' },
+    description: { 'en-US': 'Packaged oversized golf umbrella with alternating panels and large printed logo section.', 'fr-FR': 'Parapluie de golf oversize emballé avec panneaux alternés et grande zone logo imprimée.', 'es-ES': 'Paraguas de golf de gran tamaño empaquetado con paneles alternos y gran zona de logotipo impresa.', 'ar-SA': 'مظلة غولف كبيرة معبأة بألواح متناوبة ومساحة شعار مطبوعة كبيرة.', 'zh-CN': '超大号包装高尔夫伞，带拼色伞面和大面积标志印刷区域。', 'he-IL': 'מטריית גולף גדולה ארוזה עם פאנלים מתחלפים ואזור לוגו מודפס גדול。' },
+    variants: [{ sku: 'GOLF_UMBRELLA', title: 'Standard', price_cents: 3990, weight_g: 850, stock: 25 }],
+  },
+  {
+    key: 'tennis-protector', file: 'tennis-protector.png', handle: 'tennis-racket-cover', vendor: 'Fufuni',
+    categories: ['sports-outdoor'],
+    title:       { 'en-US': 'Tennis Racket Cover', 'fr-FR': 'Housse de raquette de tennis', 'es-ES': 'Funda para raqueta de tenis', 'zh-CN': '网球拍套', 'ar-SA': 'غطاء مضرب تنس', 'he-IL': 'כיסוי למחבט טניס' },
+    description: { 'en-US': 'Packaged tennis racket cover with zipper closure and centered logo placement.', 'fr-FR': 'Housse de raquette de tennis emballée avec fermeture zippée et logo centré.', 'es-ES': 'Funda para raqueta de tenis empaquetada con cierre de cremallera y logotipo centrado.', 'ar-SA': 'غطاء مضرب تنس معبأ بسحاب وإظهار للشعار في الوسط.', 'zh-CN': '带拉链封口和中央标志位置的包装网球拍套。', 'he-IL': 'כיסוי למחבט טניס ארוז עם רוכסן ומיקום לוגו ממורכז。' },
+    variants: [{ sku: 'TENNIS_PROTECTOR', title: 'Standard', price_cents: 1490, weight_g: 220, stock: 30 }],
+  },
+  {
+    key: 'paraglider', file: 'paraglider.png', handle: 'paraglider-wing', vendor: 'Fufuni',
+    categories: ['sports-outdoor'],
+    title:       { 'en-US': 'Paraglider Wing EN-D',    'fr-FR': 'Voile de parapente EN-D',       'es-ES': 'Ala de parapente EN-D',         'zh-CN': '滑翔伞翼 EN-D',     'ar-SA': 'EN-D جناح طيران شراعي',    'he-IL': 'כנף מצנח רחיפה EN-D' },
+    description: { 'en-US': 'Packed paraglider wing with branded canopy panel, delivered folded in transport configuration.', 'fr-FR': 'Voile de parapente emballée avec panneau de voile cousu, livrée pliée en configuration de transport.', 'es-ES': 'Ala de parapente embalada con panel de vela personalizado, entregada plegada para transporte.', 'ar-SA': 'جناح طيران شراعي معبأ مع جزء قماش يحمل العلامة، يُسلم مطوياً بوضعية النقل.', 'zh-CN': '带品牌伞翼面板的打包滑翔伞翼，折叠后按运输状态交付。', 'he-IL': 'כנף מצנח רחיפה ארוזה עם פאנל ממותג, מסופקת מקופלת לתצורת הובלה。' },
+    variants: [{ sku: 'PARAGLIDER-XS', title: 'PTV 40-60', price_cents: 329000, weight_g: 3200, stock: 1 },{ sku: 'PARAGLIDER-S', title: 'PTV 60-80', price_cents: 399000, weight_g: 3300, stock: 0 },{ sku: 'PARAGLIDER-M', title: 'PTV 80-100', price_cents: 499000, weight_g: 3400, stock: 2 },{ sku: 'PARAGLIDER-L', title: 'PTV 100-120', price_cents: 399000, weight_g: 3500, stock: 1 } ,{ sku: 'PARAGLIDER-XL', title: 'XXX-Large', price_cents: 699000, weight_g: 5500, stock: 5 }],
+  },
+] as const;
 
-    console.log(`📦 Creating catalog product: ${fullTitle['en-US']}`);
-
-    const product = await api('/v1/products', {
-      handle: productData.handle,
-      title: JSON.stringify(fullTitle),
-      description: JSON.stringify(fullDescription),
-      vendor: JSON.stringify({ 'en-US': 'Fufuni' }),
-    });
-
-    const categories = productData.categories.map((cat: string) => categoryByHandle[cat] || cat).filter(Boolean);
-    if (categories.length > 0) {
-      await api(`/v1/categories/${categories[0]}/products`, {
-        product_ids: [product.id],
-      });
-      for (const cat of categories.slice(1)) {
-        await api(`/v1/categories/${cat}/products`, {
-          product_ids: [product.id],
-        });
-      }
-    }
-
-    const sku = productData.file.replace(/\.png$/, '').toUpperCase().replace(/[^A-Z0-9]+/g, '_');
-    const variantPayload: any = {
-      sku,
-      title: productData.title['en-US'],
-      price_cents: productData.price_cents,
-      weight_g: productData.weight_g,
-      currency: 'EUR',
-      tax_code: 'txcd_99999999',
-    };
-
-    // imageMap holds baked-in base64 for legacy images; fall back to runtime disk read
-    const imageUrl = imageMap[productData.file] ?? readImageAsDataUri(productData.file);
-    if (imageUrl) {
-      variantPayload.image_url = imageUrl;
-    }
-
-    const createdVariant = await api(`/v1/products/${product.id}/variants`, variantPayload);
-
-    await api(`/v1/inventory/${encodeURIComponent(sku)}/warehouse-adjust`, {
-      warehouse_id: regionData.warehouses.fr,
-      delta: 20,
-      reason: 'restock',
-    });
-  }
-}
+type Product = typeof PRODUCT_CATALOG[number];
 
 async function seedRegions() {
   console.log('📋 Fetching existing currencies and countries...');
@@ -1463,70 +883,8 @@ async function seedRegions() {
 // Type definitions
 // ─────────────────────────────────────────────────────────────────────────────
 
-interface I18nText {
-  'en-US': string; 'fr-FR': string; 'es-ES': string;
-  'zh-CN': string; 'ar-SA': string; 'he-IL': string;
-}
-interface VariantDef { sku: string; title: string; price_cents: number; weight_g: number; stock: number; }
-interface LegacyProduct { key: string; title: I18nText; description: I18nText; vendor: string; categoryKey: string; variants: VariantDef[]; }
 interface SeedReview { customer_email: string; product_key: string; rating: number; title: string; body: string; status: 'approved' | 'pending'; }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Data: legacy product catalog (Classic Tee · Hoodie · Cap · Sticker Pack)
-// To add a new legacy product: push a new entry here.
-// ─────────────────────────────────────────────────────────────────────────────
-
-const LEGACY_PRODUCT_CATALOG: LegacyProduct[] = [
-  {
-    key: 'tee',
-    categoryKey: 'classicTees',
-    vendor: 'SCTG',
-    title: { 'en-US': 'Classic Tee', 'fr-FR': 'T-Shirt Classique', 'es-ES': 'Camiseta Clásica', 'zh-CN': '经典T恤', 'ar-SA': 'تي شيرت كلاسيكي', 'he-IL': 'טי שירט קלאסי' },
-    description: { 'en-US': '<p>Premium cotton t-shirt. Soft, breathable, and built to last, with our logo…</p>', 'fr-FR': '<p>T-shirt en coton premium. Doux, respirant et conçu pour durer, avec notre logo…</p>', 'es-ES': '<p>Camiseta de algodón premium. Suave, transpirable y duradera, con nuestro logo…</p>', 'zh-CN': '<p>优质棉质T恤。柔软、透气、经久耐用，印有我们的标志…</p>', 'ar-SA': '<p>تي شيرت قطني فاخر. ناعم، قابل للتنفس، ومصمم ليدوم طويلاً، مع شعارنا…</p>', 'he-IL': '<p>חולצת טי כותנה פרימיום. רכה, נושמת ובנויה להחזיק מעמד, עם הלוגו שלנו…</p>' },
-    variants: [
-      { sku: 'TEE-BLK-S', title: 'Black / S', price_cents: 2999, weight_g: 180, stock: 50 },
-      { sku: 'TEE-BLK-M', title: 'Black / M', price_cents: 2999, weight_g: 200, stock: 75 },
-      { sku: 'TEE-BLK-L', title: 'Black / L', price_cents: 2999, weight_g: 220, stock: 60 },
-      { sku: 'TEE-WHT-S', title: 'White / S', price_cents: 2999, weight_g: 180, stock: 40 },
-      { sku: 'TEE-WHT-M', title: 'White / M', price_cents: 2999, weight_g: 200, stock: 55 },
-      { sku: 'TEE-WHT-L', title: 'White / L', price_cents: 2999, weight_g: 220, stock: 45 },
-    ],
-  },
-  {
-    key: 'hoodie',
-    categoryKey: 'hoodies',
-    vendor: 'SCTG',
-    title: { 'en-US': 'Hoodie', 'fr-FR': 'Sweat à capuche', 'es-ES': 'Sudadera con capucha', 'zh-CN': '连帽衫', 'ar-SA': 'هودي', 'he-IL': 'סווטשירט עם כובע' },
-    description: { 'en-US': '<p>Cozy pullover hoodie with large logo. Perfect for coding sessions…</p>', 'fr-FR': '<p>Sweat à capuche confortable avec grand logo. Parfait pour les sessions de codage…</p>', 'es-ES': '<p>Sudadera con capucha cómoda y gran logo. Perfecta para sesiones de programación…</p>', 'zh-CN': '<p>舒适的连帽衫，带有大标志。非常适合编码会话…</p>', 'ar-SA': '<p>سويت بالكلاو مريح مع شعار كبير. مثالية لجلسات البرمجة…</p>', 'he-IL': '<p>חולצת קפואה נוחה עם לוגו גדול. מושלמת לישיבות תכנות…</p>' },
-    variants: [
-      { sku: 'HOOD-BLK-M', title: 'Black / M', price_cents: 5999, weight_g: 520, stock: 30 },
-      { sku: 'HOOD-BLK-L', title: 'Black / L', price_cents: 5999, weight_g: 560, stock: 25 },
-      { sku: 'HOOD-GRY-M', title: 'Gray / M',  price_cents: 5999, weight_g: 520, stock: 20 },
-      { sku: 'HOOD-GRY-L', title: 'Gray / L',  price_cents: 5999, weight_g: 560, stock: 15 },
-    ],
-  },
-  {
-    key: 'cap',
-    categoryKey: 'caps',
-    vendor: 'SCTG',
-    title: { 'en-US': 'Cap', 'fr-FR': 'Casquette', 'es-ES': 'Gorra', 'zh-CN': '棒球帽', 'ar-SA': 'قبعة', 'he-IL': 'כובע' },
-    description: { 'en-US': '<p><strong>Embroidered</strong> baseball cap with logo. One size fits all heads…</p>', 'fr-FR': '<p>Casquette de baseball brodée avec logo. Une taille convient à toutes les têtes…</p>', 'es-ES': '<p>Gorra de béisbol bordada con logo. Talla única para todas las cabezas…</p>', 'zh-CN': '<p>刺绣棒球帽，带有标志。适合所有头型…</p>', 'ar-SA': '<p>قبعة بيسبول مخيطة بشعار. مقاس واحد يناسب جميع الرؤوس…</p>', 'he-IL': '<p>כובע בייסבול רקום עם לוגו. גודל אחד מתאים לכל הראש…</p>' },
-    variants: [
-      { sku: 'CAP-BLK', title: 'Black', price_cents: 2499, weight_g: 120, stock: 100 },
-      { sku: 'CAP-NVY', title: 'Navy',  price_cents: 2499, weight_g: 120, stock: 80 },
-    ],
-  },
-  {
-    key: 'sticker',
-    categoryKey: 'stickers',
-    vendor: 'SCTG',
-    title: { 'en-US': 'Sticker Pack', 'fr-FR': "Pack d'autocollants", 'es-ES': 'Paquete de pegatinas', 'zh-CN': '贴纸包', 'ar-SA': 'مجموعة ملصقات', 'he-IL': 'חבילת מדבקות' },
-    description: { 'en-US': '<p>Set of 5 die-cut vinyl stickers. Beautiful, waterproof and durable…</p>', 'fr-FR': '<p>Ensemble de 5 autocollants en vinyle découpés. Beaux, imperméables et durables…</p>', 'es-ES': '<p>Set de 5 pegatinas de vinilo recortadas. Hermosas, impermeables y duraderas…</p>', 'zh-CN': '<p>5件套模切乙烯基贴纸。美观、防水且耐用…</p>', 'ar-SA': '<p>مجموعة من 5 ملصقات فينيل مقطوعة. جميلة، مقاومة للماء ومتينة…</p>', 'he-IL': '<p>סט של 5 מדבקות ויניל חתוכות. יפות, עמידות למים ועמידות…</p>' },
-    variants: [
-      { sku: 'STICKER-5PK', title: '5 Pack', price_cents: 999, weight_g: 30, stock: 200 },
-    ],
-  },
-];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Data: shipping addresses & orders for demo customers
@@ -1597,41 +955,58 @@ const SEED_REVIEWS: SeedReview[] = [
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
- * Create legacy branded products (tees, hoodies, caps, stickers) with
- * multi-currency pricing and warehouse inventory.
+ * Create all products from PRODUCT_CATALOG with multi-currency pricing,
+ * category assignments and warehouse inventory.
  * Returns a map of product key → product ID, consumed later by seedReviews().
  */
-async function seedLegacyProducts(regionData: any, categoryData: any): Promise<Record<string, string>> {
+async function seedProducts(regionData: any, categoryData: any): Promise<Record<string, string>> {
   const productIds: Record<string, string> = {};
   const { EUR: eurId, USD: usdId, GBP: gbpId } = regionData.currencyMap as Record<string, string>;
 
-  for (const prod of LEGACY_PRODUCT_CATALOG) {
-    const categoryId = categoryData[prod.categoryKey];
-    const i18nVendor: I18nText = { 'en-US': prod.vendor, 'fr-FR': prod.vendor, 'es-ES': prod.vendor, 'zh-CN': prod.vendor, 'ar-SA': prod.vendor, 'he-IL': prod.vendor };
+  const handleToId: Record<string, string> = {
+    'classic-tees':     categoryData.classicTees,
+    'caps':             categoryData.caps,
+    'hoodies':          categoryData.hoodies,
+    'stickers':         categoryData.stickers,
+    'bags-carry':       categoryData.bagsCarry,
+    'drinkware':        categoryData.drinkware,
+    'accessories-tech': categoryData.accessoriesTech,
+    'home-living':      categoryData.homeLiving,
+    'events-signage':   categoryData.eventsSignage,
+    'sports-outdoor':   categoryData.sportsOutdoor,
+  };
+
+  for (const prod of PRODUCT_CATALOG) {
+    const i18nVendor = { 'en-US': prod.vendor, 'fr-FR': prod.vendor, 'es-ES': prod.vendor, 'zh-CN': prod.vendor, 'ar-SA': prod.vendor, 'he-IL': prod.vendor };
 
     console.log(`📦 Creating ${prod.title['en-US']}...`);
     const product = await api('/v1/products', {
+      handle: prod.handle,
       title: JSON.stringify(prod.title),
       description: JSON.stringify(prod.description),
       vendor: JSON.stringify(i18nVendor),
     });
 
     productIds[prod.key] = product.id;
-    if (categoryId) await api(`/v1/categories/${categoryId}/products`, { product_ids: [product.id] });
+
+    for (const cat of prod.categories) {
+      const catId = handleToId[cat];
+      if (catId) await api(`/v1/categories/${catId}/products`, { product_ids: [product.id] });
+    }
 
     for (const v of prod.variants) {
-      const { stock, ...variantBase } = v;
+      const { stock, imageFile, ...variantBase } = v as any;
+      const imgFile: string = imageFile ?? prod.file;
       const variantPayload: any = { ...variantBase, currency: 'EUR', tax_code: 'txcd_99999999' };
-
-      const imgFile = skuToImage[v.sku];
-      if (imgFile) variantPayload.image_url = imageMap[imgFile] ?? readImageAsDataUri(imgFile);
+      const imageUrl = imageMap[imgFile] ?? readImageAsDataUri(imgFile);
+      if (imageUrl) variantPayload.image_url = imageUrl;
 
       console.log(`   └─ ${v.sku}`);
-      const createdVariant = await api(`/v1/products/${product.id}/variants`, variantPayload);
+      const created = await api(`/v1/products/${product.id}/variants`, variantPayload);
 
-      if (eurId) await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, { currency_id: eurId, price_cents: v.price_cents });
-      if (usdId) await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, { currency_id: usdId, price_cents: convertCents(v.price_cents, EUR_TO_USD) });
-      if (gbpId) await api(`/v1/products/${product.id}/variants/${createdVariant.id}/prices`, { currency_id: gbpId, price_cents: convertCents(v.price_cents, EUR_TO_GBP) });
+      if (eurId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: eurId, price_cents: v.price_cents });
+      if (usdId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: usdId, price_cents: convertCents(v.price_cents, EUR_TO_USD) });
+      if (gbpId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: gbpId, price_cents: convertCents(v.price_cents, EUR_TO_GBP) });
 
       if (v.sku === 'TEE-BLK-S') {
         await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.it, delta: 10,         reason: 'restock' });
@@ -1722,10 +1097,9 @@ async function seed() {
   const regionData   = await seedRegions();
   const categoryData = await seedCategories();
 
-  await seedAdditionalProducts(categoryData, regionData);
-  const legacyProductIds = await seedLegacyProducts(regionData, categoryData);
+  const productIds = await seedProducts(regionData, categoryData);
   await seedOrders(regionData);
-  await seedReviews(legacyProductIds);
+  await seedReviews(productIds);
 
   console.log('\n✅ Done! Demo data created.\n');
 
