@@ -15,6 +15,7 @@ import {
 
 import { useAuth } from "@/authentication";
 import DefaultLayout from "@/layouts/default";
+import { getBaseURL } from "@/utils/base-url";
 
 /**
  * Shared layout for all /account/* pages with modernized design.
@@ -25,13 +26,23 @@ export default function AccountLayout() {
   const auth = useAuth();
   const { user, logout } = auth as any;
   const location = useLocation();
+  const baseUrl = getBaseURL();
 
   const navLinks = [
-    { to: `${import.meta.env.BASE_URL}/account`, label: t("account-dashboard"), icon: "", end: true },
-    { to: `${import.meta.env.BASE_URL}/account/orders`, label: t("account-orders"), icon: "" },
-    { to: `${import.meta.env.BASE_URL}/account/addresses`, label: t("account-addresses"), icon: "" },
     {
-      to: `${import.meta.env.BASE_URL}/account/preferences`,
+      to: `${baseUrl}/account`,
+      label: t("account-dashboard"),
+      icon: "",
+      end: true,
+    },
+    { to: `${baseUrl}/account/orders`, label: t("account-orders"), icon: "" },
+    {
+      to: `${baseUrl}/account/addresses`,
+      label: t("account-addresses"),
+      icon: "",
+    },
+    {
+      to: `${baseUrl}/account/preferences`,
       label: t("account-preferences"),
       icon: "",
     },

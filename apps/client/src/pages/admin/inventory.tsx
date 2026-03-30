@@ -128,6 +128,7 @@ export default function InventoryPage() {
       setInventory(inventoryResponse.items || []);
 
       const pagination = inventoryResponse.pagination || {};
+
       setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
       setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
 
@@ -157,6 +158,7 @@ export default function InventoryPage() {
     if (cursorHistory.length === 0) return;
 
     const previousCursor = cursorHistory[cursorHistory.length - 1];
+
     setCursorHistory((prev) => prev.slice(0, -1));
     setCursor(previousCursor);
   };

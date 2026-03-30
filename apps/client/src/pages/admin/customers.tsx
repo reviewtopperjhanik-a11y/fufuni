@@ -134,6 +134,7 @@ export default function CustomersPage() {
 
       setCustomers(resp.items || []);
       const pagination = resp.pagination || {};
+
       setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
       setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
     } catch (err) {
@@ -158,6 +159,7 @@ export default function CustomersPage() {
     if (cursorHistory.length === 0) return;
 
     const previousCursor = cursorHistory[cursorHistory.length - 1];
+
     setCursorHistory((prev) => prev.slice(0, -1));
     setCursor(previousCursor);
   };
@@ -293,8 +295,9 @@ export default function CustomersPage() {
                   <Pagination.Summary>
                     {customers.length === 0
                       ? t("admin-customers-empty")
-                      : `${(currentPage - 1) * 10 + 1} - ${(currentPage - 1) * 10 +
-                          customers.length} / page ${currentPage}`}
+                      : `${(currentPage - 1) * 10 + 1} - ${
+                          (currentPage - 1) * 10 + customers.length
+                        } / page ${currentPage}`}
                   </Pagination.Summary>
                   <Pagination.Content>
                     <Pagination.Item>
@@ -369,7 +372,9 @@ export default function CustomersPage() {
                                   />
                                 </TextField>
                                 <div>
-                                  <Label className="text-xs">{t("admin-customers-col-email")}</Label>
+                                  <Label className="text-xs">
+                                    {t("admin-customers-col-email")}
+                                  </Label>
                                   <div className="mt-1 px-3 py-2 rounded-lg bg-default-100 text-sm ">
                                     {customerDetail.email}
                                   </div>

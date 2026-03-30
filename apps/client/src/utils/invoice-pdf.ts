@@ -179,9 +179,9 @@ export function downloadInvoicePdf(
 
   if (order.taxes && order.taxes.length > 0) {
     for (const tax of order.taxes) {
-      const label = tax.tax_inclusive !== false
-        ? `Incl. ${tax.name}`
-        : `Tax (${tax.name})`;
+      const label =
+        tax.tax_inclusive !== false ? `Incl. ${tax.name}` : `Tax (${tax.name})`;
+
       addTotalLine(label, tax.amount_cents);
     }
   } else {
@@ -310,9 +310,9 @@ export function openInvoicePdf(
 
   if (order.taxes && order.taxes.length > 0) {
     for (const tax of order.taxes) {
-      const label = tax.tax_inclusive !== false
-        ? `Incl. ${tax.name}`
-        : `Tax (${tax.name})`;
+      const label =
+        tax.tax_inclusive !== false ? `Incl. ${tax.name}` : `Tax (${tax.name})`;
+
       addTotalLine(label, tax.amount_cents);
     }
   } else {

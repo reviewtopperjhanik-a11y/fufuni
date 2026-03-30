@@ -26,7 +26,14 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card, Label, ListBox, Select } from "@heroui/react";
-import { AlertTriangle, Cloud, Database, Package, TrendingUp, Users } from "lucide-react";
+import {
+  AlertTriangle,
+  Cloud,
+  Database,
+  Package,
+  TrendingUp,
+  Users,
+} from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
@@ -202,7 +209,6 @@ export default function AnalyticsPage() {
                 </Card.Content>
               </Card>
             </div>
-
             {/* ── Top products ──────────────────────────────────────────── */}
             <Card>
               <Card.Content className="p-4">
@@ -233,7 +239,6 @@ export default function AnalyticsPage() {
                 )}
               </Card.Content>
             </Card>
-
             {/* ── Orders by status ──────────────────────────────────────── */}
             <Card>
               <Card.Content className="p-4">
@@ -260,7 +265,9 @@ export default function AnalyticsPage() {
                 <Card.Content className="p-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <Database className="text-primary" size={22} />
-                    <h3 className="font-semibold">{t("admin-analytics-cache-kv")}</h3>
+                    <h3 className="font-semibold">
+                      {t("admin-analytics-cache-kv")}
+                    </h3>
                   </div>
                   {cacheStats ? (
                     <>
@@ -288,45 +295,75 @@ export default function AnalyticsPage() {
                                   ? "bg-warning"
                                   : "bg-danger"
                             }`}
-                            style={{ width: `${Math.round(cacheStats.kv.hit_rate * 100)}%` }}
+                            style={{
+                              width: `${Math.round(cacheStats.kv.hit_rate * 100)}%`,
+                            }}
                           />
                         </div>
                       </div>
                       <div className="grid grid-cols-3 text-center gap-2">
                         <div>
-                          <p className="text-lg font-bold text-success">{cacheStats.kv.hits}</p>
-                          <p className="text-xs text-default-400">{t("admin-analytics-cache-hits")}</p>
+                          <p className="text-lg font-bold text-success">
+                            {cacheStats.kv.hits}
+                          </p>
+                          <p className="text-xs text-default-400">
+                            {t("admin-analytics-cache-hits")}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-lg font-bold text-danger">{cacheStats.kv.misses}</p>
-                          <p className="text-xs text-default-400">{t("admin-analytics-cache-misses")}</p>
+                          <p className="text-lg font-bold text-danger">
+                            {cacheStats.kv.misses}
+                          </p>
+                          <p className="text-xs text-default-400">
+                            {t("admin-analytics-cache-misses")}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-lg font-bold">{cacheStats.kv.entries}</p>
-                          <p className="text-xs text-default-400">{t("admin-analytics-cache-entries")}</p>
+                          <p className="text-lg font-bold">
+                            {cacheStats.kv.entries}
+                          </p>
+                          <p className="text-xs text-default-400">
+                            {t("admin-analytics-cache-entries")}
+                          </p>
                         </div>
                       </div>
                       <div className="grid grid-cols-3 text-center gap-2 pt-2 border-t border-default-200">
                         <div>
-                          <p className="text-sm font-semibold">{cacheStats.kv.search_ttl_seconds}s</p>
-                          <p className="text-xs text-default-400">{t("admin-analytics-cache-search-ttl")}</p>
+                          <p className="text-sm font-semibold">
+                            {cacheStats.kv.search_ttl_seconds}s
+                          </p>
+                          <p className="text-xs text-default-400">
+                            {t("admin-analytics-cache-search-ttl")}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-sm font-semibold">{cacheStats.kv.reviews_ttl_seconds}s</p>
-                          <p className="text-xs text-default-400">{t("admin-analytics-cache-reviews-ttl")}</p>
+                          <p className="text-sm font-semibold">
+                            {cacheStats.kv.reviews_ttl_seconds}s
+                          </p>
+                          <p className="text-xs text-default-400">
+                            {t("admin-analytics-cache-reviews-ttl")}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-sm font-semibold">{cacheStats.kv.default_ttl_seconds}s</p>
-                          <p className="text-xs text-default-400">{t("admin-analytics-cache-default-ttl")}</p>
+                          <p className="text-sm font-semibold">
+                            {cacheStats.kv.default_ttl_seconds}s
+                          </p>
+                          <p className="text-xs text-default-400">
+                            {t("admin-analytics-cache-default-ttl")}
+                          </p>
                         </div>
                       </div>
                       <p className="text-xs text-default-400 text-right">
                         {t("admin-analytics-cache-do-saved")} :{" "}
-                        <span className="font-semibold text-foreground">{cacheStats.kv.hits}</span>
+                        <span className="font-semibold text-foreground">
+                          {cacheStats.kv.hits}
+                        </span>
                       </p>
                     </>
                   ) : (
-                    <p className="text-sm text-default-400">{t("admin-analytics-loading")}</p>
+                    <p className="text-sm text-default-400">
+                      {t("admin-analytics-loading")}
+                    </p>
                   )}
                 </Card.Content>
               </Card>
@@ -336,7 +373,9 @@ export default function AnalyticsPage() {
                 <Card.Content className="p-4 space-y-3">
                   <div className="flex items-center gap-2">
                     <Cloud className="text-secondary" size={22} />
-                    <h3 className="font-semibold">{t("admin-analytics-cache-cdn")}</h3>
+                    <h3 className="font-semibold">
+                      {t("admin-analytics-cache-cdn")}
+                    </h3>
                   </div>
                   {cacheStats ? (
                     <>
@@ -364,18 +403,28 @@ export default function AnalyticsPage() {
                                   ? "bg-warning"
                                   : "bg-danger"
                             }`}
-                            style={{ width: `${Math.round(cacheStats.cdn.hit_rate * 100)}%` }}
+                            style={{
+                              width: `${Math.round(cacheStats.cdn.hit_rate * 100)}%`,
+                            }}
                           />
                         </div>
                       </div>
                       <div className="grid grid-cols-2 text-center gap-2">
                         <div>
-                          <p className="text-lg font-bold text-success">{cacheStats.cdn.hits}</p>
-                          <p className="text-xs text-default-400">{t("admin-analytics-cache-hits")}</p>
+                          <p className="text-lg font-bold text-success">
+                            {cacheStats.cdn.hits}
+                          </p>
+                          <p className="text-xs text-default-400">
+                            {t("admin-analytics-cache-hits")}
+                          </p>
                         </div>
                         <div>
-                          <p className="text-lg font-bold text-danger">{cacheStats.cdn.misses}</p>
-                          <p className="text-xs text-default-400">{t("admin-analytics-cache-misses")}</p>
+                          <p className="text-lg font-bold text-danger">
+                            {cacheStats.cdn.misses}
+                          </p>
+                          <p className="text-xs text-default-400">
+                            {t("admin-analytics-cache-misses")}
+                          </p>
                         </div>
                       </div>
                       <p className="text-xs text-default-400 italic">
@@ -383,11 +432,14 @@ export default function AnalyticsPage() {
                       </p>
                     </>
                   ) : (
-                    <p className="text-sm text-default-400">{t("admin-analytics-loading")}</p>
+                    <p className="text-sm text-default-400">
+                      {t("admin-analytics-loading")}
+                    </p>
                   )}
                 </Card.Content>
               </Card>
-            </div>          </>
+            </div>{" "}
+          </>
         )}
       </div>
     </DefaultLayout>

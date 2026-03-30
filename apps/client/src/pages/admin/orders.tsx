@@ -152,6 +152,7 @@ export default function OrdersPage() {
   useEffect(() => {
     if (data) {
       const pagination = data?.pagination || {};
+
       setHasMore(pagination.has_more ?? pagination.hasMore ?? false);
       setNextCursor(pagination.next_cursor ?? pagination.nextCursor ?? null);
     }
@@ -170,6 +171,7 @@ export default function OrdersPage() {
     if (cursorHistory.length === 0) return;
 
     const previousCursor = cursorHistory[cursorHistory.length - 1];
+
     setCursorHistory((prev) => prev.slice(0, -1));
     setCursor(previousCursor);
   };
@@ -437,8 +439,9 @@ export default function OrdersPage() {
                       <Pagination.Summary>
                         {orders.length === 0
                           ? t("admin-orders-empty")
-                          : `${(currentPage - 1) * 10 + 1} - ${(currentPage - 1) * 10 +
-                              orders.length} / page ${currentPage}`}
+                          : `${(currentPage - 1) * 10 + 1} - ${
+                              (currentPage - 1) * 10 + orders.length
+                            } / page ${currentPage}`}
                       </Pagination.Summary>
                       <Pagination.Content>
                         <Pagination.Item>
@@ -763,7 +766,7 @@ export default function OrdersPage() {
                           {/* Footer: Timestamp + Refund */}
                           <div className="flex flex-wrap items-center justify-between gap-3">
                             <p className="text-xs text-default-500 min-w-0">
-                              {t("admin-orders-created")} {" "}
+                              {t("admin-orders-created")}{" "}
                               {new Date(
                                 selectedOrder.created_at,
                               ).toLocaleString()}

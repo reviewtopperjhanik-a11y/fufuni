@@ -26,6 +26,7 @@
 import { useEffect, useState, useCallback } from "react";
 import SwaggerUI from "swagger-ui-react";
 import "swagger-ui-react/swagger-ui.css";
+import { getBaseURL } from "@/utils/base-url";
 
 export interface OpenAPIProps {
   /**
@@ -67,11 +68,12 @@ export function OpenAPI({
   bearer,
 }: OpenAPIProps) {
   // compute the URL from prop or fallback to env
+  const baseUrl = getBaseURL();
   const url =
     source ||
-    (import.meta.env.BASE_URL.endsWith("/")
-      ? import.meta.env.BASE_URL + "openapi.json"
-      : import.meta.env.BASE_URL + "/openapi.json");
+    (baseUrl.endsWith("/")
+      ? baseUrl + "openapi.json"
+      : baseUrl + "/openapi.json");
 
   // Fetch the OpenAPI spec from the server
   const [openApiSpec, setOpenApiSpec] = useState<any>(null);

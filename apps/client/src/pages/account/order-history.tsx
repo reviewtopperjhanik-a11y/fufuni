@@ -101,44 +101,46 @@ export default function OrderHistory() {
           <Table aria-label={t("account-orders")}>
             <Table.Content selectionMode="none">
               <Table.Header>
-                <Table.Column isRowHeader>{t("account-order-number")}</Table.Column>
+                <Table.Column isRowHeader>
+                  {t("account-order-number")}
+                </Table.Column>
                 <Table.Column>{t("account-date")}</Table.Column>
                 <Table.Column>{t("account-status")}</Table.Column>
                 <Table.Column>{t("account-total")}</Table.Column>
                 <Table.Column>{t("account-actions")}</Table.Column>
               </Table.Header>
               <Table.Body renderEmptyState={() => ""}>
-              {orders.map((order) => (
-                <Table.Row key={order.id}>
-                  <Table.Cell>{order.number}</Table.Cell>
-                  <Table.Cell>
-                    {new Date(order.created_at).toLocaleDateString()}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Chip
-                      color={
-                        ORDER_STATUS_COLORS[
-                          order.status as keyof typeof ORDER_STATUS_COLORS
-                        ] || "default"
-                      }
-                      size="sm"
-                      variant="primary"
-                    >
-                      {order.status}
-                    </Chip>
-                  </Table.Cell>
-                  <Table.Cell>
-                    {(order.total_cents / 100).toFixed(2)} {order.currency}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <Link to={`/account/orders/${order.number}`}>
-                      <Button size="sm" variant="tertiary">
-                        {t("account-view")}
-                      </Button>
-                    </Link>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
+                {orders.map((order) => (
+                  <Table.Row key={order.id}>
+                    <Table.Cell>{order.number}</Table.Cell>
+                    <Table.Cell>
+                      {new Date(order.created_at).toLocaleDateString()}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Chip
+                        color={
+                          ORDER_STATUS_COLORS[
+                            order.status as keyof typeof ORDER_STATUS_COLORS
+                          ] || "default"
+                        }
+                        size="sm"
+                        variant="primary"
+                      >
+                        {order.status}
+                      </Chip>
+                    </Table.Cell>
+                    <Table.Cell>
+                      {(order.total_cents / 100).toFixed(2)} {order.currency}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Link to={`/account/orders/${order.number}`}>
+                        <Button size="sm" variant="tertiary">
+                          {t("account-view")}
+                        </Button>
+                      </Link>
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
               </Table.Body>
             </Table.Content>
           </Table>

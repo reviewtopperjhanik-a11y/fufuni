@@ -26,6 +26,7 @@ import { useParams, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card, Breadcrumbs, Spinner } from "@heroui/react";
+import { getBaseURL } from "@/utils/base-url";
 
 import DefaultLayout from "@/layouts/default";
 import { getProduct, StoreProduct } from "@/lib/store-api";
@@ -68,11 +69,11 @@ export default function ProductPage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Breadcrumbs */}
         <Breadcrumbs className="mb-4">
-          <Breadcrumbs.Item href={`${import.meta.env.BASE_URL}`}>{t("home")}</Breadcrumbs.Item>
+          <Breadcrumbs.Item href={`${getBaseURL()}`}>{t("home")}</Breadcrumbs.Item>
           {fromCategory ? (
-            <Breadcrumbs.Item href={`${import.meta.env.BASE_URL}/products?category=${fromCategory}`}>{resolveTitle(categoryName, i18n.language)}</Breadcrumbs.Item>
+            <Breadcrumbs.Item href={`${getBaseURL()}/products?category=${fromCategory}`}>{resolveTitle(categoryName, i18n.language)}</Breadcrumbs.Item>
           ) : (
-            <Breadcrumbs.Item href={`${import.meta.env.BASE_URL}/products`}>{t("shop-products-title")}</Breadcrumbs.Item>
+            <Breadcrumbs.Item href={`${getBaseURL()}/products`}>{t("shop-products-title")}</Breadcrumbs.Item>
           )}
           {displayTitle && (
             <Breadcrumbs.Item>{displayTitle}</Breadcrumbs.Item>

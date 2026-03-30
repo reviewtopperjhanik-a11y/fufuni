@@ -193,14 +193,26 @@ export async function getProducts(): Promise<StoreProduct[]> {
 export async function getProductsPage(
   cursor?: string | null,
   limit = 20,
-): Promise<{ items: StoreProduct[]; pagination: { has_more: boolean; next_cursor: string | null } }> {
-  const params = new URLSearchParams({ limit: String(limit), status: 'active', thumbnail: 'true' });
-  if (cursor) params.set('cursor', cursor);
-  const resp = await request<{ items: StoreProduct[]; pagination: { has_more: boolean; next_cursor: string | null } }>(
-    `/v1/products?${params}`,
-  );
+): Promise<{
+  items: StoreProduct[];
+  pagination: { has_more: boolean; next_cursor: string | null };
+}> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    status: "active",
+    thumbnail: "true",
+  });
+
+  if (cursor) params.set("cursor", cursor);
+  const resp = await request<{
+    items: StoreProduct[];
+    pagination: { has_more: boolean; next_cursor: string | null };
+  }>(`/v1/products?${params}`);
+
   return {
-    items: (resp.items || []).filter((p) => p.variants && p.variants.length > 0),
+    items: (resp.items || []).filter(
+      (p) => p.variants && p.variants.length > 0,
+    ),
     pagination: resp.pagination,
   };
 }
@@ -227,14 +239,25 @@ export async function getCategoryProductsPage(
   handle: string,
   cursor?: string | null,
   limit = 20,
-): Promise<{ items: StoreProduct[]; pagination: { has_more: boolean; next_cursor: string | null } }> {
-  const params = new URLSearchParams({ limit: String(limit), thumbnail: 'true' });
-  if (cursor) params.set('cursor', cursor);
-  const resp = await request<{ items: StoreProduct[]; pagination: { has_more: boolean; next_cursor: string | null } }>(
-    `/v1/categories/${encodeURIComponent(handle)}/products?${params}`,
-  );
+): Promise<{
+  items: StoreProduct[];
+  pagination: { has_more: boolean; next_cursor: string | null };
+}> {
+  const params = new URLSearchParams({
+    limit: String(limit),
+    thumbnail: "true",
+  });
+
+  if (cursor) params.set("cursor", cursor);
+  const resp = await request<{
+    items: StoreProduct[];
+    pagination: { has_more: boolean; next_cursor: string | null };
+  }>(`/v1/categories/${encodeURIComponent(handle)}/products?${params}`);
+
   return {
-    items: (resp.items || []).filter((p) => p.variants && p.variants.length > 0),
+    items: (resp.items || []).filter(
+      (p) => p.variants && p.variants.length > 0,
+    ),
     pagination: resp.pagination,
   };
 }

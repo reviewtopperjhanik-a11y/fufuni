@@ -71,10 +71,12 @@ export default function Preferences() {
     setFormError(null);
     if (!formData.name?.trim()) {
       setFormError(t("account-field-required"));
+
       return;
     }
     if (!formData.phone?.trim()) {
       setFormError(t("account-field-required"));
+
       return;
     }
     setSaving(true);
@@ -140,7 +142,10 @@ export default function Preferences() {
             <Input value={profile.email} />
           </TextField>
 
-          <TextField isRequired isInvalid={formData.name?.trim() === "" || formData.name === null}>
+          <TextField
+            isRequired
+            isInvalid={formData.name?.trim() === "" || formData.name === null}
+          >
             <Label>{t("account-name")}</Label>
             <Input
               placeholder={t("account-enter-name")}
@@ -151,7 +156,10 @@ export default function Preferences() {
             />
           </TextField>
 
-          <TextField isRequired isInvalid={formData.phone?.trim() === "" || formData.phone === null}>
+          <TextField
+            isRequired
+            isInvalid={formData.phone?.trim() === "" || formData.phone === null}
+          >
             <Label>{t("account-phone")}</Label>
             <Input
               placeholder={t("account-enter-phone")}
@@ -246,9 +254,7 @@ export default function Preferences() {
             </span>
           )}
         </div>
-        {formError && (
-          <span className="text-danger text-sm">{formError}</span>
-        )}
+        {formError && <span className="text-danger text-sm">{formError}</span>}
       </div>
     </div>
   );

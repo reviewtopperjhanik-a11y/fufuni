@@ -17,6 +17,7 @@
  */
 
 import { useAuth } from '@/authentication';
+import { getBaseURL } from '@/utils/base-url';
 import {
   Modal,
   Button,
@@ -93,15 +94,16 @@ export function LoginModal({ isOpen: _isOpen, onClose: _onClose, returnTo, pendi
     }
   };
 
+  const baseUrlValue = getBaseURL() || "/";
   const redirectUri = new URL(
-    import.meta.env.BASE_URL || "/",
+    baseUrlValue,
     window.location.origin,
   ).toString();
 
   // if returnTo is not provided contsruct it from the current location path minus the base URL (to avoid redirecting to the root of the app after login)
   if (!returnTo) {
     const currentPath = window.location.pathname;
-    const baseUrl = import.meta.env.BASE_URL || "/";
+    const baseUrl = baseUrlValue;
     if (currentPath.startsWith(baseUrl)) {
       returnTo = currentPath.slice(baseUrl.length) || "/";
     } else {

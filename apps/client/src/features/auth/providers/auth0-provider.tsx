@@ -10,6 +10,7 @@ import {
   RedirectLoginOptions,
 } from "@auth0/auth0-react";
 import React, { JSX, useCallback, useMemo, useRef } from "react";
+import { getBaseURL } from "@/utils/base-url";
 import { JWTPayload, decodeJwt, jwtVerify } from "jose";
 
 import {
@@ -158,7 +159,7 @@ export const useAuth0Provider = (): AuthProvider => {
         returnTo:
           options?.logoutParams?.returnTo ||
           new URL(
-            import.meta.env.BASE_URL || "/",
+            getBaseURL() || "/",
             window.location.origin,
           ).toString(),
         ...options?.logoutParams,

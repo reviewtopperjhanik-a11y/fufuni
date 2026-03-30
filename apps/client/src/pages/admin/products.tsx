@@ -231,8 +231,7 @@ export default function ProductsPage() {
       setProducts(resp.items || []);
 
       const pagination = resp.pagination || {};
-      const has_more =
-        pagination.has_more ?? pagination.hasMore ?? false;
+      const has_more = pagination.has_more ?? pagination.hasMore ?? false;
       const next_cursor =
         pagination.next_cursor ?? pagination.nextCursor ?? null;
 
@@ -255,6 +254,7 @@ export default function ProductsPage() {
     }
 
     const previousCursor = cursorHistory[cursorHistory.length - 1];
+
     setCursorHistory((prev) => prev.slice(0, -1));
 
     await loadProducts(previousCursor, false);
@@ -762,7 +762,11 @@ export default function ProductsPage() {
             >
               {STATUS_OPTIONS.map((opt) => (
                 <option key={opt} value={opt}>
-                  {opt === "" ? t("all") : opt === "active" ? t("admin-products-status-active") : t("admin-products-status-draft")}
+                  {opt === ""
+                    ? t("all")
+                    : opt === "active"
+                      ? t("admin-products-status-active")
+                      : t("admin-products-status-draft")}
                 </option>
               ))}
             </select>
@@ -820,8 +824,9 @@ export default function ProductsPage() {
                   <Pagination.Summary>
                     {products.length === 0
                       ? t("admin-products-empty")
-                      : `${(currentPage - 1) * 10 + 1} - ${(currentPage - 1) * 10 +
-                          products.length} / page ${currentPage}`}
+                      : `${(currentPage - 1) * 10 + 1} - ${
+                          (currentPage - 1) * 10 + products.length
+                        } / page ${currentPage}`}
                   </Pagination.Summary>
                   <Pagination.Content>
                     <Pagination.Item>

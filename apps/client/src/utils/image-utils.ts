@@ -24,21 +24,27 @@ export async function convertToWebp(
   quality = 0.8,
 ): Promise<Blob> {
   const objectUrl = URL.createObjectURL(source);
+
   try {
     const img = await loadImage(objectUrl);
 
-    const scale = Math.min(1, maxSide / Math.max(img.naturalWidth, img.naturalHeight));
+    const scale = Math.min(
+      1,
+      maxSide / Math.max(img.naturalWidth, img.naturalHeight),
+    );
     const width = Math.round(img.naturalWidth * scale);
     const height = Math.round(img.naturalHeight * scale);
 
-    const canvas = document.createElement('canvas');
+    const canvas = document.createElement("canvas");
+
     canvas.width = width;
     canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) throw new Error('Could not get 2D canvas context');
+    const ctx = canvas.getContext("2d");
+
+    if (!ctx) throw new Error("Could not get 2D canvas context");
     ctx.drawImage(img, 0, 0, width, height);
 
-    return await canvasToBlob(canvas, 'image/webp', quality);
+    return await canvasToBlob(canvas, "image/webp", quality);
   } finally {
     URL.revokeObjectURL(objectUrl);
   }
@@ -51,6 +57,7 @@ export async function convertToWebp(
 export function blobToBase64(blob: Blob): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
+
     reader.onload = () => resolve(reader.result as string);
     reader.onerror = reject;
     reader.readAsDataURL(blob);
@@ -62,6 +69,7 @@ export function blobToBase64(blob: Blob): Promise<string> {
 function loadImage(src: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const img = new Image();
+
     img.onload = () => resolve(img);
     img.onerror = reject;
     img.src = src;
@@ -77,7 +85,7 @@ function canvasToBlob(
     canvas.toBlob(
       (blob) => {
         if (blob) resolve(blob);
-        else reject(new Error('canvas.toBlob returned null'));
+        else reject(new Error("canvas.toBlob returned null"));
       },
       type,
       quality,

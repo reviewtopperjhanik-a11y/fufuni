@@ -212,10 +212,12 @@ export default function OrderDetail() {
                     <Table.Cell>{item.title}</Table.Cell>
                     <Table.Cell>{item.qty}</Table.Cell>
                     <Table.Cell>
-                      {(item.unit_price_cents / 100).toFixed(2)} {order.currency}
+                      {(item.unit_price_cents / 100).toFixed(2)}{" "}
+                      {order.currency}
                     </Table.Cell>
                     <Table.Cell>
-                      {((item.qty * item.unit_price_cents) / 100).toFixed(2)} {order.currency}
+                      {((item.qty * item.unit_price_cents) / 100).toFixed(2)}{" "}
+                      {order.currency}
                     </Table.Cell>
                   </Table.Row>
                 ))}
@@ -230,29 +232,44 @@ export default function OrderDetail() {
         <Card.Content className="gap-3">
           <div className="flex justify-between">
             <span>{t("account-subtotal")}</span>
-            <span>{(order.subtotal_cents / 100).toFixed(2)} {order.currency}</span>
+            <span>
+              {(order.subtotal_cents / 100).toFixed(2)} {order.currency}
+            </span>
           </div>
           <div className="flex justify-between">
             <span>{t("account-shipping")}</span>
-            <span>{(order.shipping_cents / 100).toFixed(2)} {order.currency}</span>
+            <span>
+              {(order.shipping_cents / 100).toFixed(2)} {order.currency}
+            </span>
           </div>
           {order.taxes && order.taxes.length > 0 ? (
             order.taxes.map((tax, idx) => (
               <div key={idx} className="flex justify-between">
-                <span>{tax.tax_inclusive !== false ? t("checkout-tax-included") : t("account-tax")} ({tax.name})</span>
-                <span>{(tax.amount_cents / 100).toFixed(2)} {order.currency}</span>
+                <span>
+                  {tax.tax_inclusive !== false
+                    ? t("checkout-tax-included")
+                    : t("account-tax")}{" "}
+                  ({tax.name})
+                </span>
+                <span>
+                  {(tax.amount_cents / 100).toFixed(2)} {order.currency}
+                </span>
               </div>
             ))
           ) : order.tax_cents > 0 ? (
             <div className="flex justify-between">
               <span>{t("account-tax")}</span>
-              <span>{(order.tax_cents / 100).toFixed(2)} {order.currency}</span>
+              <span>
+                {(order.tax_cents / 100).toFixed(2)} {order.currency}
+              </span>
             </div>
           ) : null}
           <Separator />
           <div className="flex justify-between font-bold text-lg">
             <span>{t("account-total")}</span>
-            <span>{(order.total_cents / 100).toFixed(2)} {order.currency}</span>
+            <span>
+              {(order.total_cents / 100).toFixed(2)} {order.currency}
+            </span>
           </div>
         </Card.Content>
       </Card>

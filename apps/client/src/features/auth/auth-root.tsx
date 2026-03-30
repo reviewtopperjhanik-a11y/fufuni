@@ -23,6 +23,8 @@ import { useNavigate } from "react-router-dom";
 import { AuthProviderWrapper } from "./providers/use-auth";
 import { AutoPermissionProvisioner } from "./components/auth-components";
 
+import { getBaseURL } from "@/utils/base-url";
+
 // Provider types we support
 export type AuthenticationType = "auth0" | "dex";
 
@@ -50,7 +52,7 @@ export const AuthenticationProvider: React.FC<AuthenticationProviderProps> = ({
     // AUTH0_AUDIENCE
     // AUTH0_SCOPE
     const redirectUri = new URL(
-      import.meta.env.BASE_URL || "/",
+      getBaseURL() || "/",
       window.location.origin,
     ).toString();
 

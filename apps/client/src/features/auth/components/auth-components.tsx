@@ -14,6 +14,7 @@ import { Button } from "@heroui/react";
 import { Tooltip } from "@heroui/react";
 import { Link } from "@heroui/react";
 import { useTranslation } from "react-i18next";
+import { getBaseURL } from "@/utils/base-url";
 
 import { SiteLoading } from "@/shared/ui/feedback/site-loading";
 
@@ -159,7 +160,7 @@ export const LogoutButton: FC<LogoutButtonProps> = ({
               logout({
                 logoutParams: {
                   returnTo: new URL(
-                    import.meta.env.BASE_URL || "/",
+                    getBaseURL() || "/",
                     window.location.origin,
                   ).toString(),
                 },
@@ -228,7 +229,7 @@ export const LogoutLink: FC<LogoutLinkProps & { i18nKey?: string }> = ({
         logout({
           logoutParams: {
             returnTo: new URL(
-              import.meta.env.BASE_URL || "/",
+              getBaseURL() || "/",
               window.location.origin,
             ).toString(),
           },

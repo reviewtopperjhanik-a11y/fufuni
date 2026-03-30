@@ -7,6 +7,7 @@
 
 import { UserManager, User, WebStorageStateStore, Log } from "oidc-client-ts";
 import { useEffect, useState } from "react";
+import { getBaseURL } from "@/utils/base-url";
 import { JWTPayload, jwtVerify, createRemoteJWKSet } from "jose";
 
 import {
@@ -231,7 +232,7 @@ export const useDexProvider = (
         post_logout_redirect_uri:
           options?.logoutParams?.returnTo ||
           new URL(
-            import.meta.env.BASE_URL || "/",
+            getBaseURL() || "/",
             window.location.origin,
           ).toString(),
       });
