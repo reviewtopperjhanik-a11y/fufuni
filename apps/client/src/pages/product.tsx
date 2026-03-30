@@ -70,7 +70,7 @@ export default function ProductPage() {
         <Breadcrumbs className="mb-4">
           <Breadcrumbs.Item href="/">{t("home")}</Breadcrumbs.Item>
           {fromCategory ? (
-            <Breadcrumbs.Item href={`/products?category=${fromCategory}`}>{categoryName}</Breadcrumbs.Item>
+            <Breadcrumbs.Item href={`/products?category=${fromCategory}`}>{resolveTitle(categoryName, i18n.language)}</Breadcrumbs.Item>
           ) : (
             <Breadcrumbs.Item href="/products">{t("shop-products-title")}</Breadcrumbs.Item>
           )}
