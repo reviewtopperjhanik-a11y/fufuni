@@ -36,6 +36,7 @@ Visitors see an attractive landing page with a Log in button and direct links to
 
 - [Features](#features)
 - [Architecture](#architecture)
+- [KV Cache \& CDN](#kv-cache--cdn)
 - [Quick Start](#quick-start)
 - [Configuration Reference](#configuration-reference)
   - [wrangler.jsonc — Variables](#wranglerjsonc--variables)
@@ -161,7 +162,7 @@ Full-featured back-office covering:
 - **Cloudflare Workers** — zero-cold-start edge API (Hono + Zod-OpenAPI)
 - **Durable Objects** (SQLite) — 100 % of store state, no D1 required
 - **Cloudflare R2** — product image storage
-- **Cloudflare KV** — caching layer (`KVCACHE`)
+- **Cloudflare KV** — caching layer (`KV_CACHE`) with variable TTL, bypass rules for admin tokens, and prefix-based invalidation on mutations
 - Rate limiting middleware (per endpoint, per role)
 - Outbound webhooks with HMAC signing and delivery log
 - Scheduled cron every hour at :15 for cart expiry cleanup
@@ -178,7 +179,7 @@ flowchart LR
     Stripe["Stripe Checkout"]
     Mailgun["Mailgun (email)"]
     R2["R2 (images)"]
-    KV["KV Cache (KVCACHE)"]
+    KV["KV Cache (KV_CACHE)"]
   end
 
   React -->|API calls| Merchant
@@ -218,6 +219,66 @@ flowchart LR
 │               ├── catalog.ts
 │               └── ...
 ```
+
+---
+
+## KV Cache & CDN
+
+Fufuni caches public read endpoints in **Cloudflare KV** to slash Durable Object invocations, and uses the **Cloudflare Cache API** to serve product images from edge PoPs.
+
+### KV Cache (catalog & categories)
+
+The `kvCacheMiddleware` in `apps/merchant/src/middleware/kv-cache.ts` intercepts GET requests on `/v1/products/*` and `/v1/categories/*` **before** they reach the Durable Object.
+
+**Cache key:** `cache:<full-url>` — query params are included, so paginated and filtered responses are cached independently.
+
+**TTL policy:**
+
+| Endpoint pattern | TTL |
+|---|---|
+| `/v1/products/search` | 5 minutes |
+| `/v1/products/:id/reviews` | 10 minutes |
+| All other catalog & category routes | 1 hour |
+
+**Bypass rules:**
+
+| Request type | Cached? | Reason |
+|---|---|---|
+| Non-GET methods | ❌ | Mutations must always reach the DO |
+| `Authorization: Bearer sk_...` | ❌ | Admin key — may return unpublished data |
+| Auth0 JWT | ❌ | Permission-scoped response |
+| `Authorization: Bearer pk_...` | ✅ | Public store key — identical response for every visitor |
+| No Authorization header | ✅ | Truly public endpoints |
+
+**Invalidation:** on any successful `POST`, `PATCH`, or `DELETE` to products or categories, `kvInvalidateMiddleware` purges **all** `cache:*/v1/products` and `cache:*/v1/categories` entries by iterating `kv.list()` pages — covers paginated/filtered keys automatically.
+
+**Response header:** `X-KV-Cache: HIT | MISS` set on every cached route.
+
+> `KV_CACHE` must be declared in `wrangler.jsonc` (see [Cloudflare Bindings](#cloudflare-bindings-wranglerjsonc)).
+
+### CDN Cache (images)
+
+Product images served from R2 are additionally cached at the Cloudflare edge via the [Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/) (`caches.default`):
+
+1. On `GET /v1/images/:key`, the Worker checks `caches.default.match(request)` first.
+2. On a miss, the image is pulled from R2 and stored via `cache.put()` (inside `waitUntil`).
+3. On `DELETE /v1/images/:key`, the CDN entry is purged alongside the R2 object.
+4. Admins can force-purge all or individual CDN entries at any time via dedicated endpoints.
+
+> ⚠️ **wrangler dev note:** `caches.default` is **not available** in `wrangler dev`. CDN hit/miss counters will stay at 0 during local development — deploy to Cloudflare to see live CDN metrics.
+
+### Cache Analytics
+
+The `GET /v1/analytics/cache-stats` endpoint (admin-only) returns cumulative counters stored in KV:
+
+```json
+{
+  "kv":  { "hits": 1234, "misses": 89,  "hit_rate": 0.93, "entries": 47 },
+  "cdn": { "hits": 5012, "misses": 203, "hit_rate": 0.96 }
+}
+```
+
+These are surfaced as progress bars on the `/admin/analytics` dashboard. Counters are cumulative and never reset; accuracy is approximate under concurrent load (non-atomic KV read-modify-write).
 
 ---
 
@@ -340,7 +401,7 @@ Sensitive values (secrets) should be set with `wrangler secret put`.
 | `CORS_ORIGIN` | ⚙️ | Allowed CORS origin (e.g. `http://localhost:5173`) |
 | `API_BASE_URL` | ⚙️ | Worker URL (used internally) |
 | `CRYPTOKEN` | ⚙️ | Hex token for crypto operations |
-| `KV_CACHE_ID` | ⚙️ | KV namespace ID (mirrors the `KVCACHE` binding) |
+| `KV_CACHE_ID` | ⚙️ | KV namespace ID (mirrors the `KV_CACHE` binding) |
 
 #### Cloudflare Bindings (wrangler.jsonc)
 
@@ -350,7 +411,7 @@ Sensitive values (secrets) should be set with `wrangler secret put`.
     "bindings": [{ "name": "MERCHANT", "class_name": "MerchantDO" }]
   },
   "r2_buckets": [{ "binding": "IMAGES" }],
-  "kv_namespaces": [{ "binding": "KVCACHE", "id": "<your-kv-id>" }],
+  "kv_namespaces": [{ "binding": "KV_CACHE", "id": "<your-kv-id>" }],
   "triggers": { "crons": ["15 * * * *"] }
 }
 ```
@@ -712,6 +773,7 @@ Rates are filtered by:
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `GET` | `/v1/analytics/dashboard` | `admin:store` | Store dashboard stats (`?period=7d\|30d\|90d\|all`) |
+| `GET` | `/v1/analytics/cache-stats` | `admin:store` | KV and CDN cache performance counters (hits, misses, hit rate, active entries) |
 
 **Response shape:**
 
@@ -807,7 +869,9 @@ All outbound webhooks are signed with `X-Merchant-Signature` (HMAC-SHA256).
 | Method | Path | Auth | Description |
 |---|---|---|---|
 | `POST` | `/v1/images` | `admin:store` | Upload image to R2 → `{url, key}` |
-| `DELETE` | `/v1/images/:key` | `admin:store` | Delete image from R2 |
+| `DELETE` | `/v1/images/:key` | `admin:store` | Delete image from R2 and purge its CDN cache entry |
+| `DELETE` | `/v1/images/cache/all` | `admin:store` | Purge all image CDN cache entries (iterates R2 bucket) |
+| `DELETE` | `/v1/images/:key/cache` | `admin:store` | Purge a single image CDN cache entry without deleting the R2 object |
 
 ---
 
@@ -1299,7 +1363,7 @@ Available at `/admin/*` — requires the permission configured in `ADMIN_STORE_P
     "migrations": [{ "tag": "v1", "new_sqlite_classes": ["MerchantDO"] }]
   },
   "r2_buckets": [{ "binding": "IMAGES" }],
-  "kv_namespaces": [{ "binding": "KVCACHE", "id": "<your-kv-id>" }],
+  "kv_namespaces": [{ "binding": "KV_CACHE", "id": "<your-kv-id>" }],
   "triggers": { "crons": ["15 * * * *"] },
   "vars": {
     "ADMIN_STORE_PERMISSION": "admin:store",

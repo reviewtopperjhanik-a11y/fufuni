@@ -68,11 +68,11 @@ export default function ProductPage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Breadcrumbs */}
         <Breadcrumbs className="mb-4">
-          <Breadcrumbs.Item href="/">{t("home")}</Breadcrumbs.Item>
+          <Breadcrumbs.Item href={`${import.meta.env.BASE_URL}`}>{t("home")}</Breadcrumbs.Item>
           {fromCategory ? (
-            <Breadcrumbs.Item href={`/products?category=${fromCategory}`}>{resolveTitle(categoryName, i18n.language)}</Breadcrumbs.Item>
+            <Breadcrumbs.Item href={`${import.meta.env.BASE_URL}/products?category=${fromCategory}`}>{resolveTitle(categoryName, i18n.language)}</Breadcrumbs.Item>
           ) : (
-            <Breadcrumbs.Item href="/products">{t("shop-products-title")}</Breadcrumbs.Item>
+            <Breadcrumbs.Item href={`${import.meta.env.BASE_URL}/products`}>{t("shop-products-title")}</Breadcrumbs.Item>
           )}
           {displayTitle && (
             <Breadcrumbs.Item>{displayTitle}</Breadcrumbs.Item>
