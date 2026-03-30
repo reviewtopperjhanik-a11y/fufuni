@@ -1,4 +1,4 @@
-# Fufuni — E-Commerce Platform
+# Fufuni — E-Commerce Platform - Host Your Store for free on Cloudflare Workers
 
 > **Cloudflare-native headless commerce** — Workers · Durable Objects · React · HeroUI
 
