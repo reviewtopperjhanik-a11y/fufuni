@@ -81,6 +81,10 @@ jobs:
           
           echo "ORDER_TOKEN_SECRET=${{ secrets.ORDER_TOKEN_SECRET }}" >> .env
 
+          echo "KV_CACHE_SEARCH_TTL_SECONDS=${{ secrets.KV_CACHE_SEARCH_TTL_SECONDS }}" >> .env
+          echo "KV_CACHE_REVIEWS_TTL_SECONDS=${{ secrets.KV_CACHE_REVIEW_TTL_SECONDS }}" >> .env
+          echo "KV_CACHE_DEFAULT_TTL_SECONDS=${{ secrets.KV_CACHE_DEFAULT_TTL_SECONDS }}" >> .env
+
       - name: Generate wrangler.jsonc from .env
         run: |
           python3 scripts/generate-wrangler-jsonc.py .env apps/merchant/wrangler.jsonc apps/merchant/wrangler.jsonc

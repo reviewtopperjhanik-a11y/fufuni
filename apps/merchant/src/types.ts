@@ -153,6 +153,14 @@ export type Env = {
    */
   STORE_NAME?: string;
 
+  /** TTL for cached search results in seconds.  Defaults to 300 (5 min) if not set. */
+  KV_CACHE_SEARCH_TTL_SECONDS?: string;
+
+  /** TTL for cached product reviews in seconds.  Defaults to 600 (10 min) if not set. */
+  KV_CACHE_REVIEWS_TTL_SECONDS?: string;
+
+  /** Default TTL for all other cached responses in seconds.  Defaults to 3600 (1 h) if not set. */
+  KV_CACHE_DEFAULT_TTL_SECONDS?: string;
 };
 
 /**

@@ -36,10 +36,10 @@ export async function incrementStat(kv: KVNamespace, key: string): Promise<void>
  * - Everything else (product list, product detail, categories) expires in 1 h
  *   and is invalidated proactively on admin mutations.
  */
-function getCacheTtl(pathname: string): number {
-  if (pathname.includes('/search'))  return  5 * 60; // 5 min
-  if (pathname.includes('/reviews')) return 10 * 60; // 10 min
-  return 60 * 60;                                    // 1 h
+function getCacheTtl(pathname: string, c: HonoCtx): number {
+  if (pathname.includes('/search'))  return  parseInt(c.env.KV_CACHE_SEARCH_TTL_SECONDS || '300') ; // 5 min
+  if (pathname.includes('/reviews')) return  parseInt(c.env.KV_CACHE_REVIEWS_TTL_SECONDS || '600'); // 10 min
+  return parseInt(c.env.KV_CACHE_DEFAULT_TTL_SECONDS || '3600');                                    // 1 h
 }
 
 /**
@@ -91,7 +91,7 @@ export const kvCacheMiddleware = async (c: HonoCtx, next: Next) => {
 
   if (c.res.status === 200) {
     const data = await c.res.clone().json();
-    const ttl = getCacheTtl(new URL(c.req.url).pathname);
+    const ttl = getCacheTtl(new URL(c.req.url).pathname, c);
     c.executionCtx.waitUntil(
       Promise.all([
         kv.put(cacheKey, JSON.stringify(data), { expirationTtl: ttl }),

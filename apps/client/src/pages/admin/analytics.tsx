@@ -63,6 +63,9 @@ interface CacheStatsData {
     misses: number;
     hit_rate: number;
     entries: number;
+    search_ttl_seconds: number;
+    reviews_ttl_seconds: number;
+    default_ttl_seconds: number;
   };
   cdn: {
     hits: number;
@@ -301,6 +304,20 @@ export default function AnalyticsPage() {
                         <div>
                           <p className="text-lg font-bold">{cacheStats.kv.entries}</p>
                           <p className="text-xs text-default-400">{t("admin-analytics-cache-entries")}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 text-center gap-2 pt-2 border-t border-default-200">
+                        <div>
+                          <p className="text-sm font-semibold">{cacheStats.kv.search_ttl_seconds}s</p>
+                          <p className="text-xs text-default-400">{t("admin-analytics-cache-search-ttl")}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">{cacheStats.kv.reviews_ttl_seconds}s</p>
+                          <p className="text-xs text-default-400">{t("admin-analytics-cache-reviews-ttl")}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-semibold">{cacheStats.kv.default_ttl_seconds}s</p>
+                          <p className="text-xs text-default-400">{t("admin-analytics-cache-default-ttl")}</p>
                         </div>
                       </div>
                       <p className="text-xs text-default-400 text-right">

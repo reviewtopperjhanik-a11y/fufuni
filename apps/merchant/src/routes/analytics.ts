@@ -196,6 +196,9 @@ const getCacheStatsRoute = createRoute({
               misses:   z.number().int(),
               hit_rate: z.number(),
               entries:  z.number().int(),
+              search_ttl_seconds: z.number().int(),
+              reviews_ttl_seconds: z.number().int(),
+              default_ttl_seconds: z.number().int(),
             }),
             cdn: z.object({
               hits:     z.number().int(),
@@ -212,11 +215,22 @@ const getCacheStatsRoute = createRoute({
 app.openapi(getCacheStatsRoute, async (c) => {
   const kv = c.env.KV_CACHE;
 
-  const [kvHits, kvMisses, cdnHits, cdnMisses] = await Promise.all([
+  const [
+    kvHits,
+    kvMisses,
+    cdnHits,
+    cdnMisses,
+    kvSearchTtlSeconds,
+    kvReviewsTtlSeconds,
+    kvDefaultTtlSeconds,
+  ] = await Promise.all([
     kv.get<number>('stats:kv:hits',    'json').then((v) => v ?? 0),
     kv.get<number>('stats:kv:misses',  'json').then((v) => v ?? 0),
     kv.get<number>('stats:cdn:hits',   'json').then((v) => v ?? 0),
     kv.get<number>('stats:cdn:misses', 'json').then((v) => v ?? 0),
+    kv.get<number>('stats:kv:search_ttl_seconds', 'json').then((v) => v ?? 0),
+    kv.get<number>('stats:kv:reviews_ttl_seconds', 'json').then((v) => v ?? 0),
+    kv.get<number>('stats:kv:default_ttl_seconds', 'json').then((v) => v ?? 0),
   ]);
 
   // Count currently-cached JSON entries (keys prefixed with 'cache:')
@@ -231,6 +245,16 @@ app.openapi(getCacheStatsRoute, async (c) => {
   const kvTotal  = kvHits  + kvMisses;
   const cdnTotal = cdnHits + cdnMisses;
 
+  const searchTtlSeconds =
+    kvSearchTtlSeconds ||
+    (c.env.KV_CACHE_SEARCH_TTL_SECONDS ? parseInt(c.env.KV_CACHE_SEARCH_TTL_SECONDS) : 300);
+  const reviewsTtlSeconds =
+    kvReviewsTtlSeconds ||
+    (c.env.KV_CACHE_REVIEWS_TTL_SECONDS ? parseInt(c.env.KV_CACHE_REVIEWS_TTL_SECONDS) : 3600);
+  const defaultTtlSeconds =
+    kvDefaultTtlSeconds ||
+    (c.env.KV_CACHE_DEFAULT_TTL_SECONDS ? parseInt(c.env.KV_CACHE_DEFAULT_TTL_SECONDS) : 3600);
+
   return c.json(
     {
       kv: {
@@ -238,6 +262,9 @@ app.openapi(getCacheStatsRoute, async (c) => {
         misses:   kvMisses,
         hit_rate: kvTotal  > 0 ? kvHits  / kvTotal  : 0,
         entries,
+        search_ttl_seconds: searchTtlSeconds,
+        reviews_ttl_seconds: reviewsTtlSeconds,
+        default_ttl_seconds: defaultTtlSeconds,
       },
       cdn: {
         hits:     cdnHits,

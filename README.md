@@ -256,6 +256,8 @@ The `kvCacheMiddleware` in `apps/merchant/src/middleware/kv-cache.ts` intercepts
 
 > `KV_CACHE` must be declared in `wrangler.jsonc` (see [Cloudflare Bindings](#cloudflare-bindings-wranglerjsonc)).
 
+Environment variables (and GitHub Secrets) `KV_CACHE_SEARCH_TTL_SECONDS`, `KV_CACHE_REVIEWS_TTL_SECONDS`, and `KV_CACHE_DEFAULT_TTL_SECONDS` allow TTL customization without code changes (defaults: 300, 600, and 3600 seconds respectively).
+
 ### CDN Cache (images)
 
 Product images served from R2 are additionally cached at the Cloudflare edge via the [Cache API](https://developers.cloudflare.com/workers/runtime-apis/cache/) (`caches.default`):
