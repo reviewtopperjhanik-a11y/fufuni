@@ -78,11 +78,15 @@ app.use('*', async (c, next) => {
 
 // KV cache & invalidation: must be registered on the parent app with app.use()
 // BEFORE app.route() so they execute first in Hono's middleware chain.
-// If attached to a sub-router after app.route(), the middleware runs AFTER the
-// route handler has already responded — too late to intercept the request.
 //
-// kvCacheMiddleware skips authenticated requests (see kv-cache.ts) to avoid
-// serving public-cached data to admin endpoints sharing the same path.
+// kvCacheMiddleware caches:
+//   • Unauthenticated GETs (public categories, reviews)
+//   • GETs with a public key (Bearer pk_...) — same response for all storefront
+//     visitors; products and product pages are the highest-traffic endpoints.
+// Admin tokens (sk_ / JWT) always bypass the cache.
+//
+// kvInvalidateMiddleware purges by prefix on successful mutations, covering
+// both the list and all paginated/filtered/detail variants of each namespace.
 app.use('/v1/categories', kvCacheMiddleware);
 app.use('/v1/categories/*', kvCacheMiddleware);
 app.use('/v1/products', kvCacheMiddleware);

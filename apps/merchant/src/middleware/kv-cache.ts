@@ -28,22 +28,52 @@ export async function incrementStat(kv: KVNamespace, key: string): Promise<void>
 }
 
 /**
+ * Resolve cache TTL (seconds) based on the request path.
+ *
+ * - Search results expire quickly (5 min) — many URL permutations, hard to
+ *   invalidate precisely.
+ * - Reviews expire in 10 min — moderated asynchronously, acceptable slight lag.
+ * - Everything else (product list, product detail, categories) expires in 1 h
+ *   and is invalidated proactively on admin mutations.
+ */
+function getCacheTtl(pathname: string): number {
+  if (pathname.includes('/search'))  return  5 * 60; // 5 min
+  if (pathname.includes('/reviews')) return 10 * 60; // 10 min
+  return 60 * 60;                                    // 1 h
+}
+
+/**
+ * Returns true when the request should bypass the KV cache.
+ *
+ * Bypass rules:
+ * - Non-GET methods — mutations must always hit the DO.
+ * - Admin tokens (`sk_...`, Auth0 JWTs) — admin reads may include unpublished
+ *   data or per-key access levels; never serve them cached public content.
+ *
+ * Allowed (cached):
+ * - Requests with no Authorization header (truly public endpoints).
+ * - Requests with `Bearer pk_...` (storefront public key, shared by all
+ *   visitors; the catalog response is identical for every user).
+ */
+function shouldBypass(c: HonoCtx): boolean {
+  if (c.req.method !== 'GET') return true;
+  const auth = c.req.header('Authorization');
+  if (!auth) return false; // no auth — always cacheable
+  // Allow public-key tokens only
+  return !auth.startsWith('Bearer pk_');
+}
+
+/**
  * Serve GET responses from KV when available, store them on cache miss.
- * Response is cached for 1 hour (expirationTtl: 3600 s).
+ * TTL scales by endpoint type (see getCacheTtl).
  * Sets `X-KV-Cache: HIT | MISS` on the response for observability.
  * Increments `stats:kv:hits` / `stats:kv:misses` counters for analytics.
  *
- * IMPORTANT: Authenticated requests (Authorization header present) are NEVER
- * cached. Admin and public endpoints often share the same path (e.g.
- * /v1/categories is mounted twice), so caching authenticated responses and
- * serving them to public clients (or vice versa) would expose wrong data.
- *
  * NOTE: incrementStat uses a non-atomic KV read-modify-write, so counters are
- * approximate under concurrent load \u2014 acceptable for diagnostic metrics.
+ * approximate under concurrent load — acceptable for diagnostic metrics.
  */
 export const kvCacheMiddleware = async (c: HonoCtx, next: Next) => {
-  // Only cache unauthenticated public GET requests
-  if (c.req.method !== 'GET' || c.req.header('Authorization')) {
+  if (shouldBypass(c)) {
     return await next();
   }
 
@@ -61,9 +91,10 @@ export const kvCacheMiddleware = async (c: HonoCtx, next: Next) => {
 
   if (c.res.status === 200) {
     const data = await c.res.clone().json();
+    const ttl = getCacheTtl(new URL(c.req.url).pathname);
     c.executionCtx.waitUntil(
       Promise.all([
-        kv.put(cacheKey, JSON.stringify(data), { expirationTtl: 3600 }),
+        kv.put(cacheKey, JSON.stringify(data), { expirationTtl: ttl }),
         incrementStat(kv, 'stats:kv:misses'),
       ])
     );
