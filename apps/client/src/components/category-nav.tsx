@@ -43,7 +43,7 @@ function CategoryItem({
   const handleClick = (e: React.MouseEvent) => {
     e.preventDefault();
     onSelect?.(handle);
-    navigate(`/products?category=${handle}`);
+    navigate(`${import.meta.env.BASE_URL}/products?category=${handle}`);
   };
 
   return (
