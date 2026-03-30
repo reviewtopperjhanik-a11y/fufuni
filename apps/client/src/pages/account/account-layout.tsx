@@ -27,11 +27,11 @@ export default function AccountLayout() {
   const location = useLocation();
 
   const navLinks = [
-    { to: "/account", label: t("account-dashboard"), icon: "", end: true },
-    { to: "/account/orders", label: t("account-orders"), icon: "" },
-    { to: "/account/addresses", label: t("account-addresses"), icon: "" },
+    { to: `${import.meta.env.BASE_URL}/account`, label: t("account-dashboard"), icon: "", end: true },
+    { to: `${import.meta.env.BASE_URL}/account/orders`, label: t("account-orders"), icon: "" },
+    { to: `${import.meta.env.BASE_URL}/account/addresses`, label: t("account-addresses"), icon: "" },
     {
-      to: "/account/preferences",
+      to: `${import.meta.env.BASE_URL}/account/preferences`,
       label: t("account-preferences"),
       icon: "",
     },
