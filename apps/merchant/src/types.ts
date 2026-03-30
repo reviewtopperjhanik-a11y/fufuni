@@ -29,6 +29,8 @@ export type Env = {
   MERCHANT: DurableObjectNamespace<MerchantDO>;
   IMAGES?: R2Bucket;
   IMAGES_URL?: string;
+  /** Cloudflare KV namespace for caching public JSON responses (products, categories). */
+  KV_CACHE: KVNamespace;
 
   /**
    * Secret key for Stripe API. Required for processing payments and managing subscriptions.

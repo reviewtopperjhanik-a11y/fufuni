@@ -177,4 +177,76 @@ app.openapi(getDashboardRoute, async (c) => {
   );
 });
 
+// ── Cache performance metrics ──────────────────────────────────────────────
+const getCacheStatsRoute = createRoute({
+  method: 'get',
+  path: '/cache-stats',
+  tags: ['Analytics'],
+  summary: 'Get KV and CDN cache performance metrics (admin)',
+  security: [{ bearerAuth: ['admin:store'] }],
+  middleware: [adminOnly] as const,
+  responses: {
+    200: {
+      description: 'Cache performance metrics',
+      content: {
+        'application/json': {
+          schema: z.object({
+            kv: z.object({
+              hits:     z.number().int(),
+              misses:   z.number().int(),
+              hit_rate: z.number(),
+              entries:  z.number().int(),
+            }),
+            cdn: z.object({
+              hits:     z.number().int(),
+              misses:   z.number().int(),
+              hit_rate: z.number(),
+            }),
+          }),
+        },
+      },
+    },
+  },
+});
+
+app.openapi(getCacheStatsRoute, async (c) => {
+  const kv = c.env.KV_CACHE;
+
+  const [kvHits, kvMisses, cdnHits, cdnMisses] = await Promise.all([
+    kv.get<number>('stats:kv:hits',    'json').then((v) => v ?? 0),
+    kv.get<number>('stats:kv:misses',  'json').then((v) => v ?? 0),
+    kv.get<number>('stats:cdn:hits',   'json').then((v) => v ?? 0),
+    kv.get<number>('stats:cdn:misses', 'json').then((v) => v ?? 0),
+  ]);
+
+  // Count currently-cached JSON entries (keys prefixed with 'cache:')
+  let entries = 0;
+  let cursor: string | undefined;
+  do {
+    const result = await kv.list({ prefix: 'cache:', ...(cursor ? { cursor } : {}) });
+    entries += result.keys.length;
+    cursor = result.list_complete ? undefined : (result as any).cursor;
+  } while (cursor);
+
+  const kvTotal  = kvHits  + kvMisses;
+  const cdnTotal = cdnHits + cdnMisses;
+
+  return c.json(
+    {
+      kv: {
+        hits:     kvHits,
+        misses:   kvMisses,
+        hit_rate: kvTotal  > 0 ? kvHits  / kvTotal  : 0,
+        entries,
+      },
+      cdn: {
+        hits:     cdnHits,
+        misses:   cdnMisses,
+        hit_rate: cdnTotal > 0 ? cdnHits / cdnTotal : 0,
+      },
+    },
+    200
+  );
+});
+
 export { app as analytics };

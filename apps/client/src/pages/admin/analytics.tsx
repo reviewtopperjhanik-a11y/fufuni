@@ -26,7 +26,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card, Label, ListBox, Select } from "@heroui/react";
-import { AlertTriangle, Package, TrendingUp, Users } from "lucide-react";
+import { AlertTriangle, Cloud, Database, Package, TrendingUp, Users } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
@@ -57,6 +57,20 @@ interface DashboardData {
   low_stock_count: number;
 }
 
+interface CacheStatsData {
+  kv: {
+    hits: number;
+    misses: number;
+    hit_rate: number;
+    entries: number;
+  };
+  cdn: {
+    hits: number;
+    misses: number;
+    hit_rate: number;
+  };
+}
+
 const PERIODS: Period[] = ["7d", "30d", "90d", "all"];
 
 export default function AnalyticsPage() {
@@ -71,6 +85,14 @@ export default function AnalyticsPage() {
       getJson(
         `${apiBase}/v1/analytics/dashboard?period=${period}`,
       ) as Promise<DashboardData>,
+  });
+
+  const { data: cacheStats } = useQuery<CacheStatsData>({
+    queryKey: ["cache-stats"],
+    queryFn: () =>
+      getJson(`${apiBase}/v1/analytics/cache-stats`) as Promise<CacheStatsData>,
+    staleTime: 30 * 1000,
+    refetchInterval: 60 * 1000,
   });
 
   return (
@@ -225,7 +247,130 @@ export default function AnalyticsPage() {
                 </div>
               </Card.Content>
             </Card>
-          </>
+            {/* ── Cache Performance ────────────────────────────────────────── */}
+            <h2 className="text-xl font-semibold">
+              {t("admin-analytics-cache-title")}
+            </h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* KV Cache */}
+              <Card>
+                <Card.Content className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Database className="text-primary" size={22} />
+                    <h3 className="font-semibold">{t("admin-analytics-cache-kv")}</h3>
+                  </div>
+                  {cacheStats ? (
+                    <>
+                      <div>
+                        <div className="flex justify-between text-xs text-default-400 mb-1">
+                          <span>{t("admin-analytics-cache-hit-rate")}</span>
+                          <span
+                            className={`font-semibold ${
+                              cacheStats.kv.hit_rate >= 0.8
+                                ? "text-success"
+                                : cacheStats.kv.hit_rate >= 0.5
+                                  ? "text-warning"
+                                  : "text-danger"
+                            }`}
+                          >
+                            {Math.round(cacheStats.kv.hit_rate * 100)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-default-100 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              cacheStats.kv.hit_rate >= 0.8
+                                ? "bg-success"
+                                : cacheStats.kv.hit_rate >= 0.5
+                                  ? "bg-warning"
+                                  : "bg-danger"
+                            }`}
+                            style={{ width: `${Math.round(cacheStats.kv.hit_rate * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-3 text-center gap-2">
+                        <div>
+                          <p className="text-lg font-bold text-success">{cacheStats.kv.hits}</p>
+                          <p className="text-xs text-default-400">{t("admin-analytics-cache-hits")}</p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-danger">{cacheStats.kv.misses}</p>
+                          <p className="text-xs text-default-400">{t("admin-analytics-cache-misses")}</p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold">{cacheStats.kv.entries}</p>
+                          <p className="text-xs text-default-400">{t("admin-analytics-cache-entries")}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-default-400 text-right">
+                        {t("admin-analytics-cache-do-saved")} :{" "}
+                        <span className="font-semibold text-foreground">{cacheStats.kv.hits}</span>
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-default-400">{t("admin-analytics-loading")}</p>
+                  )}
+                </Card.Content>
+              </Card>
+
+              {/* CDN Cache */}
+              <Card>
+                <Card.Content className="p-4 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Cloud className="text-secondary" size={22} />
+                    <h3 className="font-semibold">{t("admin-analytics-cache-cdn")}</h3>
+                  </div>
+                  {cacheStats ? (
+                    <>
+                      <div>
+                        <div className="flex justify-between text-xs text-default-400 mb-1">
+                          <span>{t("admin-analytics-cache-hit-rate")}</span>
+                          <span
+                            className={`font-semibold ${
+                              cacheStats.cdn.hit_rate >= 0.8
+                                ? "text-success"
+                                : cacheStats.cdn.hit_rate >= 0.5
+                                  ? "text-warning"
+                                  : "text-danger"
+                            }`}
+                          >
+                            {Math.round(cacheStats.cdn.hit_rate * 100)}%
+                          </span>
+                        </div>
+                        <div className="w-full bg-default-100 rounded-full h-2.5 overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all ${
+                              cacheStats.cdn.hit_rate >= 0.8
+                                ? "bg-success"
+                                : cacheStats.cdn.hit_rate >= 0.5
+                                  ? "bg-warning"
+                                  : "bg-danger"
+                            }`}
+                            style={{ width: `${Math.round(cacheStats.cdn.hit_rate * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 text-center gap-2">
+                        <div>
+                          <p className="text-lg font-bold text-success">{cacheStats.cdn.hits}</p>
+                          <p className="text-xs text-default-400">{t("admin-analytics-cache-hits")}</p>
+                        </div>
+                        <div>
+                          <p className="text-lg font-bold text-danger">{cacheStats.cdn.misses}</p>
+                          <p className="text-xs text-default-400">{t("admin-analytics-cache-misses")}</p>
+                        </div>
+                      </div>
+                      <p className="text-xs text-default-400 italic">
+                        {t("admin-analytics-cache-cdn-note")}
+                      </p>
+                    </>
+                  ) : (
+                    <p className="text-sm text-default-400">{t("admin-analytics-loading")}</p>
+                  )}
+                </Card.Content>
+              </Card>
+            </div>          </>
         )}
       </div>
     </DefaultLayout>

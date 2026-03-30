@@ -47,6 +47,7 @@ import { analytics } from './routes/analytics';
 import { reviews, reviewsAdmin } from './routes/reviews';
 import { regions } from './routes/regions';
 import { rateLimitMiddleware } from './middleware/rate-limit';
+import { kvCacheMiddleware, kvInvalidateMiddleware } from './middleware/kv-cache';
 import { ai } from './routes/ai';
 import { taxRates } from './routes/tax-rates';
 import { ApiError, type Env, type DOStub } from './types';
@@ -78,6 +79,14 @@ app.use('*', async (c, next) => {
 // Mount public routes BEFORE authentication middleware
 app.route('/v1/orders', publicOrders);
 app.route('/v1/categories', publicCategories);
+
+// KV cache: serve public read endpoints from KV instead of hitting the DO
+publicCategories.use('*', kvCacheMiddleware);
+catalog.use('*', kvCacheMiddleware);
+
+// KV invalidation: purge cached products/categories on any successful mutation
+adminCategories.use('*', kvInvalidateMiddleware);
+catalog.use('*', kvInvalidateMiddleware);
 
 app.use('/v1/*', rateLimitMiddleware());
 
