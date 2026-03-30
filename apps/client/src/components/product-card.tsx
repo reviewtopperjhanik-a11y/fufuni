@@ -145,7 +145,7 @@ export const ProductCard: React.FC<Props> = ({
         <div className="flex-1" />
 
         {/* Actions */}
-        <div className="flex gap-2 mt-2">
+        <div className="flex gap-2 mt-2 items-center">
           <Button
             onPress={() => {
               addItem({
@@ -163,7 +163,7 @@ export const ProductCard: React.FC<Props> = ({
           >
             {t("add-to-cart")}
           </Button>
-          <WishlistButton productId={product.id} />
+          <WishlistButton productId={product.id} size="sm" />
         </div>
       </Card.Content>
     </Card>
