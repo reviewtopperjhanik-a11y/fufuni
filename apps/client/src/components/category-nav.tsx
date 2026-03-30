@@ -66,7 +66,7 @@ function CategoryItem({
         {children && children.length > 0 && (
           <Badge.Anchor>
             <div/>
-            <Badge color="default" size="sm">
+            <Badge color="default" size="sm" className='mr-2'>
               {children.length}
             </Badge>
           </Badge.Anchor>
