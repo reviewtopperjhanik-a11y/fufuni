@@ -30,7 +30,7 @@
         "path": "bash",
         "args": [
           "-c",
-          "echo WORKSPACE_ROOT=${workspaceFolder};if [ -f ${workspaceFolder}/.env ]; then set -a && source ${workspaceFolder}/.env && export WORKSPACE_ROOT=${workspaceFolder}/ && set +a && echo '.env loaded successfully from ${workspaceFolder}/.env'; else echo '.env file not found'; fi && exec bash -i"
+          "echo WORKSPACE_ROOT=${workspaceFolder:Root};if [ -f ${workspaceFolder:Root}/.env ]; then set -a && source ${workspaceFolder:Root}/.env && export WORKSPACE_ROOT=${workspaceFolder:Root}/ && set +a && echo '.env loaded successfully from ${workspaceFolder:Root}/.env'; else echo '.env file not found'; fi && exec bash -i"
         ]
       }
     },
@@ -39,7 +39,7 @@
         "path": "zsh",
         "args": [
           "-c",
-          "echo WORKSPACE_ROOT=${workspaceFolder}; if [ -f ${workspaceFolder}/.env ]; then set -a && source ${workspaceFolder}/.env && export WORKSPACE_ROOT=${workspaceFolder}/ && set +a && echo '.env loaded successfully from ${workspaceFolder}/.env'; else echo '.env file not found'; fi && exec zsh -i"
+          "echo WORKSPACE_ROOT=${workspaceFolder:Root}; if [ -f ${workspaceFolder:Root}/.env ]; then set -a && source ${workspaceFolder:Root}/.env && export WORKSPACE_ROOT=${workspaceFolder:Root}/ && set +a && echo '.env loaded successfully from ${workspaceFolder:Root}/.env'; else echo '.env file not found'; fi && exec zsh -i"
         ]
       }
     },
