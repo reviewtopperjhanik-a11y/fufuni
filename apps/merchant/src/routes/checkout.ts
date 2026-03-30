@@ -540,13 +540,35 @@ app.openapi(checkoutCart, async (c) => {
 
   const stripe = new Stripe(stripeSecretKey);
 
-  // Enrich items with tax_code from variants for Stripe
+  // Enrich items with tax_code and product title from variants+products for Stripe
   const enrichedItems = await Promise.all(
     items.map(async (item) => {
-      const [variant] = await db.query<any>(`SELECT tax_code FROM variants WHERE sku = ?`, [item.sku]);
+      const [variantRow] = await db.query<any>(
+        `SELECT v.tax_code, p.title AS product_title
+         FROM variants v
+         JOIN products p ON p.id = v.product_id
+         WHERE v.sku = ?`,
+        [item.sku]
+      );
+      // products.title is stored as a JSON-serialized locale map e.g. '{"en-US":"Classic Tee","fr-FR":"T-Shirt Classique"}'
+      let productTitle: string = item.title;
+      if (variantRow?.product_title) {
+        try {
+          const parsed = JSON.parse(variantRow.product_title);
+          productTitle = parsed['en-US'] ?? parsed[Object.keys(parsed)[0]] ?? item.title;
+        } catch {
+          productTitle = variantRow.product_title;
+        }
+      }
+      const variantTitle: string = item.title;
+      const displayName =
+        !variantTitle || variantTitle === 'Standard' || variantTitle === productTitle
+          ? productTitle
+          : `${productTitle} – ${variantTitle}`;
       return {
         ...item,
-        tax_code: variant?.tax_code ?? null,
+        tax_code: variantRow?.tax_code ?? null,
+        display_name: displayName,
       };
     })
   );
@@ -557,7 +579,7 @@ app.openapi(checkoutCart, async (c) => {
 
   const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = enrichedItems.map((item) => {
     const productData: Stripe.Checkout.SessionCreateParams.LineItem.PriceData.ProductData = {
-      name: item.title,
+      name: item.display_name ?? item.title,
     };
     if (item.tax_code) {
       productData.tax_code = item.tax_code;
@@ -729,6 +751,11 @@ app.openapi(checkoutCart, async (c) => {
   try {
     session = await stripe.checkout.sessions.create({
       mode: 'payment',
+      // Always create a Stripe Customer so the merchant can track buyers in the Stripe dashboard
+      // and so we can attach the shipping address to the customer record in the webhook.
+      // Note: this may create duplicate Stripe Customers for repeat buyers until a
+      // stripe_customer_id column is added to the customers table and looked up here.
+      customer_creation: 'always',
       customer_email: cart.customer_email,
       automatic_tax: { enabled: false }, // Internal tax used instead
       ...(collect_shipping && {

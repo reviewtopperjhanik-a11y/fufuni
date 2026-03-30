@@ -722,9 +722,15 @@ publicApp.openapi(lookupOrderBySession, async (c) => {
 
   if (!order) throw ApiError.notFound('Order not found for this session');
 
-  // Fetch associated order items
+  // Fetch associated order items with product titles (for backward compat with old orders
+  // that stored only the variant title, we recompose the display name at query time)
   const orderItems = await db.query<any>(
-    `SELECT sku, title, qty, unit_price_cents FROM order_items WHERE order_id = ?`,
+    `SELECT oi.sku, oi.title, oi.qty, oi.unit_price_cents,
+            p.title AS product_title
+     FROM order_items oi
+     LEFT JOIN variants v ON v.sku = oi.sku
+     LEFT JOIN products p ON p.id = v.product_id
+     WHERE oi.order_id = ?`,
     [order.id]
   );
 
@@ -743,12 +749,27 @@ publicApp.openapi(lookupOrderBySession, async (c) => {
       tracking_number: order.tracking_number ?? null,
       tracking_url: order.tracking_url ?? null,
       shipped_at: order.shipped_at ?? null,
-      items: orderItems.map((i: any) => ({
-        sku: i.sku,
-        title: i.title,
-        qty: i.qty,
-        unit_price_cents: i.unit_price_cents,
-      })),
+      items: orderItems.map((i: any) => {
+        let productTitle = i.title;
+        if (i.product_title) {
+          try {
+            const parsed = JSON.parse(i.product_title);
+            productTitle = parsed['en-US'] ?? parsed[Object.keys(parsed)[0]] ?? i.title;
+          } catch {
+            productTitle = i.product_title;
+          }
+        }
+        const displayName =
+          !i.title || i.title === 'Standard' || i.title === productTitle
+            ? productTitle
+            : `${productTitle} – ${i.title}`;
+        return {
+          sku: i.sku,
+          title: displayName,
+          qty: i.qty,
+          unit_price_cents: i.unit_price_cents,
+        };
+      }),
     },
     200
   );

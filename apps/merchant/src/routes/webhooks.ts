@@ -93,11 +93,44 @@ webhooks.post('/stripe', async (c) => {
     if (cartId) {
       const [cart] = await db.query<any>(`SELECT * FROM carts WHERE id = ?`, [cartId]);
       if (cart) {
-        const items = await db.query<any>(`SELECT * FROM cart_items WHERE cart_id = ?`, [cartId]);
+        // Fetch cart items with product titles for proper line item display
+        const itemRows = await db.query<any>(
+          `SELECT ci.*,
+                  p.title AS product_title
+           FROM cart_items ci
+           LEFT JOIN variants v ON v.sku = ci.sku
+           LEFT JOIN products p ON p.id = v.product_id
+           WHERE ci.cart_id = ?`,
+          [cartId]
+        );
+        const items = itemRows.map((ci: any) => {
+          let productTitle = ci.title;
+          if (ci.product_title) {
+            try {
+              const parsed = JSON.parse(ci.product_title);
+              productTitle = parsed['en-US'] ?? parsed[Object.keys(parsed)[0]] ?? ci.title;
+            } catch {
+              productTitle = ci.product_title;
+            }
+          }
+          const displayName =
+            !ci.title || ci.title === 'Standard' || ci.title === productTitle
+              ? productTitle
+              : `${productTitle} – ${ci.title}`;
+          return { ...ci, display_name: displayName };
+        });
 
-        // Retrieve full session from Stripe to get shipping_details
-        // (webhook payload sometimes doesn't include all fields)
-        const session = await stripe.checkout.sessions.retrieve(webhookSession.id);
+        // Retrieve full session from Stripe with PaymentIntent expanded.
+        // In Stripe Dahlia, when we collect shipping in our own UI and pass it via
+        // payment_intent_data.shipping, the authoritative address lives on the PaymentIntent —
+        // NOT on customer_details.address (which only captures what Stripe's form collected,
+        // i.e. billing address when billing_address_collection is enabled).
+        const session = await stripe.checkout.sessions.retrieve(webhookSession.id, {
+          expand: ['payment_intent'],
+        });
+        const paymentIntent = session.payment_intent as Stripe.PaymentIntent | null;
+        const paymentIntentId = paymentIntent?.id ?? null;
+        const piShipping = paymentIntent?.shipping ?? null;
 
         // Handle discount
         let discountCode = null;
@@ -131,16 +164,31 @@ webhooks.post('/stripe', async (c) => {
         // Generate order number (timestamp-based to avoid race conditions)
         const orderNumber = generateOrderNumber();
 
-        // Extract customer details from full Stripe session
+        // Extract customer / shipping details from session + expanded PaymentIntent.
         const customerEmail = cart.customer_email;
-        const shippingName = session.customer_details?.name || cart.shipping_name || null;
+        // For the Stripe/customer record: cardholder name confirmed on Stripe's payment form.
+        const customerName = session.customer_details?.name || cart.shipping_name || null;
+        // For the shipping address: the name entered in our own checkout form (delivery recipient),
+        // falling back to the cardholder name confirmed by Stripe.
+        const shippingName = piShipping?.name || cart.shipping_name || session.customer_details?.name || null;
         const shippingPhone = session.customer_details?.phone || null;
 
-        // Prefer Stripe-collected address if line1 is populated, otherwise fall back to the
-        // address the customer entered during our own checkout flow (stored on cart).
-        const stripeAddr = session.customer_details?.address;
-        const shippingAddress = (stripeAddr?.line1)
-          ? stripeAddr
+        // Address priority:
+        //  1. PaymentIntent.shipping — what we explicitly set via payment_intent_data.shipping
+        //     at Checkout Session creation (confirmed by Stripe).
+        //  2. cart.shipping_* — what the customer entered in our own checkout form (same source
+        //     as what we forwarded to Stripe, serves as fallback if PI shipping is absent).
+        // NOTE: session.customer_details.address only provides country because we do not use
+        // Stripe's billing_address_collection; the shipping address lives on the PaymentIntent.
+        const shippingAddress = piShipping?.address?.line1
+          ? {
+              line1: piShipping.address.line1,
+              line2: piShipping.address.line2 ?? null,
+              city: piShipping.address.city ?? null,
+              state: piShipping.address.state ?? null,
+              postal_code: piShipping.address.postal_code ?? null,
+              country: piShipping.address.country ?? null,
+            }
           : (cart.shipping_line1
             ? {
                 line1: cart.shipping_line1,
@@ -148,7 +196,7 @@ webhooks.post('/stripe', async (c) => {
                 city: cart.shipping_city ?? null,
                 state: cart.shipping_state ?? null,
                 postal_code: cart.shipping_postal_code ?? null,
-                country: cart.shipping_country ?? stripeAddr?.country ?? null,
+                country: cart.shipping_country ?? session.customer_details?.address?.country ?? null,
               }
             : null);
 
@@ -171,7 +219,7 @@ webhooks.post('/stripe', async (c) => {
               last_order_at = ?,
               updated_at = ?
             WHERE id = ?`,
-            [shippingName, shippingPhone, session.amount_total ?? 0, now(), now(), customerId]
+            [customerName, shippingPhone, session.amount_total ?? 0, now(), now(), customerId]
           );
         } else {
           // Create new customer
@@ -182,7 +230,7 @@ webhooks.post('/stripe', async (c) => {
             [
               customerId,
               customerEmail,
-              shippingName,
+              customerName,
               shippingPhone,
               session.amount_total ?? 0,
               now(),
@@ -190,8 +238,30 @@ webhooks.post('/stripe', async (c) => {
           );
         }
 
+        // Attach the verified shipping address to the Stripe Customer so it appears correctly
+        // in the Stripe dashboard (non-blocking – a failure here must not abort the webhook).
+        if (session.customer && shippingAddress?.line1) {
+          c.executionCtx.waitUntil(
+            stripe.customers
+              .update(session.customer as string, {
+                shipping: {
+                  name: shippingName ?? '',
+                  address: {
+                    line1: shippingAddress.line1,
+                    ...(shippingAddress.line2 ? { line2: shippingAddress.line2 } : {}),
+                    ...(shippingAddress.city ? { city: shippingAddress.city } : {}),
+                    ...(shippingAddress.state ? { state: shippingAddress.state } : {}),
+                    ...(shippingAddress.postal_code ? { postal_code: shippingAddress.postal_code } : {}),
+                    ...(shippingAddress.country ? { country: shippingAddress.country } : {}),
+                  },
+                },
+              })
+              .catch((err) => console.warn('Failed to update Stripe customer shipping:', err))
+          );
+        }
+
         // Save shipping address to customer if provided
-        if (shippingAddress && customerId) {
+        if (shippingAddress && shippingAddress.line1 && customerId) {
           const [existingAddress] = await db.query<any>(
             `SELECT id FROM customer_addresses WHERE customer_id = ? AND line1 = ? AND postal_code = ?`,
             [customerId, shippingAddress.line1, shippingAddress.postal_code]
@@ -251,7 +321,7 @@ webhooks.post('/stripe', async (c) => {
             discountId,
             discountAmountCents,
             session.id,
-            session.payment_intent,
+            paymentIntentId,
             cart.taxes_json,
           ]
         );
@@ -346,7 +416,7 @@ webhooks.post('/stripe', async (c) => {
         for (const item of items) {
           await db.run(
             `INSERT INTO order_items (id, order_id, sku, title, qty, unit_price_cents) VALUES (?, ?, ?, ?, ?, ?)`,
-            [uuid(), orderId, item.sku, item.title, item.qty, item.unit_price_cents]
+            [uuid(), orderId, item.sku, item.display_name ?? item.title, item.qty, item.unit_price_cents]
           );
 
           await db.run(
