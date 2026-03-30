@@ -24,6 +24,7 @@
 
 import {
   createRemoteJWKSet,
+  decodeJwt,
   jwtVerify,
   type JWTPayload,
 } from 'jose';
@@ -70,6 +71,13 @@ export async function verifyAuth0Jwt(
  * @param env - environment variables containing Auth0 credentials
  * @returns the raw access token string
  */
+const MANAGEMENT_TOKEN_CACHE_KEY = 'auth0:management-token';
+
+type CachedManagementToken = {
+  access_token: string;
+  expiresAt: number; // unix epoch in seconds
+};
+
 export const getManagementToken = async (env: any): Promise<string> => {
   if (
     !env.AUTH0_MANAGEMENT_API_CLIENT_ID ||
@@ -81,6 +89,21 @@ export const getManagementToken = async (env: any): Promise<string> => {
     if (!env.AUTH0_MANAGEMENT_API_CLIENT_SECRET) missings.push('AUTH0_MANAGEMENT_API_CLIENT_SECRET');
     if (!env.AUTH0_DOMAIN) missings.push('AUTH0_DOMAIN');
     throw new Error(`Missing Auth0 Management API configuration: ${missings.join(', ')}`);
+  }
+
+  const kv = env.KV_CACHE as KVNamespace | undefined;
+  if (kv) {
+    const cached = await kv.get<CachedManagementToken>(MANAGEMENT_TOKEN_CACHE_KEY, 'json');
+    if (
+      cached &&
+      typeof cached.access_token === 'string' &&
+      typeof cached.expiresAt === 'number'
+    ) {
+      const now = Math.floor(Date.now() / 1000);
+      if (now < cached.expiresAt - 5) {
+        return cached.access_token;
+      }
+    }
   }
 
   const tokenUrl = `https://${env.AUTH0_DOMAIN}/oauth/token`;
@@ -105,6 +128,37 @@ export const getManagementToken = async (env: any): Promise<string> => {
   if (typeof data.access_token !== 'string') {
     throw new Error('Invalid Auth0 token response: missing access_token');
   }
+
+  let expiresAt: number | undefined;
+  try {
+    const decoded = decodeJwt(data.access_token);
+    if (typeof decoded.exp === 'number') {
+      expiresAt = Math.floor(decoded.exp);
+    }
+  } catch {
+    // ignore, will fallback to no cache TTL
+  }
+
+  if (!expiresAt && typeof (data as any).expires_in === 'number') {
+    expiresAt = Math.floor(Date.now() / 1000) + Math.floor((data as any).expires_in);
+  }
+
+  if (kv && expiresAt && expiresAt > Math.floor(Date.now() / 1000) + 5) {
+    const ttl = expiresAt - Math.floor(Date.now() / 1000) - 5;
+    await kv.put(
+      MANAGEMENT_TOKEN_CACHE_KEY,
+      JSON.stringify({ access_token: data.access_token, expiresAt }),
+      { expirationTtl: ttl },
+    );
+  } else if (kv) {
+    // Keep a short fail-safe cache to avoid throttling on repeated errors
+    await kv.put(
+      MANAGEMENT_TOKEN_CACHE_KEY,
+      JSON.stringify({ access_token: data.access_token, expiresAt: Math.floor(Date.now() / 1000) + 60 }),
+      { expirationTtl: 60 },
+    );
+  }
+
   return data.access_token;
 };
 
