@@ -24,6 +24,7 @@ import { PageNotFound } from "./pages/404";
 import { AuthenticationGuard, AuthenticationGuardWithPermission, useAuth } from "./authentication";
 
 import IndexPage from "@/pages/index";
+import IndexLuxuryPage from "@/pages/index-luxury";
 import ApiPage from "@/pages/api";
 import PricingPage from "@/pages/pricing";
 import BlogPage from "@/pages/blog";
@@ -76,6 +77,7 @@ function App() {
       <Routes>
         <Route element={<IndexPage />} path="/" />
         <Route element={<IndexPage />} path="/products" />
+        <Route element={<IndexLuxuryPage />} path="/index-luxury" />
         <Route element={<LoginPage />} path="/login" />
         <Route element={<CartPage />} path="/cart" />
         <Route element={<SuccessPage />} path="/success" />
