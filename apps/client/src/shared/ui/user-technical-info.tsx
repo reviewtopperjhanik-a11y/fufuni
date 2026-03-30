@@ -144,7 +144,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                     </div>
                   </Modal.Header>
 
-                  <Modal.Body className="px-5 py-4 gap-4">
+                  <Modal.Body className="px-5 py-4 gap-2">
                     {/* User Identity */}
                     <div className="bg-default-100 border border-default-200 rounded-xl p-3 space-y-1">
                       <p className="text-xs text-default-400 uppercase tracking-wider font-bold mb-2">
@@ -158,7 +158,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                       </p>
                     </div>
 
-                    <Separator className="bg-default-100" />
+                    <Separator className="my-2"/>
 
                     {/* Token Status */}
                     <div className="space-y-2">
@@ -212,7 +212,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                               {formatDuration(secondsLeft, t)}
                             </Chip>
                           </div>
-                          <div className="flex justify-between items-center text-xs text-default-500">
+                          <div className="flex justify-between items-center text-xs text-default-500 my-2">
                             <span>Expiration</span>
                             <span className=" text-default-400">
                               {formatExpiry(tokenPayload.exp)}
@@ -229,7 +229,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                     {/* Permissions */}
                     {permissions.length > 0 && (
                       <>
-                        <Separator className="bg-default-100" />
+                        <Separator className="my-2"/>
                         <div className="space-y-2">
                           <p className="text-xs text-default-400 uppercase tracking-wider font-bold">
                             Permissions
@@ -280,7 +280,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                       </>
                     )}
 
-                    <Separator className="bg-default-100" />
+                    <Separator className="my-2" />
 
                     {/* Access Token */}
                     <div className="space-y-2">
@@ -294,7 +294,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                         />
                       </div>
                       <ScrollShadow
-                        className="h-20 w-full"
+                        className="h-32 w-full"
                         orientation="horizontal"
                       >
                         <p className="text-[10px] text-default-500  break-all leading-relaxed select-all">
