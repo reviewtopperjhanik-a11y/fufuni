@@ -195,7 +195,7 @@ export function OpenAPI({
           variant="secondary"
           size="sm"
           onClick={downloadOpenApiSpec}
-          disabled={!openApiSpec}
+          isDisabled={!openApiSpec}
         >
           Télécharger OpenAPI
         </Button>
