@@ -770,5 +770,9 @@
   "submitting": "…",
   "admin-orders-discount": "折扣",
   "admin-products-loading-error": "产品加载错误",
-  "admin-regions-tax-inclusive": "含税"
+  "admin-regions-tax-inclusive": "含税",
+  "admin-analytics-cache-default-ttl": "默认TTL",
+  "admin-analytics-cache-reviews-ttl": "评论 TTL",
+  "admin-analytics-cache-search-ttl": "搜索 TTL",
+  "reviews-title": "评论"
 }

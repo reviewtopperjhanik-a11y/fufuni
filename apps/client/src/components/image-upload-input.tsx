@@ -48,6 +48,9 @@ export function ImageUploadInput({
   const storageMethod = value ? detectImageMethod(value) : null;
   const isBase64 = storageMethod === 'base64';
   const sizeEstimate = isBase64 ? estimateBase64Size(value || '') : 0;
+  // Guard against unexpected schemes (e.g. javascript:) passed via prop.
+  // isValidImageUrl only allows http(s): and data:image/ protocols.
+  const safeSrc = value && isValidImageUrl(value) ? value : undefined;
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -135,7 +138,7 @@ export function ImageUploadInput({
         <div className="flex items-start gap-3">
           <div className="shrink-0">
             <img
-              src={value}
+              src={safeSrc}
               alt="Preview"
               className="w-24 h-24 object-cover rounded border border-default-200"
             />

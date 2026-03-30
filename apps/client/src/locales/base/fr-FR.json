@@ -773,5 +773,6 @@
   "submitting": "…",
   "admin-orders-discount": "Rabais",
   "admin-products-loading-error": "Erreur de chargement du produit",
-  "admin-regions-tax-inclusive": "Taxes incluses"
+  "admin-regions-tax-inclusive": "Taxes incluses",
+  "reviews-title": "Avis"
 }

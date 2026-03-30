@@ -770,5 +770,9 @@
   "submitting": "…",
   "admin-orders-discount": "تخفيض",
   "admin-products-loading-error": "خطأ في تحميل المنتج",
-  "admin-regions-tax-inclusive": "الضرائب متضمنة"
+  "admin-regions-tax-inclusive": "الضرائب متضمنة",
+  "admin-analytics-cache-default-ttl": "الافتراضي TTL",
+  "admin-analytics-cache-reviews-ttl": "تقييمات TTL",
+  "admin-analytics-cache-search-ttl": "بحث TTL",
+  "reviews-title": "التعليقات"
 }

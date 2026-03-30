@@ -770,5 +770,9 @@
   "submitting": "…",
   "admin-orders-discount": "Descuento",
   "admin-products-loading-error": "Error al cargar el producto",
-  "admin-regions-tax-inclusive": "Impuestos incluidos"
+  "admin-regions-tax-inclusive": "Impuestos incluidos",
+  "admin-analytics-cache-default-ttl": "TTL predeterminado",
+  "admin-analytics-cache-reviews-ttl": "Reseñas TTL",
+  "admin-analytics-cache-search-ttl": "Buscar TTL",
+  "reviews-title": "Reseñas"
 }

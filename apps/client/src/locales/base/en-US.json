@@ -768,5 +768,6 @@
   "submitting": "…",
   "admin-products-loading-error": "Product loading error",
   "admin-orders-discount": "Discount",
-  "admin-regions-tax-inclusive": "Taxes included"
+  "admin-regions-tax-inclusive": "Taxes included",
+  "reviews-title": "Reviews"
 }
