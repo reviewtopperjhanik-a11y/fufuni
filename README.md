@@ -127,7 +127,22 @@ Visitors see an attractive landing page with a Log in button and direct links to
 - **Saved carts** — full cart snapshots stored in Auth0 user_metadata for quick retrieval
 - Magic-link checkout
 
-### 🌍 Internationalisation
+### � Store Themes
+- **Multi-theme architecture** — built-in `classic` (light/dark) and `luxury` themes
+- Themes stored in `store_themes` table and served via `GET /v1/theme/active`
+- `StoreThemeProvider` applies `data-theme` on `<html>` at boot, preventing FOUC
+- Persistent user preference via `localStorage` (`ui-theme` key)
+- Floating `ThemeSwitcher` dropdown for instant preview/switch
+- Theme config overrides CSS variables (`--accent`, `--radius`, font stacks) without a redeploy
+
+### 🛒 Storefront UX
+- **CartDrawer** — slide-in right panel for cart items with quantity controls, no separate cart page needed
+- **WishlistButton** — heart toggle on product cards; LoginModal shown to unauthenticated users with pending action preserved across Auth0 redirect via `sessionStorage`
+- **HeroBanner** — full-width hero section with configurable image, overlay, title and CTA
+- **ProductCarousel** — horizontal snap-scroll carousel of product cards
+- **CategoryBentoGrid** — asymmetric editorial grid (up to 5 categories, first spanning 2 columns)
+
+### �🌍 Internationalisation
 - **6 built-in locales**: English (US), French, Spanish, Chinese (Simplified), Arabic, Hebrew
 - `availableLanguages` registry with `nativeName`, `isRTL`, `isDefault` flags
 - Locale-aware price display (`Intl.NumberFormat`, ISO 4217)
@@ -174,7 +189,7 @@ Full-featured back-office covering:
 ```mermaid
 flowchart LR
   subgraph Cloudflare Edge
-    React["React SPA<br/>(Vite 8)<br/>HeroUI v2<br/>Auth0"]
+    React["React SPA<br/>(Vite 8)<br/>HeroUI v3<br/>Auth0"]
     Merchant["Merchant Worker<br/>Hono + Zod-OpenAPI<br/>Durable Object (SQLite)"]
     Stripe["Stripe Checkout"]
     Mailgun["Mailgun (email)"]
@@ -1051,6 +1066,17 @@ Migrations are run both via `ensureInitialized()` (inline in `do.ts`) and as sta
 | `017` | Shipping address fields on carts |
 | `018` | **Shipping classes** + `shippingclassid` on products, variants, rates |
 | `019` | **Variant enrichment** — weight, dimensions, requires_shipping, barcode, compare_at_price, tax_code; product enrichment — vendor, tags, handle |
+| `020` | **Tax rates** table — `tax_rates` with country_code, tax_code, rate_percentage, status |
+| `021` | `tax_inclusive` column on `regions` |
+| `022` | `taxes_json` on `carts` and `orders` (tax snapshot at checkout time) |
+| `023` | `tax_code` on `shipping_rates` |
+| `024` | `tax_inclusive` on `shipping_rates` |
+| `025` | Index on `customers.auth_provider_id` (Auth0 sub claim — O(log n) JWT lookup) |
+| `026` | **Saved carts** — `saved_carts` table linking Auth0 user IDs to cart UUIDs |
+| `027` | **Product categories** — `categories` + `product_categories` join table (hierarchical, multilingual) |
+| `028` | **Product reviews & ratings** — `reviews` table with moderation workflow and guest review support |
+| `029` | `thumbnail_url` column on `variants` (small WebP thumbnails, base64 or R2 URL) |
+| `030` | **Store themes** — `store_themes` table with `config_json` + seed rows for `classic` and `luxury` |
 
 ---
 
