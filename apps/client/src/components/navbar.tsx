@@ -44,7 +44,12 @@ import { availableLanguages } from "@/i18n";
 import { LoginModal } from "@/features/auth/components/login-modal";
 import { UserListsMenu } from "@/components/user-lists-menu";
 
-export const Navbar = () => {
+interface NavbarProps {
+  /** When provided, the cart icon opens a drawer instead of navigating to /cart */
+  onCartOpen?: () => void;
+}
+
+export const Navbar = ({ onCartOpen }: NavbarProps = {}) => {
   const { t } = useTranslation();
   const { count: cartCount } = useCart();
   const navigate = useNavigate();
@@ -158,17 +163,32 @@ export const Navbar = () => {
         {/* Desktop Right Items */}
         <div className="hidden sm:flex gap-4 items-center ml-auto">
           <UserListsMenu />
-          <RouterLink
-            to="/cart"
-            className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
-          >
-            <Badge.Anchor>
-              <ShoppingCart size={20} />
-              {cartCount > 0 && (
-                <Badge size="sm" color="danger" variant="primary">{cartCount.toString()}</Badge>
-              )}
-            </Badge.Anchor>
-          </RouterLink>
+          {onCartOpen ? (
+            <button
+              aria-label="Ouvrir le panier"
+              className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
+              onClick={onCartOpen}
+            >
+              <Badge.Anchor>
+                <ShoppingCart size={20} />
+                {cartCount > 0 && (
+                  <Badge size="sm" color="danger" variant="primary">{cartCount.toString()}</Badge>
+                )}
+              </Badge.Anchor>
+            </button>
+          ) : (
+            <RouterLink
+              to="/cart"
+              className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
+            >
+              <Badge.Anchor>
+                <ShoppingCart size={20} />
+                {cartCount > 0 && (
+                  <Badge size="sm" color="danger" variant="primary">{cartCount.toString()}</Badge>
+                )}
+              </Badge.Anchor>
+            </RouterLink>
+          )}
           <a
             href={siteConfig().links.twitter}
             target="_blank"

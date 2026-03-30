@@ -1,5 +1,76 @@
+/**
+ * Copyright (c) 2024-2026 Ronan LE MEILLAT
+ * License: AGPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+ 
+/* Declare layer order before all imports — required when importing theme files into a named layer */
+@layer theme, base, components, utilities;
+
 @import "tailwindcss";
-@import "@heroui/styles"; 
+@import "@heroui/styles";
+
+/* Luxury theme — activated via data-theme="luxury" on <html> */
+@import "./themes/luxury.css" layer(theme);
+
+@theme {
+  /* Fonts — generate `font-serif` / `font-sans` utility classes */
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-sans: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif;
+
+  /* Brand colour scale — warm neutral inspired by Waww.fr */
+  --color-brand-50: #f9f9f9;
+  --color-brand-100: #f3f3f3;
+  --color-brand-200: #e5e5e5;
+  --color-brand-300: #d4d4d4;
+  --color-brand-400: #a3a3a3;
+  --color-brand-500: #737373;
+  --color-brand-600: #525252;
+  --color-brand-700: #404040;
+  --color-brand-800: #262626;
+  --color-brand-900: #171717;
+  --color-brand: #171717;
+}
+
+/* Base HTML element styles */
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    scroll-behavior: smooth;
+  }
+}
+
+/* Custom utilities */
+@layer utilities {
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hide-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Override component defaults in luxury theme */
+@layer components {
+  [data-theme="luxury"] .button,
+  [data-theme="luxury-dark"] .button {
+    @apply rounded-none;
+  }
+} 
 @theme {
   --background-image-gradient-border-violet: linear-gradient(hsl(var(--heroui-background)), hsl(var(--heroui-background))), linear-gradient(83.87deg, #F54180, #9353D3);
 }

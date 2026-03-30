@@ -1,0 +1,152 @@
+/**
+ * Copyright (c) 2024-2026 Ronan LE MEILLAT
+ * License: AGPL-3.0-or-later
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as
+ * published by the Free Software Foundation, either version 3 of the
+ * License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+@layer base {
+  [data-theme="luxury"] {
+    color-scheme: light;
+
+    /* Primitives */
+    --white: oklch(100% 0 0);
+    --black: oklch(0% 0 0);
+
+    /* Layout — zero radius for luxury sharp-edge aesthetic */
+    --radius: 0px;
+    --field-radius: 0px;
+    --border-width: 1px;
+    --field-border-width: 0px;
+    --disabled-opacity: 0.5;
+    --ring-offset-width: 2px;
+    --cursor-interactive: pointer;
+    --cursor-disabled: not-allowed;
+
+    /* Background — warm off-white */
+    --background: oklch(97.5% 0.003 60);
+    --foreground: oklch(12% 0.005 60);
+
+    /* Surfaces */
+    --surface: oklch(100% 0 0);
+    --surface-foreground: oklch(12% 0.005 60);
+    --surface-secondary: oklch(96% 0.002 60);
+    --surface-secondary-foreground: oklch(12% 0.005 60);
+    --surface-tertiary: oklch(94% 0.002 60);
+    --surface-tertiary-foreground: oklch(12% 0.005 60);
+
+    /* Overlay */
+    --overlay: oklch(100% 0 0);
+    --overlay-foreground: oklch(12% 0.005 60);
+
+    /* Accent = deep black (#171717 equivalent) */
+    --accent: oklch(15% 0 0);
+    --accent-foreground: oklch(100% 0 0);
+
+    /* Focus ring */
+    --focus: oklch(15% 0 0);
+
+    /* Borders */
+    --border: oklch(88% 0.002 60);
+    --separator: oklch(92% 0.001 60);
+
+    /* Form fields */
+    --field-background: oklch(100% 0 0);
+    --field-foreground: oklch(12% 0.005 60);
+    --field-placeholder: oklch(55% 0.005 60);
+    --field-border: transparent;
+
+    /* Default */
+    --default: oklch(94% 0 0);
+    --default-foreground: oklch(12% 0.005 60);
+
+    /* Muted */
+    --muted: oklch(55% 0.005 60);
+
+    /* Scrollbar / segment */
+    --scrollbar: oklch(85% 0.002 60);
+    --segment: oklch(100% 0 0);
+    --segment-foreground: oklch(12% 0.005 60);
+
+    /* Status */
+    --success: oklch(73.29% 0.1935 149.70);
+    --success-foreground: oklch(12% 0.0059 149.70);
+    --warning: oklch(78.19% 0.1585 71.22);
+    --warning-foreground: oklch(12% 0.0059 71.22);
+    --danger: oklch(65.32% 0.2328 24.63);
+    --danger-foreground: oklch(99.11% 0 0);
+
+    /* Shadows */
+    --surface-shadow:
+      0 1px 3px 0 rgba(0, 0, 0, 0.06), 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+    --overlay-shadow:
+      0 4px 24px 0 rgba(0, 0, 0, 0.08), 0 1px 4px 0 rgba(0, 0, 0, 0.04);
+    --field-shadow: none;
+
+    --skeleton-animation: shimmer;
+  }
+
+  /* Dark variant of the luxury theme */
+  [data-theme="luxury-dark"] {
+    color-scheme: dark;
+
+    --radius: 0px;
+    --field-radius: 0px;
+    --border-width: 1px;
+
+    --background: oklch(9% 0.003 60);
+    --foreground: oklch(96% 0.002 60);
+
+    --surface: oklch(13% 0.003 60);
+    --surface-foreground: oklch(96% 0.002 60);
+    --surface-secondary: oklch(17% 0.002 60);
+    --surface-secondary-foreground: oklch(96% 0.002 60);
+    --surface-tertiary: oklch(20% 0.002 60);
+    --surface-tertiary-foreground: oklch(96% 0.002 60);
+
+    --overlay: oklch(15% 0.003 60);
+    --overlay-foreground: oklch(96% 0.002 60);
+
+    --accent: oklch(90% 0.005 60);
+    --accent-foreground: oklch(10% 0 0);
+    --focus: oklch(90% 0.005 60);
+
+    --border: oklch(22% 0.002 60);
+    --separator: oklch(18% 0.001 60);
+
+    --field-background: oklch(18% 0.002 60);
+    --field-foreground: oklch(96% 0.002 60);
+    --field-placeholder: oklch(55% 0.005 60);
+    --field-border: transparent;
+
+    --default: oklch(22% 0.002 60);
+    --default-foreground: oklch(96% 0.002 60);
+
+    --muted: oklch(60% 0.005 60);
+    --scrollbar: oklch(50% 0.003 60);
+    --segment: oklch(26% 0.002 60);
+    --segment-foreground: oklch(96% 0.002 60);
+
+    --success: oklch(73.29% 0.1935 149.70);
+    --success-foreground: oklch(12% 0.0059 149.70);
+    --warning: oklch(82.03% 0.1388 75.23);
+    --warning-foreground: oklch(12% 0.0059 75.23);
+    --danger: oklch(59.40% 0.1967 23.52);
+    --danger-foreground: oklch(99.11% 0 0);
+
+    --surface-shadow: 0 0 0 0 transparent;
+    --overlay-shadow: 0 4px 24px 0 rgba(0, 0, 0, 0.4);
+    --field-shadow: none;
+  }
+}

@@ -19,14 +19,15 @@
 import type React from "react";
 import { Toast } from "@heroui/react";
 import { CartProvider } from "@/hooks/use-cart";
+import { StoreThemeProvider } from "@/providers/theme-provider";
 
 export function Provider({ children }: { children: React.ReactNode }) {
   return (
-    <>
+    <StoreThemeProvider>
       <Toast.Provider />
       <CartProvider>
         {children}
       </CartProvider>
-    </>
+    </StoreThemeProvider>
   );
 }
