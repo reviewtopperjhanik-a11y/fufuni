@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-import { useParams, useLocation } from "react-router-dom";
+import { useParams, useLocation, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Card, Breadcrumbs, Spinner } from "@heroui/react";
@@ -36,6 +36,7 @@ import { resolveTitle } from "@/utils/description";
 
 export default function ProductPage() {
   const { t, i18n } = useTranslation();
+  const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
   const location = useLocation();
 
@@ -69,11 +70,35 @@ export default function ProductPage() {
       <div className="max-w-4xl mx-auto px-4 py-6">
         {/* Breadcrumbs */}
         <Breadcrumbs className="mb-4">
-          <Breadcrumbs.Item href={`${getBaseURL()}`}>{t("home")}</Breadcrumbs.Item>
+          <Breadcrumbs.Item
+            href={`${getBaseURL()}/`}
+            onClick={(event) => {
+              event.preventDefault();
+              navigate("/");
+            }}
+          >
+            {t("home")}
+          </Breadcrumbs.Item>
           {fromCategory ? (
-            <Breadcrumbs.Item href={`${getBaseURL()}/products?category=${fromCategory}`}>{resolveTitle(categoryName, i18n.language)}</Breadcrumbs.Item>
+            <Breadcrumbs.Item
+              href={`${getBaseURL()}/products?category=${fromCategory}`}
+              onClick={(event) => {
+                event.preventDefault();
+                navigate(`/products?category=${fromCategory}`);
+              }}
+            >
+              {resolveTitle(categoryName, i18n.language)}
+            </Breadcrumbs.Item>
           ) : (
-            <Breadcrumbs.Item href={`${getBaseURL()}/products`}>{t("shop-products-title")}</Breadcrumbs.Item>
+            <Breadcrumbs.Item
+              href={`${getBaseURL()}/products`}
+              onClick={(event) => {
+                event.preventDefault();
+                navigate("/products");
+              }}
+            >
+              {t("shop-products-title")}
+            </Breadcrumbs.Item>
           )}
           {displayTitle && (
             <Breadcrumbs.Item>{displayTitle}</Breadcrumbs.Item>
