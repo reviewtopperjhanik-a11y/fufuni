@@ -32,9 +32,18 @@ export async function incrementStat(kv: KVNamespace, key: string): Promise<void>
  * Response is cached for 1 hour (expirationTtl: 3600 s).
  * Sets `X-KV-Cache: HIT | MISS` on the response for observability.
  * Increments `stats:kv:hits` / `stats:kv:misses` counters for analytics.
+ *
+ * IMPORTANT: Authenticated requests (Authorization header present) are NEVER
+ * cached. Admin and public endpoints often share the same path (e.g.
+ * /v1/categories is mounted twice), so caching authenticated responses and
+ * serving them to public clients (or vice versa) would expose wrong data.
+ *
+ * NOTE: incrementStat uses a non-atomic KV read-modify-write, so counters are
+ * approximate under concurrent load \u2014 acceptable for diagnostic metrics.
  */
 export const kvCacheMiddleware = async (c: HonoCtx, next: Next) => {
-  if (c.req.method !== 'GET') {
+  // Only cache unauthenticated public GET requests
+  if (c.req.method !== 'GET' || c.req.header('Authorization')) {
     return await next();
   }
 
