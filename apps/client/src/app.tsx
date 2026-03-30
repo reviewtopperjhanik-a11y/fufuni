@@ -28,6 +28,7 @@ import ApiPage from "@/pages/api";
 import PricingPage from "@/pages/pricing";
 import BlogPage from "@/pages/blog";
 import AboutPage from "@/pages/about";
+import CmsPage from "@/pages/cms-page";
 import UsersAndPermissionsPage from "@/pages/admin/users-and-permissions";
 import ProductsPage from "@/pages/admin/products";
 import CustomersPage from "@/pages/admin/customers";
@@ -173,6 +174,7 @@ function App() {
           element={<AuthenticationGuard component={SwaggerPage} />}
           path="/openapi"
         />
+        <Route element={<CmsPage />} path="/pages/:handle" />
         <Route element={<PageNotFound />} path="*" />
         </Routes>
     </Suspense>
