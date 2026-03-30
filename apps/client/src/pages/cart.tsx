@@ -169,7 +169,7 @@ export default function CartPage() {
                     </div>
                     {currentCart?.totals && currentCart.totals.discount_cents > 0 && (
                       <div className="flex justify-between text-sm text-green-600">
-                        <span>{t("admin-orders-discount") || "Discount"}</span>
+                        <span>{t("admin-orders-discount")}</span>
                         <span>-{formatMoney(currentCart.totals.discount_cents, items[0]?.currency || "USD")}</span>
                       </div>
                     )}
@@ -280,9 +280,9 @@ export default function CartPage() {
             {step === "processing" && (
               <Card className="border-default-200">
                 <Card.Content className="text-center py-8">
-                  <p className="text-default-500 mb-4">{t("processing") || "Processing your order..."}</p>
+                  <p className="text-default-500 mb-4">{t("processing")}</p>
                   <p className="text-sm text-default-400">
-                    {t("redirecting-to-payment") || "You will be redirected to payment shortly."}
+                    {t("redirecting-to-payment")}
                   </p>
                 </Card.Content>
               </Card>
@@ -295,7 +295,7 @@ export default function CartPage() {
                 onClick={handleBackToCart}
                 size="sm"
               >
-                {t("back-to-cart") || "Back to Cart"}
+                {t("back-to-cart")}
               </Button>
             )}
           </div>

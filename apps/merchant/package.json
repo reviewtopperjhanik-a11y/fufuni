@@ -8,6 +8,7 @@
     "dev": "wrangler dev",
     "dev:env": "bash ./dev-env.sh \"$@\"",
     "preview:env": "bash ./dev-env.sh \"$@\"",
+    "stripe:listen": "bash -c 'source ../../.env && stripe --api-key $STRIPE_SECRET_KEY listen --load-from-webhooks-api --forward-to http://localhost:8787'",
     "deploy": "wrangler deploy",
     "db:init": "wrangler d1 execute DB --file=schema-d1.sql --local",
     "db:seed": "npx tsx scripts/seed.ts",

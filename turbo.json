@@ -7,6 +7,11 @@
     },
     "dev:env": {
       "cache": false,
+      "persistent": true,
+      "with": ["stripe:listen"]
+    },
+    "stripe:listen": {
+      "cache": false,
       "persistent": true
     },
     "build": {

@@ -133,9 +133,24 @@ webhooks.post('/stripe', async (c) => {
 
         // Extract customer details from full Stripe session
         const customerEmail = cart.customer_email;
-        const shippingName = session.customer_details?.name || null;
+        const shippingName = session.customer_details?.name || cart.shipping_name || null;
         const shippingPhone = session.customer_details?.phone || null;
-        const shippingAddress = session.customer_details?.address || null;
+
+        // Prefer Stripe-collected address if line1 is populated, otherwise fall back to the
+        // address the customer entered during our own checkout flow (stored on cart).
+        const stripeAddr = session.customer_details?.address;
+        const shippingAddress = (stripeAddr?.line1)
+          ? stripeAddr
+          : (cart.shipping_line1
+            ? {
+                line1: cart.shipping_line1,
+                line2: cart.shipping_line2 ?? null,
+                city: cart.shipping_city ?? null,
+                state: cart.shipping_state ?? null,
+                postal_code: cart.shipping_postal_code ?? null,
+                country: cart.shipping_country ?? stripeAddr?.country ?? null,
+              }
+            : null);
 
         // Upsert customer (create or update on email match)
         let customerId: string | null = null;

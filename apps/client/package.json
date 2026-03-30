@@ -11,6 +11,7 @@
     "lint": "eslint ./src/**/**/*.{ts,tsx} --fix",
     "type-check": "tsc --noEmit",
     "preview:env": "bash -c 'set -a && source ../../.env && set +a && vite preview \"$@\"' --",
+    "stripe:listen": "true",
     "clean": "rm -rf dist .turbo node_modules/.vite node_modules/.cache",
     "update:heroui:cli": "npx heroui-cli@latest upgrade --all",
     "update:heroui": "node --no-warnings --import 'data:text/javascript,import { register } from \"node:module\"; import { pathToFileURL } from \"node:url\"; register(\"ts-node/esm\", pathToFileURL(\"./\"));' ./update-heroui.ts",

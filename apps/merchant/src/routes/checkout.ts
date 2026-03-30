@@ -737,6 +737,22 @@ app.openapi(checkoutCart, async (c) => {
             shipping_countries as Stripe.Checkout.SessionCreateParams.ShippingAddressCollection.AllowedCountry[],
         },
       }),
+      // Pre-fill shipping address and customer name collected during checkout step 2
+      ...(cart.shipping_line1 && {
+        payment_intent_data: {
+          shipping: {
+            name: cart.shipping_name || cart.customer_email,
+            address: {
+              line1: cart.shipping_line1,
+              ...(cart.shipping_line2 ? { line2: cart.shipping_line2 } : {}),
+              ...(cart.shipping_city ? { city: cart.shipping_city } : {}),
+              ...(cart.shipping_state ? { state: cart.shipping_state } : {}),
+              ...(cart.shipping_postal_code ? { postal_code: cart.shipping_postal_code } : {}),
+              ...(cart.shipping_country ? { country: cart.shipping_country } : {}),
+            },
+          },
+        },
+      }),
       shipping_options: shippingOptions,
       line_items: lineItems,
       ...(stripeCouponId && { discounts: [{ coupon: stripeCouponId }] }),

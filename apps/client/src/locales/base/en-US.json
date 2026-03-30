@@ -742,5 +742,6 @@
   "admin-products-error-loading": "Error loading product",
   "admin-customers-error-loading": "Error loading customer",
   "submitting": "…",
-  "admin-products-loading-error": "Product loading error"
+  "admin-products-loading-error": "Product loading error",
+  "admin-orders-discount": "Discount"
 }
