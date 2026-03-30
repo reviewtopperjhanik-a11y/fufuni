@@ -3,13 +3,15 @@ import DefaultLayout from "@/layouts/default";
 import { useCart } from "@/hooks/use-cart";
 import { createCart, addItemsToCart, checkoutCart } from "@/lib/store-api";
 import { Button, Card, Input } from "@heroui/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitleWithVariant } from "@/utils/description";
 import ShippingAddressForm from "@/components/shipping-address-form";
 import ShippingRateSelector from "@/components/shipping-rate-selector";
 import { useAuth } from "@/authentication";
 import { SaveCartButton } from "@/components/save-cart-button";
+import { CheckoutAuthPrompt } from "@/components/checkout-auth-prompt";
+import { SavedAddressesSelector } from "@/components/saved-addresses-selector";
 
 type CheckoutStep = "initial" | "shipping-address" | "shipping-rate" | "processing";
 
@@ -18,35 +20,58 @@ const FALLBACK_IMG = "https://placehold.co/400x400/1a1a1a/666?text=No+Image";
 export default function CartPage() {
   const { t, i18n } = useTranslation();
   const { items, updateQuantity, removeItem, clear, totalCents } = useCart();
-  const { user } = useAuth();
+  const { user, isAuthenticated } = useAuth() as any;
 
   // Checkout workflow state
   const [step, setStep] = useState<CheckoutStep>("initial");
   const [email, setEmail] = useState("");
   const [currentCart, setCurrentCart] = useState<any>(null);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [showAuthPrompt, setShowAuthPrompt] = useState(false);
+  // true = show manual ShippingAddressForm; false = show SavedAddressesSelector (if authenticated)
+  const [showManualAddressForm, setShowManualAddressForm] = useState(false);
 
-  const handleInitialCheckout = async () => {
-    // Email validation
+  // Pre-fill email from authenticated user for a smoother post-login return
+  useEffect(() => {
+    if (user?.email && !email) {
+      setEmail(user.email);
+    }
+  }, [user?.email]);
+
+  /**
+   * Called when user clicks "Continue to Address".
+   * If the user is not authenticated, shows the auth prompt first.
+   * Otherwise jumps straight to creating the cart.
+   */
+  const handleInitialCheckoutClick = () => {
     if (!email || !email.includes("@")) {
       setCheckoutError(t("checkout-invalid-email"));
       return;
     }
     setCheckoutError(null);
 
+    if (!isAuthenticated) {
+      setShowAuthPrompt(true);
+    } else {
+      void proceedToAddressStep();
+    }
+  };
+
+  /**
+   * Creates the cart on the backend and moves to the shipping-address step.
+   * Called either directly (authenticated) or after the auth prompt decision.
+   */
+  const proceedToAddressStep = async () => {
+    setShowAuthPrompt(false);
+    setShowManualAddressForm(false);
     try {
-      // Create cart with email and current language
       const cart = await createCart(email, i18n.language);
       setCurrentCart(cart);
-
-      // Add items to cart
       const updatedCart = await addItemsToCart(
         cart.id,
         items.map((i) => ({ sku: i.sku, qty: i.qty })),
       );
       setCurrentCart(updatedCart);
-
-      // Move to shipping address step
       setStep("shipping-address");
     } catch (err: any) {
       setCheckoutError(err?.message || t("checkout-failed"));
@@ -75,7 +100,8 @@ export default function CartPage() {
         window.location.href,
       );
 
-      clear();
+      // DO NOT call clear() here — keep cart intact so the user can
+      // return from Stripe without losing their basket.
       window.location.href = checkout_url;
     } catch (err: any) {
       setCheckoutError(err?.message || t("checkout-failed"));
@@ -92,6 +118,7 @@ export default function CartPage() {
     setStep("initial");
     setCurrentCart(null);
     setCheckoutError(null);
+    setShowManualAddressForm(false);
   };
 
   return (
@@ -181,7 +208,7 @@ export default function CartPage() {
                     )}
                     {currentCart?.totals && currentCart.totals.tax_cents > 0 && (
                       <div className="flex justify-between text-sm text-default-600">
-                        <span>{t("admin-orders-tax") || "Tax"}</span>
+                        <span>{currentCart.totals.tax_inclusive ? t("checkout-tax-included") : (t("admin-orders-tax") || "Tax")}</span>
                         <span>{formatMoney(currentCart.totals.tax_cents, items[0]?.currency || "USD")}</span>
                       </div>
                     )}
@@ -211,7 +238,7 @@ export default function CartPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       onKeyDown={(e) => {
-                        if (e.key === "Enter") handleInitialCheckout();
+                        if (e.key === "Enter") handleInitialCheckoutClick();
                       }}
                       placeholder="customer@example.com"
                     />
@@ -249,7 +276,7 @@ export default function CartPage() {
                     </div>
                     <Button
                       variant="primary"
-                      onClick={handleInitialCheckout}
+                      onClick={handleInitialCheckoutClick}
                       isDisabled={!email}
                     >
                       {t("continue-to-address") || "Continue to Address"}
@@ -261,10 +288,18 @@ export default function CartPage() {
 
             {/* Step 2: Shipping address */}
             {step === "shipping-address" && currentCart && (
-              <ShippingAddressForm
-                cartId={currentCart.id}
-                onSuccess={handleShippingAddressSuccess}
-              />
+              isAuthenticated && !showManualAddressForm ? (
+                <SavedAddressesSelector
+                  cartId={currentCart.id}
+                  onSuccess={handleShippingAddressSuccess}
+                  onAddNew={() => setShowManualAddressForm(true)}
+                />
+              ) : (
+                <ShippingAddressForm
+                  cartId={currentCart.id}
+                  onSuccess={handleShippingAddressSuccess}
+                />
+              )
             )}
 
             {/* Step 3: Shipping rate selection */}
@@ -301,6 +336,13 @@ export default function CartPage() {
           </div>
         )}
       </div>
+
+      {/* Auth prompt modal — shown after email step when user is not logged in */}
+      <CheckoutAuthPrompt
+        isOpen={showAuthPrompt}
+        onClose={() => setShowAuthPrompt(false)}
+        onContinueAsGuest={() => void proceedToAddressStep()}
+      />
     </DefaultLayout>
   );
 }

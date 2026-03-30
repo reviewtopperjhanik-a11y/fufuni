@@ -27,6 +27,7 @@ import { z } from 'zod';
 import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { getDb } from '../db';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
+import { calculateOrderTaxes } from '../lib/tax';
 
 const app = new OpenAPIHono<HonoEnv>();
 app.use('*', customerAuthMiddleware);
@@ -427,6 +428,11 @@ const getOrderByNumber = createRoute({
                         currency: z.string(),
                         subtotal_cents: z.number(),
                         tax_cents: z.number(),
+                        taxes: z.array(z.object({
+                            name: z.string(),
+                            amount_cents: z.number(),
+                            tax_inclusive: z.boolean(),
+                        })),
                         shipping_cents: z.number(),
                         total_cents: z.number(),
                         created_at: z.string(),
@@ -482,6 +488,14 @@ app.openapi(getOrderByNumber, async (c) => {
         [order.id]
     );
 
+    // Parse stored taxes; fall back to dynamic computation when missing
+    let taxes: { name: string; amount_cents: number; tax_inclusive: boolean }[] =
+        order.taxes_json ? JSON.parse(order.taxes_json) : [];
+    if (taxes.length === 0) {
+        const computed = await calculateOrderTaxes(db, order.id);
+        taxes = computed.taxes;
+    }
+
     return c.json(
         {
             id: order.id,
@@ -490,6 +504,7 @@ app.openapi(getOrderByNumber, async (c) => {
             currency: order.currency,
             subtotal_cents: order.subtotal_cents,
             tax_cents: order.tax_cents,
+            taxes,
             shipping_cents: order.shipping_cents,
             total_cents: order.total_cents,
             created_at: order.created_at,

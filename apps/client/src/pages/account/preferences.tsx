@@ -44,6 +44,7 @@ export default function Preferences() {
     accepts_marketing: 0,
   });
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
   const apiBase = getApiBase();
 
   useEffect(() => {
@@ -67,6 +68,15 @@ export default function Preferences() {
   }, [auth]);
 
   const handleSave = async () => {
+    setFormError(null);
+    if (!formData.name?.trim()) {
+      setFormError(t("account-field-required"));
+      return;
+    }
+    if (!formData.phone?.trim()) {
+      setFormError(t("account-field-required"));
+      return;
+    }
     setSaving(true);
     setSaveSuccess(false);
     try {
@@ -130,7 +140,7 @@ export default function Preferences() {
             <Input value={profile.email} />
           </TextField>
 
-          <TextField>
+          <TextField isRequired isInvalid={formData.name?.trim() === "" || formData.name === null}>
             <Label>{t("account-name")}</Label>
             <Input
               placeholder={t("account-enter-name")}
@@ -141,7 +151,7 @@ export default function Preferences() {
             />
           </TextField>
 
-          <TextField>
+          <TextField isRequired isInvalid={formData.phone?.trim() === "" || formData.phone === null}>
             <Label>{t("account-phone")}</Label>
             <Input
               placeholder={t("account-enter-phone")}
@@ -154,6 +164,7 @@ export default function Preferences() {
           </TextField>
 
           <Select
+            isRequired
             value={formData.locale || "en-US"}
             onChange={(value) => {
               setFormData({
@@ -224,14 +235,19 @@ export default function Preferences() {
       </Card>
 
       {/* Save Button */}
-      <div className="flex gap-2">
-        <Button isDisabled={saving} isPending={saving} onClick={handleSave}>
-          {t("account-save-changes")}
-        </Button>
-        {saveSuccess && (
-          <span className="text-green-600 flex items-center">
-            {t("account-saved-successfully")}
-          </span>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-2">
+          <Button isDisabled={saving} isPending={saving} onClick={handleSave}>
+            {t("account-save-changes")}
+          </Button>
+          {saveSuccess && (
+            <span className="text-green-600 flex items-center">
+              {t("account-saved-successfully")}
+            </span>
+          )}
+        </div>
+        {formError && (
+          <span className="text-danger text-sm">{formError}</span>
         )}
       </div>
     </div>

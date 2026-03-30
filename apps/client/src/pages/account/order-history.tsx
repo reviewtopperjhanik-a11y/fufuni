@@ -98,15 +98,16 @@ export default function OrderHistory() {
         </Card>
       ) : (
         <>
-          <Table>
-            <Table.Header>
-              <Table.Column>{t("account-order-number")}</Table.Column>
-              <Table.Column>{t("account-date")}</Table.Column>
-              <Table.Column>{t("account-status")}</Table.Column>
-              <Table.Column>{t("account-total")}</Table.Column>
-              <Table.Column>{t("account-actions")}</Table.Column>
-            </Table.Header>
-            <Table.Body>
+          <Table aria-label={t("account-orders")}>
+            <Table.Content selectionMode="none">
+              <Table.Header>
+                <Table.Column isRowHeader>{t("account-order-number")}</Table.Column>
+                <Table.Column>{t("account-date")}</Table.Column>
+                <Table.Column>{t("account-status")}</Table.Column>
+                <Table.Column>{t("account-total")}</Table.Column>
+                <Table.Column>{t("account-actions")}</Table.Column>
+              </Table.Header>
+              <Table.Body renderEmptyState={() => ""}>
               {orders.map((order) => (
                 <Table.Row key={order.id}>
                   <Table.Cell>{order.number}</Table.Cell>
@@ -127,7 +128,7 @@ export default function OrderHistory() {
                     </Chip>
                   </Table.Cell>
                   <Table.Cell>
-                    ${(order.total_cents / 100).toFixed(2)} {order.currency}
+                    {(order.total_cents / 100).toFixed(2)} {order.currency}
                   </Table.Cell>
                   <Table.Cell>
                     <Link to={`/account/orders/${order.number}`}>
@@ -138,7 +139,8 @@ export default function OrderHistory() {
                   </Table.Cell>
                 </Table.Row>
               ))}
-            </Table.Body>
+              </Table.Body>
+            </Table.Content>
           </Table>
 
           {hasMore && (

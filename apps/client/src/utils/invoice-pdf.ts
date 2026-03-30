@@ -25,6 +25,7 @@ export interface OrderForPdf {
   discount_amount_cents?: number;
   shipping_cents: number;
   tax_cents: number;
+  taxes?: { name: string; amount_cents: number; tax_inclusive?: boolean }[];
   total_cents: number;
   tracking_number?: string;
   tracking_url?: string;
@@ -175,7 +176,17 @@ export function downloadInvoicePdf(
   }
 
   addTotalLine("Shipping", order.shipping_cents);
-  addTotalLine("Tax", order.tax_cents);
+
+  if (order.taxes && order.taxes.length > 0) {
+    for (const tax of order.taxes) {
+      const label = tax.tax_inclusive !== false
+        ? `Incl. ${tax.name}`
+        : `Tax (${tax.name})`;
+      addTotalLine(label, tax.amount_cents);
+    }
+  } else {
+    addTotalLine("Tax", order.tax_cents);
+  }
 
   // Draw a line before the total
   doc.setDrawColor(200);
@@ -296,7 +307,17 @@ export function openInvoicePdf(
     addTotalLine("Discount", -order.discount_amount_cents);
   }
   addTotalLine("Shipping", order.shipping_cents);
-  addTotalLine("Tax", order.tax_cents);
+
+  if (order.taxes && order.taxes.length > 0) {
+    for (const tax of order.taxes) {
+      const label = tax.tax_inclusive !== false
+        ? `Incl. ${tax.name}`
+        : `Tax (${tax.name})`;
+      addTotalLine(label, tax.amount_cents);
+    }
+  } else {
+    addTotalLine("Tax", order.tax_cents);
+  }
 
   doc.setDrawColor(200);
   doc.line(14, currentY - 1, right, currentY - 1);

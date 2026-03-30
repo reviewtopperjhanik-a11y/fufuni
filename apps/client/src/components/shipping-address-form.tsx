@@ -18,11 +18,13 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Input, TextField, Label } from "@heroui/react";
+import { Input, TextField, Label, Checkbox } from "@heroui/react";
 import { Select, ListBox } from "@heroui/react";
 import { Button } from "@heroui/react";
 import { Card} from "@heroui/react";
 import { setShippingAddress } from "@/lib/store-api";
+import { useAuth } from "@/authentication";
+import { getApiBase } from "@/lib/api-base";
 
 const COUNTRIES = [
   { code: "FR", name: "France" },
@@ -54,6 +56,9 @@ interface ShippingAddressFormProps {
 
 export default function ShippingAddressForm({ cartId, onSuccess, isLoading = false }: ShippingAddressFormProps) {
   const { t } = useTranslation();
+  const auth = useAuth() as any;
+  const isAuthenticated: boolean = auth?.isAuthenticated ?? false;
+  const apiBase = getApiBase();
   const [form, setForm] = useState({
     name: "",
     line1: "",
@@ -66,6 +71,8 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Save the address to the customer account (only shown when authenticated)
+  const [saveAddress, setSaveAddress] = useState(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,6 +90,24 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
         country: form.country,
         billing_same_as_shipping: form.billing_same_as_shipping,
       });
+
+      // Persist address to the customer account (non-blocking — never fails the checkout)
+      if (isAuthenticated && saveAddress && auth?.postJson) {
+        auth
+          .postJson(`${apiBase}/v1/me/addresses`, {
+            name: form.name,
+            line1: form.line1,
+            line2: form.line2 || undefined,
+            city: form.city,
+            state: form.state || undefined,
+            postal_code: form.postal_code,
+            country: form.country,
+          })
+          .catch((err: any) =>
+            console.warn("[ShippingAddressForm] Failed to save address:", err)
+          );
+      }
+
       onSuccess(cart);
     } catch (err: any) {
       setError(err.message);
@@ -174,6 +199,24 @@ export default function ShippingAddressForm({ cartId, onSuccess, isLoading = fal
           </Select>
 
           {error && <p className="text-red-500 text-sm">{error}</p>}
+
+          {/* Save address option — only shown when the user is authenticated */}
+          {isAuthenticated && (
+            <Checkbox
+              isSelected={saveAddress}
+              onChange={() => setSaveAddress((v) => !v)}
+              isDisabled={submitting || isLoading}
+            >
+              <Checkbox.Control>
+                <Checkbox.Indicator />
+              </Checkbox.Control>
+              <Checkbox.Content>
+                <Label className="text-sm cursor-pointer">
+                  {t("checkout-save-address")}
+                </Label>
+              </Checkbox.Content>
+            </Checkbox>
+          )}
 
           <Button
             type="submit"

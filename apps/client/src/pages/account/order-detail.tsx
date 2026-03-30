@@ -29,6 +29,7 @@ interface Order {
   currency: string;
   subtotal_cents: number;
   tax_cents: number;
+  taxes: { name: string; amount_cents: number; tax_inclusive?: boolean }[];
   shipping_cents: number;
   total_cents: number;
   created_at: string;
@@ -101,6 +102,7 @@ export default function OrderDetail() {
         subtotal_cents: order.subtotal_cents,
         shipping_cents: order.shipping_cents,
         tax_cents: order.tax_cents,
+        taxes: order.taxes,
         total_cents: order.total_cents,
         tracking_number: order.tracking_number ?? undefined,
         tracking_url: order.tracking_url ?? undefined,
@@ -196,27 +198,29 @@ export default function OrderDetail() {
         </Card.Header>
         <Separator />
         <Card.Content>
-          <Table>
-            <Table.Header>
-              <Table.Column>{t("account-item")}</Table.Column>
-              <Table.Column>{t("account-qty")}</Table.Column>
-              <Table.Column>{t("account-unit-price")}</Table.Column>
-              <Table.Column>{t("account-total")}</Table.Column>
-            </Table.Header>
-            <Table.Body>
-              {order.items.map((item, idx) => (
-                <Table.Row key={idx}>
-                  <Table.Cell>{item.title}</Table.Cell>
-                  <Table.Cell>{item.qty}</Table.Cell>
-                  <Table.Cell>
-                    ${(item.unit_price_cents / 100).toFixed(2)}
-                  </Table.Cell>
-                  <Table.Cell>
-                    ${((item.qty * item.unit_price_cents) / 100).toFixed(2)}
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
+          <Table aria-label={t("account-items")}>
+            <Table.Content selectionMode="none">
+              <Table.Header>
+                <Table.Column isRowHeader>{t("account-item")}</Table.Column>
+                <Table.Column>{t("account-qty")}</Table.Column>
+                <Table.Column>{t("account-unit-price")}</Table.Column>
+                <Table.Column>{t("account-total")}</Table.Column>
+              </Table.Header>
+              <Table.Body renderEmptyState={() => ""}>
+                {order.items.map((item, idx) => (
+                  <Table.Row key={idx}>
+                    <Table.Cell>{item.title}</Table.Cell>
+                    <Table.Cell>{item.qty}</Table.Cell>
+                    <Table.Cell>
+                      {(item.unit_price_cents / 100).toFixed(2)} {order.currency}
+                    </Table.Cell>
+                    <Table.Cell>
+                      {((item.qty * item.unit_price_cents) / 100).toFixed(2)} {order.currency}
+                    </Table.Cell>
+                  </Table.Row>
+                ))}
+              </Table.Body>
+            </Table.Content>
           </Table>
         </Card.Content>
       </Card>
@@ -226,20 +230,29 @@ export default function OrderDetail() {
         <Card.Content className="gap-3">
           <div className="flex justify-between">
             <span>{t("account-subtotal")}</span>
-            <span>${(order.subtotal_cents / 100).toFixed(2)}</span>
+            <span>{(order.subtotal_cents / 100).toFixed(2)} {order.currency}</span>
           </div>
           <div className="flex justify-between">
             <span>{t("account-shipping")}</span>
-            <span>${(order.shipping_cents / 100).toFixed(2)}</span>
+            <span>{(order.shipping_cents / 100).toFixed(2)} {order.currency}</span>
           </div>
-          <div className="flex justify-between">
-            <span>{t("account-tax")}</span>
-            <span>${(order.tax_cents / 100).toFixed(2)}</span>
-          </div>
+          {order.taxes && order.taxes.length > 0 ? (
+            order.taxes.map((tax, idx) => (
+              <div key={idx} className="flex justify-between">
+                <span>{tax.tax_inclusive !== false ? t("checkout-tax-included") : t("account-tax")} ({tax.name})</span>
+                <span>{(tax.amount_cents / 100).toFixed(2)} {order.currency}</span>
+              </div>
+            ))
+          ) : order.tax_cents > 0 ? (
+            <div className="flex justify-between">
+              <span>{t("account-tax")}</span>
+              <span>{(order.tax_cents / 100).toFixed(2)} {order.currency}</span>
+            </div>
+          ) : null}
           <Separator />
           <div className="flex justify-between font-bold text-lg">
             <span>{t("account-total")}</span>
-            <span>${(order.total_cents / 100).toFixed(2)}</span>
+            <span>{(order.total_cents / 100).toFixed(2)} {order.currency}</span>
           </div>
         </Card.Content>
       </Card>

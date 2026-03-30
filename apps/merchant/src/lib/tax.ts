@@ -148,3 +148,101 @@ export async function calculateCartTaxes(db: Database, cartId: string, shippingC
 
     return { taxes, itemRates, shipping_ht_cents: shippingHtCents };
 }
+
+/**
+ * Computes the tax breakdown for a completed order.
+ * Used as a fallback when taxes_json was not stored at checkout time.
+ * Mirrors calculateCartTaxes but works directly from order data.
+ */
+export async function calculateOrderTaxes(db: Database, orderId: string): Promise<{
+    taxes: { name: string, amount_cents: number, tax_inclusive: boolean, rate_percentage: number }[]
+}> {
+    const [order] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
+    if (!order) return { taxes: [] };
+
+    let shippingCountry: string | null = null;
+    if (order.ship_to) {
+        try { shippingCountry = JSON.parse(order.ship_to).country ?? null; } catch {}
+    }
+    if (!shippingCountry) return { taxes: [] };
+
+    const regionRows = await db.query<any>(
+        `SELECT r.tax_inclusive FROM regions r
+         JOIN region_countries rc ON rc.region_id = r.id
+         JOIN countries c ON c.id = rc.country_id
+         WHERE c.code = ? LIMIT 1`,
+        [shippingCountry]
+    );
+    const regionTaxInclusive = regionRows[0]?.tax_inclusive === 1;
+
+    const items = await db.query<any>(
+        `SELECT oi.qty, oi.unit_price_cents, oi.sku, v.tax_code
+         FROM order_items oi
+         LEFT JOIN variants v ON v.sku = oi.sku
+         WHERE oi.order_id = ?`,
+        [orderId]
+    );
+
+    let shippingTaxCode: string | null = null;
+    let shippingTaxInclusive = false;
+    if (order.shipping_rate_id) {
+        const [rate] = await db.query<any>(`SELECT tax_code, tax_inclusive FROM shipping_rates WHERE id = ?`, [order.shipping_rate_id]);
+        shippingTaxCode = rate?.tax_code ?? null;
+        shippingTaxInclusive = rate?.tax_inclusive === 1;
+    }
+
+    const rates = await db.query<any>(
+        `SELECT display_name, tax_code, rate_percentage, country_code
+         FROM tax_rates
+         WHERE status = 'active'
+         AND (country_code = ? OR country_code IS NULL)
+         ORDER BY country_code DESC`,
+        [shippingCountry]
+    );
+
+    const findRate = (taxCode: string | null) => {
+        let r = rates.find((x: any) => x.country_code === shippingCountry && x.tax_code === taxCode);
+        if (!r) r = rates.find((x: any) => x.country_code === shippingCountry && x.tax_code === null);
+        if (!r) r = rates.find((x: any) => x.country_code === null && x.tax_code === taxCode);
+        if (!r) r = rates.find((x: any) => x.country_code === null && x.tax_code === null);
+        return r;
+    };
+
+    const taxResults = new Map<string, { amount: number; rate: number; inclusive: boolean }>();
+
+    for (const item of items) {
+        const applicableRate = findRate(item.tax_code);
+        if (!applicableRate) continue;
+        const lineTotal = item.unit_price_cents * item.qty;
+        const taxAmount = regionTaxInclusive
+            ? Math.round(lineTotal - lineTotal / (1 + applicableRate.rate_percentage / 100))
+            : Math.round(lineTotal * (applicableRate.rate_percentage / 100));
+        const key = `${applicableRate.display_name}_${regionTaxInclusive}`;
+        const ex = taxResults.get(key) || { amount: 0, rate: applicableRate.rate_percentage, inclusive: regionTaxInclusive };
+        taxResults.set(key, { amount: ex.amount + taxAmount, rate: applicableRate.rate_percentage, inclusive: regionTaxInclusive });
+    }
+
+    const shippingCents = order.shipping_cents || 0;
+    if (shippingCents > 0 && shippingTaxCode) {
+        const shippingRate = findRate(shippingTaxCode);
+        if (shippingRate) {
+            const taxAmount = shippingTaxInclusive
+                ? shippingCents - Math.round(shippingCents / (1 + shippingRate.rate_percentage / 100))
+                : Math.round(shippingCents * (shippingRate.rate_percentage / 100));
+            if (taxAmount > 0) {
+                const key = `${shippingRate.display_name}_${shippingTaxInclusive}`;
+                const ex = taxResults.get(key) || { amount: 0, rate: shippingRate.rate_percentage, inclusive: shippingTaxInclusive };
+                taxResults.set(key, { amount: ex.amount + taxAmount, rate: shippingRate.rate_percentage, inclusive: shippingTaxInclusive });
+            }
+        }
+    }
+
+    const taxes = Array.from(taxResults.entries()).map(([key, data]) => ({
+        name: key.split('_')[0],
+        amount_cents: data.amount,
+        tax_inclusive: data.inclusive,
+        rate_percentage: data.rate,
+    }));
+
+    return { taxes };
+}

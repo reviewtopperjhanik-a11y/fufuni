@@ -346,7 +346,8 @@ app.openapi(addCartItems, async (c) => {
         discount_cents: discountAmountCents,
         shipping_cents: 0,
         tax_cents: taxCents,
-        total_cents: subtotalCents - discountAmountCents + taxCents,
+        tax_inclusive: taxes.length > 0 && taxes.every((t) => t.tax_inclusive),
+        total_cents: subtotalCents - discountAmountCents + taxes.filter((t) => !t.tax_inclusive).reduce((sum, t) => sum + t.amount_cents, 0),
       },
       expires_at: cart.expires_at,
     }, 200);
@@ -613,7 +614,7 @@ app.openapi(checkoutCart, async (c) => {
   // Add internal taxes as separate line items
   // If inclusive, we adjust the tax amount to match the difference between TotalTTC and TotalHT reported to Stripe
   let remainingTaxToCollect = totalTTC - totalReportedHT;
-  const orderTaxes: { name: string; amount_cents: number }[] = [];
+  const orderTaxes: { name: string; amount_cents: number; tax_inclusive: boolean }[] = [];
 
   for (const tax of taxesDetail) {
     if (tax.amount_cents > 0) {
@@ -635,7 +636,7 @@ app.openapi(checkoutCart, async (c) => {
         remainingTaxToCollect -= taxAmount;
       }
 
-      orderTaxes.push({ name: resolvedName, amount_cents: taxAmount });
+      orderTaxes.push({ name: resolvedName, amount_cents: taxAmount, tax_inclusive: tax.tax_inclusive });
 
       lineItems.push({
         price_data: {
@@ -874,7 +875,8 @@ app.openapi(applyDiscount, async (c) => {
       discount_cents: discountAmountCents,
       shipping_cents: 0,
       tax_cents: taxCents,
-      total_cents: subtotalCents - discountAmountCents + taxCents,
+      tax_inclusive: taxes.length > 0 && taxes.every((t) => t.tax_inclusive),
+      total_cents: subtotalCents - discountAmountCents + taxes.filter((t) => !t.tax_inclusive).reduce((sum, t) => sum + t.amount_cents, 0),
     },
   }, 200);
 });
@@ -920,7 +922,8 @@ app.openapi(removeDiscount, async (c) => {
       discount_cents: 0,
       shipping_cents: 0,
       tax_cents: taxCents,
-      total_cents: subtotalCents + taxCents,
+      tax_inclusive: taxes.length > 0 && taxes.every((t) => t.tax_inclusive),
+      total_cents: subtotalCents + taxes.filter((t) => !t.tax_inclusive).reduce((sum, t) => sum + t.amount_cents, 0),
     },
   }, 200);
 });
@@ -1053,7 +1056,8 @@ app.openapi(setShippingAddress, async (c) => {
       discount_cents: updatedCart.discount_amount_cents ?? 0,
       shipping_cents: updatedCart.shipping_cents ?? 0,
       tax_cents: taxCents,
-      total_cents: subtotalCents - (updatedCart.discount_amount_cents ?? 0) + (updatedCart.shipping_cents ?? 0) + taxCents,
+      tax_inclusive: taxes.length > 0 && taxes.every((t) => t.tax_inclusive),
+      total_cents: subtotalCents - (updatedCart.discount_amount_cents ?? 0) + (updatedCart.shipping_cents ?? 0) + taxes.filter((t) => !t.tax_inclusive).reduce((sum, t) => sum + t.amount_cents, 0),
     },
     expires_at: updatedCart.expires_at,
   }, 200);
@@ -1224,7 +1228,8 @@ app.openapi(selectShippingRate, async (c) => {
       discount_cents: updatedCart.discount_amount_cents ?? 0,
       shipping_cents: chosenRate.amount_cents,
       tax_cents: taxCents,
-      total_cents: subtotalCents - (updatedCart.discount_amount_cents ?? 0) + chosenRate.amount_cents + taxCents,
+      tax_inclusive: taxes.length > 0 && taxes.every((t) => t.tax_inclusive),
+      total_cents: subtotalCents - (updatedCart.discount_amount_cents ?? 0) + chosenRate.amount_cents + taxes.filter((t) => !t.tax_inclusive).reduce((sum, t) => sum + t.amount_cents, 0),
     },
     expires_at: updatedCart.expires_at,
   }, 200);
