@@ -404,6 +404,9 @@ Sensitive values (secrets) should be set with `wrangler secret put`.
 | `API_BASE_URL` | ⚙️ | Worker URL (used internally) |
 | `CRYPTOKEN` | ⚙️ | Hex token for crypto operations |
 | `KV_CACHE_ID` | ⚙️ | KV namespace ID (mirrors the `KV_CACHE` binding) |
+| `KV_CACHE_SEARCH_TTL_SECONDS` | ⚙️ | Custom TTL for product search cache (default: 300) |
+| `KV_CACHE_REVIEWS_TTL_SECONDS` | ⚙️ | Custom TTL for product reviews cache (default: 600) |
+| `KV_CACHE_DEFAULT_TTL_SECONDS` | ⚙️ | Custom TTL for all other cache entries (default: 3600) |
 
 #### Cloudflare Bindings (wrangler.jsonc)
 
