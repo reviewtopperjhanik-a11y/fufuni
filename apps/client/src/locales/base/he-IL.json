@@ -51,7 +51,6 @@
   "permissions": "הרשאות",
   "token": "אֲסִימוֹן",
   "user": "מִשׁתַמֵשׁ",
-  "vite-react-heroui-auth0-template": "תבנית SCTG React",
   "admin-users-page-title": "ניהול משתמשים והרשאות",
   "admin-users-page-subtitle": "ניהול גישת משתמשי.",
   "admin-users-cache-token-success": "(טוקן ניהול במטמון ✓)",
@@ -774,5 +773,6 @@
   "admin-orders-discount": "דִיסקוֹנט",
   "admin-products-loading-error": "שגיאת טעינת המוצר",
   "admin-regions-tax-inclusive": "מסים כלולים",
-  "reviews-title": "ביקורות"
+  "reviews-title": "ביקורות",
+  "vite-react-heroui-auth0-template": "פלטפורמת SCTG Fufuni"
 }

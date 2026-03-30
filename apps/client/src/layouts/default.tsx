@@ -165,7 +165,7 @@ export default function DefaultLayout({
           <span className="text-default-600">
             <Trans ns="base">powered-by</Trans>
           </span>
-          <p className="text-primary">SCTG React template</p>
+          <p className="text-primary">SCTG Fufuni Platform</p>
         </Link>
         &nbsp;
         <div className="flex items-center gap-2 text-primary">

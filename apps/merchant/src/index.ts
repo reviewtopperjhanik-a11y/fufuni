@@ -91,6 +91,8 @@ app.use('/v1/categories', kvCacheMiddleware);
 app.use('/v1/categories/*', kvCacheMiddleware);
 app.use('/v1/products', kvCacheMiddleware);
 app.use('/v1/products/*', kvCacheMiddleware);
+app.use('/openapi.json', kvCacheMiddleware);
+app.use('/openapi/*', kvCacheMiddleware);
 app.use('/v1/categories', kvInvalidateMiddleware);
 app.use('/v1/categories/*', kvInvalidateMiddleware);
 app.use('/v1/products', kvInvalidateMiddleware);
@@ -155,12 +157,12 @@ app.route('', oauth);
 app.route('', ucp);
 app.route('/v1/__auth0', auth0Routes);
 
-app.doc('/openapi.json', {
-  openapi: '3.0.0',
+app.doc31('/openapi.json', {
+  openapi: '3.1.0',
   info: {
     title: 'Merchant API',
     version: '1.0.0',
-    description: 'The open-source commerce backend for Cloudflare + Stripe',
+    description: 'The open-source commerce backend for Cloudflare + Stripe + Auth0',
   },
   servers: [{ url: '/' }],
 });

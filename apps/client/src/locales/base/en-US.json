@@ -62,7 +62,7 @@
   "permissions": "permissions",
   "token": "token",
   "user": "user",
-  "vite-react-heroui-auth0-template": "SCTG React template",
+  "vite-react-heroui-auth0-template": "SCTG Fufuni Platform",
   "admin-users-page-title": "Users Management and Permissions",
   "admin-users-page-subtitle": "Manage users access.",
   "admin-users-cache-token-success": "(Management token in cache ✓)",
@@ -769,5 +769,6 @@
   "admin-products-loading-error": "Product loading error",
   "admin-orders-discount": "Discount",
   "admin-regions-tax-inclusive": "Taxes included",
-  "reviews-title": "Reviews"
+  "reviews-title": "Reviews",
+  "openapi-explorer": "Openapi explorer"
 }

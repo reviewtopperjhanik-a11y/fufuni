@@ -26,6 +26,7 @@
 import { useEffect, useState, useCallback } from "react";
 import SwaggerUI from "swagger-ui-react";
 import "swagger-ui-react/swagger-ui.css";
+import { Button } from "@heroui/react";
 import { getBaseURL } from "@/utils/base-url";
 
 export interface OpenAPIProps {
@@ -91,6 +92,21 @@ export function OpenAPI({
       })
       .catch((error) => console.error("Error fetching OpenAPI spec:", error));
   }, [url, dataServers, description]);
+
+  // Download helper
+  const downloadOpenApiSpec = useCallback(() => {
+    if (!openApiSpec) return;
+
+    const specString = JSON.stringify(openApiSpec, null, 2);
+    const blob = new Blob([specString], { type: "application/json" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "openapi.json";
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+  }, [openApiSpec]);
 
   // Callback when SwaggerUI is ready
   const [swaggerUIInstance, setSwaggerUIInstance] = useState<any>(null);
@@ -174,6 +190,16 @@ export function OpenAPI({
 
   return (
     <div className="w-full">
+      <div className="mb-4 flex justify-end">
+        <Button
+          variant="secondary"
+          size="sm"
+          onClick={downloadOpenApiSpec}
+          disabled={!openApiSpec}
+        >
+          Télécharger OpenAPI
+        </Button>
+      </div>
       <SwaggerUI
         plugins={[ScopeChipsPlugin]}
         spec={openApiSpec as unknown as Object}
@@ -182,3 +208,4 @@ export function OpenAPI({
     </div>
   );
 }
+

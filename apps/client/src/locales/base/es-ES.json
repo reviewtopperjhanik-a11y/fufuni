@@ -51,7 +51,6 @@
   "permissions": "permisos",
   "token": "simbólico",
   "user": "usuario",
-  "vite-react-heroui-auth0-template": "SCTG React Plantilla",
   "admin-users-page-title": "Gestión de Usuarios y Permisos",
   "admin-users-page-subtitle": "Gestionar el acceso de los usuarios.",
   "admin-users-cache-token-success": "(Token de gestión en caché ✓)",
@@ -774,5 +773,6 @@
   "admin-analytics-cache-default-ttl": "TTL predeterminado",
   "admin-analytics-cache-reviews-ttl": "Reseñas TTL",
   "admin-analytics-cache-search-ttl": "Buscar TTL",
-  "reviews-title": "Reseñas"
+  "reviews-title": "Reseñas",
+  "vite-react-heroui-auth0-template": "Plataforma SCTG Fufuni"
 }
