@@ -90,7 +90,7 @@ jobs:
               \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
               \"client_secret\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}\",
               \"audience\":\"${{ secrets.AUTH0_AUDIENCE }}\",
-              \"scope\":\"${{ secrets.DATABASE_PERMISSION }}\",
+              \"scope\":\"openid profile email ${{secrets.ADMIN_STORE_PERMISSION}} ${{ secrets.DATABASE_PERMISSION }}\",
               \"grant_type\":\"client_credentials\"
             }" | jq -r '.access_token')
           echo "::add-mask::$API_TOKEN"
