@@ -15,12 +15,13 @@
 # You should have received a copy of the GNU Affero General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
-"""Generate apps/merchant/wrangler.jsonc from .env and existing base wrangler.jsonc.
+"""Generate wrangler.jsonc from .env and existing base wrangler.jsonc.
 
 Usage:
-  python3 scripts/generate-wrangler-jsonc.py <env-file> <base-wrangler.jsonc> <output-wrangler.jsonc>
+  python3 scripts/generate-wrangler-jsonc.py [--skip-routes] <env-file> <base-wrangler.jsonc> <output-wrangler.jsonc>
 """
 
+import argparse
 import json
 import os
 import re
@@ -50,13 +51,23 @@ def load_env(env_path):
 
 
 def main():
-    if len(sys.argv) != 4:
-        print("Usage: python3 scripts/generate-wrangler-jsonc.py <env-file> <base-wrangler.jsonc> <output-wrangler.jsonc>")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Generate a wrangler.jsonc from a .env file and a base wrangler.jsonc."
+    )
+    parser.add_argument("env_file", help="Path to the .env file")
+    parser.add_argument("base_wrangler", help="Path to the base wrangler.jsonc")
+    parser.add_argument("output_wrangler", help="Path for the generated wrangler.jsonc")
+    parser.add_argument(
+        "--skip-routes",
+        action="store_true",
+        default=False,
+        help="Do not add or modify 'routes' (use for workers.dev deployments such as the MCP worker)",
+    )
+    args = parser.parse_args()
 
-    env_path = sys.argv[1]
-    base_wrangler_path = sys.argv[2]
-    output_path = sys.argv[3]
+    env_path = args.env_file
+    base_wrangler_path = args.base_wrangler
+    output_path = args.output_wrangler
 
     env_vars = load_env(env_path)
 
@@ -85,16 +96,18 @@ def main():
             kv_namespaces.append({"binding": "KV_CACHE", "id": kv_cache_id})
     wrangler_config["kv_namespaces"] = kv_namespaces
 
-    # Set routes based on page-dev flag and domain name (same logic as jq branch from prior workflow).
-    use_page_dev = env_vars.get("CLOUDFLARE_USE_PAGE_DEV_DOMAIN", "").strip().lower()
-    is_falsey = use_page_dev == "" or use_page_dev == "false" or use_page_dev == "0"
-    if not is_falsey:
-        # page dev active: keep routes untouched
-        pass
-    else:
-        domain_name = env_vars.get("DOMAIN_NAME", "")
-        if domain_name:
-            wrangler_config["routes"] = [{"pattern": domain_name, "custom_domain": True}]
+    # Set routes based on page-dev flag and domain name.
+    # Skipped when --skip-routes is passed (e.g. for the MCP worker on workers.dev).
+    if not args.skip_routes:
+        use_page_dev = env_vars.get("CLOUDFLARE_USE_PAGE_DEV_DOMAIN", "").strip().lower()
+        is_falsey = use_page_dev == "" or use_page_dev == "false" or use_page_dev == "0"
+        if not is_falsey:
+            # page dev active: keep routes untouched
+            pass
+        else:
+            domain_name = env_vars.get("DOMAIN_NAME", "")
+            if domain_name:
+                wrangler_config["routes"] = [{"pattern": domain_name, "custom_domain": True}]
 
     # Keep existing vars configuration unchanged in generated file (optional values, not secret references).
     wrangler_config["vars"] = current_vars
