@@ -27,6 +27,17 @@ import os
 import re
 import sys
 
+
+def strip_jsonc_comments(text: str) -> str:
+    """Remove // line comments and /* block comments */ from a JSONC string."""
+    # Remove /* ... */ block comments (non-greedy, across newlines)
+    text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
+    # Remove // line comments (not inside strings)
+    # This simple approach removes everything from // to end-of-line;
+    # it is sufficient for wrangler.jsonc files which don't put // inside string values.
+    text = re.sub(r'//[^\n]*', '', text)
+    return text
+
 # All .env variables will be treated as secrets in generated wrangler.jsonc.
 
 def load_env(env_path):
@@ -72,7 +83,7 @@ def main():
     env_vars = load_env(env_path)
 
     with open(base_wrangler_path, "r", encoding="utf-8") as f:
-        base_config = json.load(f)
+        base_config = json.loads(strip_jsonc_comments(f.read()))
 
     # Preserve existing config and avoid overriding unrelated keys.
     wrangler_config = dict(base_config)
