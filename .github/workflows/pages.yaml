@@ -94,6 +94,12 @@ jobs:
             exit 1
           fi
       
+      - name: Build llms export
+        run: |
+          source .env
+          npm run export:llms
+          cp export.md apps/client/public/llms.md
+          
       - name: Build project
         # You can change the base path to your repository name
         run: |
