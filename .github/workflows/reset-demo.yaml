@@ -56,52 +56,92 @@ jobs:
           EXP=$(JWT_TOKEN="$CURRENT_MGMT_TOKEN" python3 scripts/jwt-exp.py)
 
           if [ "$EXP" -gt "$THRESHOLD" ]; then
-            echo "Reusing stored management token (valid until $(date -d @$EXP --utc))"
+            echo "Reusing stored management token:"
+            JWT_TOKEN="$CURRENT_MGMT_TOKEN" python3 scripts/jwt-info.py
             MGMT_TOKEN="$CURRENT_MGMT_TOKEN"
           else
-            echo "Obtaining new 30-day management token..."
-            MGMT_TOKEN=$(curl -sf -X POST "https://${{ secrets.AUTH0_DOMAIN }}/oauth/token" \
+            echo "Stored token expired or absent (exp=$EXP threshold=$THRESHOLD) — obtaining new 30-day management token..."
+            MGMT_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://${{ secrets.AUTH0_DOMAIN }}/oauth/token" \
               -H "Content-Type: application/json" \
               -d "{
                 \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
                 \"client_secret\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}\",
                 \"audience\":\"https://${{ secrets.AUTH0_DOMAIN }}/api/v2/\",
                 \"grant_type\":\"client_credentials\"
-              }" | jq -r '.access_token')
+              }")
+            MGMT_STATUS=$(echo "$MGMT_RESPONSE" | tail -1)
+            MGMT_BODY=$(echo "$MGMT_RESPONSE" | head -n -1)
+            echo "Auth0 management token request: HTTP $MGMT_STATUS"
+            if [ "$MGMT_STATUS" -ne 200 ]; then
+              echo "::error::Failed to obtain management token — Auth0 error: $(echo "$MGMT_BODY" | jq -r '.error_description // .error // "unknown"')"
+              exit 1
+            fi
+            MGMT_TOKEN=$(echo "$MGMT_BODY" | jq -r '.access_token')
             echo "::add-mask::$MGMT_TOKEN"
+            echo "New management token claims:"
+            JWT_TOKEN="$MGMT_TOKEN" python3 scripts/jwt-info.py
             # Persist new token as GitHub secret for future runs
             echo "$MGMT_TOKEN" | gh secret set AUTH0_MANAGEMENT_TOKEN --repo "$GITHUB_REPOSITORY"
+            echo "AUTH0_MANAGEMENT_TOKEN secret updated."
           fi
 
           # 2. Ensure the client grant exists for AUTH0_AUDIENCE (idempotent — 409 is acceptable)
-          curl -sf -X POST "https://${{ secrets.AUTH0_DOMAIN }}/api/v2/client-grants" \
+          echo "Upserting client grant for audience ${{ secrets.AUTH0_AUDIENCE }}..."
+          GRANT_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://${{ secrets.AUTH0_DOMAIN }}/api/v2/client-grants" \
             -H "Authorization: Bearer $MGMT_TOKEN" \
             -H "Content-Type: application/json" \
             -d "{
               \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
               \"audience\":\"${{ secrets.AUTH0_AUDIENCE }}\",
               \"scope\":[\"${{ secrets.DATABASE_PERMISSION }}\"]
-            }" || true
+            }")
+          GRANT_STATUS=$(echo "$GRANT_RESPONSE" | tail -1)
+          GRANT_BODY=$(echo "$GRANT_RESPONSE" | head -n -1)
+          if [ "$GRANT_STATUS" -eq 409 ]; then
+            echo "Client grant already exists (409 — OK)"
+          elif [ "$GRANT_STATUS" -ge 200 ] && [ "$GRANT_STATUS" -lt 300 ]; then
+            echo "Client grant created (HTTP $GRANT_STATUS)"
+          else
+            echo "::warning::Unexpected client grant response HTTP $GRANT_STATUS: $(echo "$GRANT_BODY" | jq -r '.message // .error // "unknown"')"
+          fi
 
           # 3. Obtain a fresh API token for AUTH0_AUDIENCE with DATABASE_PERMISSION scope
-          API_TOKEN=$(curl -sf -X POST "https://${{ secrets.AUTH0_DOMAIN }}/oauth/token" \
+          echo "Requesting API token for audience ${{ secrets.AUTH0_AUDIENCE }} with scope '${{ secrets.DATABASE_PERMISSION }}'..."
+          API_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://${{ secrets.AUTH0_DOMAIN }}/oauth/token" \
             -H "Content-Type: application/json" \
             -d "{
               \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
               \"client_secret\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}\",
               \"audience\":\"${{ secrets.AUTH0_AUDIENCE }}\",
-              \"scope\":\"openid profile email ${{secrets.ADMIN_STORE_PERMISSION}} ${{ secrets.DATABASE_PERMISSION }}\",
+              \"scope\":\"${{ secrets.DATABASE_PERMISSION }}\",
               \"grant_type\":\"client_credentials\"
-            }" | jq -r '.access_token')
+            }")
+          API_STATUS=$(echo "$API_RESPONSE" | tail -1)
+          API_BODY=$(echo "$API_RESPONSE" | head -n -1)
+          echo "Auth0 API token request: HTTP $API_STATUS"
+          if [ "$API_STATUS" -ne 200 ]; then
+            echo "::error::Failed to obtain API token — Auth0 error: $(echo "$API_BODY" | jq -r '.error_description // .error // "unknown"')"
+            exit 1
+          fi
+          API_TOKEN=$(echo "$API_BODY" | jq -r '.access_token')
           echo "::add-mask::$API_TOKEN"
+          echo "API token claims:"
+          JWT_TOKEN="$API_TOKEN" python3 scripts/jwt-info.py
 
           # 4. Reset the merchant database
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+          echo "Calling POST ${{ secrets.API_BASE_URL }}/v1/setup/reset ..."
+          RESET_RESPONSE=$(curl -s -w "\n%{http_code}" \
             -X POST "${{ secrets.API_BASE_URL }}/v1/setup/reset" \
             -H "Authorization: Bearer $API_TOKEN" \
             -H "Content-Type: application/json")
-          echo "Reset returned HTTP $HTTP_STATUS"
-          [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]
+          RESET_STATUS=$(echo "$RESET_RESPONSE" | tail -1)
+          RESET_BODY=$(echo "$RESET_RESPONSE" | head -n -1)
+          echo "Reset returned HTTP $RESET_STATUS"
+          if [ "$RESET_STATUS" -lt 200 ] || [ "$RESET_STATUS" -ge 300 ]; then
+            echo "::error::Reset failed (HTTP $RESET_STATUS): $RESET_BODY"
+            exit 1
+          fi
+          echo "Reset successful: $RESET_BODY"
 
   init:
     needs: reset
