@@ -61,19 +61,34 @@ const aiParamsRoute = createRoute({
 });
 
 app.openapi(aiParamsRoute, async (c) => {
-  const apiKey = c.env.AI_API_KEY;
+  const rawApiKey = c.env.AI_API_KEY;
   const model = c.env.AI_MODEL;
   const url = c.env.AI_API_URL;
 
   // If any required value is missing, return 503 so the client can
   // hide the AI button gracefully instead of showing a cryptic error.
-  if (!apiKey || !model || !url) {
+  if (!rawApiKey || !model || !url) {
     throw new ApiError(
       'not_configured',
       503,
       'AI is not configured. Set AI_API_KEY, AI_MODEL and AI_API_URL.'
     );
   }
+
+  const apiKeys = rawApiKey
+    .split(',')
+    .map((k) => k.trim())
+    .filter(Boolean);
+
+  if (apiKeys.length === 0) {
+    throw new ApiError(
+      'not_configured',
+      503,
+      'AI is not configured. AI_API_KEY must contain at least one key.'
+    );
+  }
+
+  const apiKey = apiKeys[Math.floor(Math.random() * apiKeys.length)];
 
   return c.json({ apiKey, model, url }, 200);
 });

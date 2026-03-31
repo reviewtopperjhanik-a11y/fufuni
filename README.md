@@ -996,6 +996,9 @@ CREATE TABLE saved_carts (
 | `GET` | `/v1/ai/parameters` | `ai:api` | Returns `{apiKey, model, url}` for the AI provider |
 
 > The backend only transmits credentials — **all AI calls (LLM requests) are executed client-side** in `utils/ai-client.ts`. This keeps the server stateless with respect to AI and avoids proxying large payloads.
+>
+> `AI_API_KEY` may contain one or more keys separated by commas (for key rotation/load balancing). The endpoint randomly selects one non-empty key per request.
+
 
 ---
 
