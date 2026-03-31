@@ -85,7 +85,8 @@ jobs:
             echo "AUTH0_MANAGEMENT_TOKEN secret updated."
           fi
 
-          # 2. Ensure the client grant exists for AUTH0_AUDIENCE (idempotent — 409 is acceptable)
+          # 2. Ensure the client grant exists for AUTH0_AUDIENCE with both required scopes.
+          #    If it already exists (409), PATCH it to ensure scopes are up to date.
           echo "Upserting client grant for audience ${{ secrets.AUTH0_AUDIENCE }}..."
           GRANT_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://${{ secrets.AUTH0_DOMAIN }}/api/v2/client-grants" \
             -H "Authorization: Bearer $MGMT_TOKEN" \
@@ -93,16 +94,36 @@ jobs:
             -d "{
               \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
               \"audience\":\"${{ secrets.AUTH0_AUDIENCE }}\",
-              \"scope\":[\"${{ secrets.DATABASE_PERMISSION }}\"]
+              \"scope\":[\"${{ secrets.ADMIN_STORE_PERMISSION }}\",\"${{ secrets.DATABASE_PERMISSION }}\"]
             }")
           GRANT_STATUS=$(echo "$GRANT_RESPONSE" | tail -1)
           GRANT_BODY=$(echo "$GRANT_RESPONSE" | head -n -1)
-          if [ "$GRANT_STATUS" -eq 409 ]; then
-            echo "Client grant already exists (409 — OK)"
-          elif [ "$GRANT_STATUS" -ge 200 ] && [ "$GRANT_STATUS" -lt 300 ]; then
-            echo "Client grant created (HTTP $GRANT_STATUS)"
+          if [ "$GRANT_STATUS" -eq 201 ]; then
+            echo "Client grant created (HTTP 201)"
+          elif [ "$GRANT_STATUS" -eq 409 ]; then
+            echo "Grant already exists (409) — fetching grant ID to PATCH scopes..."
+            GRANT_ID=$(curl -s \
+              "https://${{ secrets.AUTH0_DOMAIN }}/api/v2/client-grants?client_id=${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}&audience=$(python3 -c "import urllib.parse,sys; print(urllib.parse.quote(sys.argv[1]))" "${{ secrets.AUTH0_AUDIENCE }}")" \
+              -H "Authorization: Bearer $MGMT_TOKEN" | jq -r '.[0].id // empty')
+            if [ -z "$GRANT_ID" ]; then
+              echo "::error::Could not retrieve grant ID for PATCH"
+              exit 1
+            fi
+            PATCH_RESPONSE=$(curl -s -w "\n%{http_code}" -X PATCH "https://${{ secrets.AUTH0_DOMAIN }}/api/v2/client-grants/$GRANT_ID" \
+              -H "Authorization: Bearer $MGMT_TOKEN" \
+              -H "Content-Type: application/json" \
+              -d "{\"scope\":[\"${{ secrets.ADMIN_STORE_PERMISSION }}\",\"${{ secrets.DATABASE_PERMISSION }}\"]}")
+            PATCH_STATUS=$(echo "$PATCH_RESPONSE" | tail -1)
+            PATCH_BODY=$(echo "$PATCH_RESPONSE" | head -n -1)
+            if [ "$PATCH_STATUS" -ge 200 ] && [ "$PATCH_STATUS" -lt 300 ]; then
+              echo "Grant patched (HTTP $PATCH_STATUS) — scopes: $(echo "$PATCH_BODY" | jq -r '.scope')"
+            else
+              echo "::error::PATCH grant failed (HTTP $PATCH_STATUS): $(echo "$PATCH_BODY" | jq -r '.message // .error // "unknown"')"
+              exit 1
+            fi
           else
-            echo "::warning::Unexpected client grant response HTTP $GRANT_STATUS: $(echo "$GRANT_BODY" | jq -r '.message // .error // "unknown"')"
+            echo "::error::Unexpected grant response HTTP $GRANT_STATUS: $(echo "$GRANT_BODY" | jq -r '.message // .error // "unknown"')"
+            exit 1
           fi
 
           # 3. Obtain a fresh API token for AUTH0_AUDIENCE with DATABASE_PERMISSION scope
