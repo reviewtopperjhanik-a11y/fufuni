@@ -24,3 +24,6 @@ apps/merchant/.dev.vars.bak
 *.tsbuildinfo
 docs/
 typedoc.json
+llms.md
+llms.txt
+llms-slim.md
