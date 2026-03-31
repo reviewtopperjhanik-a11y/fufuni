@@ -498,18 +498,35 @@ npm run deploy
 # Worker live at: https://fufuni-mcp.<your-account>.workers.dev/mcp
 ```
 
-To connect a remote MCP client:
+The MCP Worker is publicly deployed at **`https://fufuni-mcp.fufuni.workers.dev/mcp`**.
+
+To connect a remote MCP client (Claude Desktop, Cursor, generic `mcpServers` config):
 
 ```json
 {
   "mcpServers": {
     "fufuni": {
       "command": "npx",
-      "args": ["mcp-remote", "https://fufuni-mcp.<your-account>.workers.dev/mcp"]
+      "args": ["mcp-remote", "https://fufuni-mcp.fufuni.workers.dev/mcp"]
     }
   }
 }
 ```
+
+**VS Code Copilot** — add to `.vscode/mcp.json` (already included in this repository):
+
+```json
+{
+  "servers": {
+    "fufuni": {
+      "type": "http",
+      "url": "https://fufuni-mcp.fufuni.workers.dev/mcp"
+    }
+  }
+}
+```
+
+Once configured, VS Code Copilot Agent will automatically discover and use the Fufuni knowledge tools (`list_topics`, `get_topic`, per-topic tools) when working in this repository.
 
 ---
 

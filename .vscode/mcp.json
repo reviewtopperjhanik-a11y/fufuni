@@ -1,5 +1,9 @@
 {
   "servers": {
+    "fufuni": {
+      "type": "http",
+      "url": "https://fufuni-mcp.fufuni.workers.dev/mcp"
+    },
     "auth0": {
       "command": "npx",
       "args": [
