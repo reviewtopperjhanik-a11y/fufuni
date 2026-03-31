@@ -40,12 +40,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW }}
           CURRENT_MGMT_TOKEN: ${{ secrets.AUTH0_MANAGEMENT_TOKEN }}
         run: |
-          echo "::add-mask::$CURRENT_MGMT_TOKEN"
+          # Guard: mask only if the stored token is non-empty
+          [ -n "$CURRENT_MGMT_TOKEN" ] && echo "::add-mask::$CURRENT_MGMT_TOKEN"
+
+          # Guard: fail early with a clear message if the PAT secret is missing
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::GH_TOKEN is empty — ensure the secret GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW is set in the repository"
+            exit 1
+          fi
 
           # 1. Reuse stored management token if still valid for more than 7 days
           NOW=$(date +%s)
           THRESHOLD=$((NOW + 604800))
-          JWT_TOKEN="$CURRENT_MGMT_TOKEN" EXP=$(python3 scripts/jwt-exp.py)
+          # Inline-env prefix exports JWT_TOKEN only to the python subprocess
+          EXP=$(JWT_TOKEN="$CURRENT_MGMT_TOKEN" python3 scripts/jwt-exp.py)
 
           if [ "$EXP" -gt "$THRESHOLD" ]; then
             echo "Reusing stored management token (valid until $(date -d @$EXP --utc))"
