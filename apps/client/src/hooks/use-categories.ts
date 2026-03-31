@@ -16,6 +16,7 @@ export interface Category {
   parent_id: string | null;
   position: number;
   image_url: string | null;
+  thumbnail_url: string | null;
   status: "active" | "inactive";
   description: string | null;
   created_at: string;

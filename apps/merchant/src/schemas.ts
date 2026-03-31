@@ -1252,6 +1252,7 @@ export const CategoryResponse = z.object({
   description: z.string().nullable().openapi({ example: 'Collection of classic t-shirts' }),
   parent_id: z.string().uuid().nullable().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
   image_url: z.string().url().nullable().openapi({ example: 'https://example.com/category.jpg' }),
+  thumbnail_url: z.string().url().nullable().optional().openapi({ description: 'Small WebP thumbnail (data URI for <1 MB, R2 URL for ≥1 MB)' }),
   position: z.number().int().openapi({ example: 0, description: 'Sort order' }),
   status: z.enum(['active', 'inactive']).openapi({ example: 'active' }),
   created_at: z.string().datetime().openapi({ example: '2026-03-27T10:00:00Z' }),
@@ -1279,6 +1280,7 @@ export const CreateCategoryBody = z.object({
   }),
   parent_id: z.string().uuid().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
   image_url: z.string().url().optional().openapi({ example: 'https://example.com/category.jpg' }),
+  thumbnail_url: z.string().url().nullable().optional().openapi({ description: 'Small WebP thumbnail (data URI for <1 MB, R2 URL for ≥1 MB)' }),
   position: z.number().int().optional().default(0).openapi({ example: 0 }),
 }).openapi('CreateCategory');
 
@@ -1295,6 +1297,7 @@ export const UpdateCategoryBody = z.object({
   }),
   parent_id: z.string().uuid().nullable().optional().openapi({ example: '550e8400-e29b-41d4-a716-446655440001' }),
   image_url: z.string().url().nullable().optional().openapi({ example: 'https://example.com/category.jpg' }),
+  thumbnail_url: z.string().url().nullable().optional().openapi({ description: 'Small WebP thumbnail (data URI for <1 MB, R2 URL for ≥1 MB)' }),
   position: z.number().int().optional().openapi({ example: 0 }),
   status: z.enum(['active', 'inactive']).optional().openapi({ example: 'active' }),
 }).openapi('UpdateCategory');

@@ -322,8 +322,19 @@ async function seedTaxes() {
 async function seedCategories() {
   console.log('📁 Creating categories...');
 
+  // Helper: create a category with WebP image_url and thumbnail_url
+  async function createCat(data: Record<string, any>, imageFile: string) {
+    const imageUrl = await toWebpDataUri(imageFile, 1200, 80);
+    const thumbUrl  = await toWebpDataUri(imageFile, 300, 80);
+    return api('/v1/categories', {
+      ...data,
+      ...(imageUrl ? { image_url: imageUrl } : {}),
+      ...(thumbUrl  ? { thumbnail_url: thumbUrl } : {}),
+    });
+  }
+
   // Create parent category "merchandising"
-  const parentCategory = await api('/v1/categories', {
+  const parentCategory = await createCat({
     handle: 'merchandising',
     name: JSON.stringify({
       'en-US': 'Merchandising',
@@ -341,10 +352,10 @@ async function seedCategories() {
       'ar-SA': 'منتجات البضائع SCTG',
       'he-IL': 'מוצרי סחורה של SCTG',
     }),
-  });
+  }, 'merchandising.png');
 
   // Create child categories
-  const classicTeesCategory = await api('/v1/categories', {
+  const classicTeesCategory = await createCat({
     handle: 'classic-tees',
     name: JSON.stringify({
       'en-US': 'Classic Tees',
@@ -363,9 +374,9 @@ async function seedCategories() {
       'he-IL': 'טי שירטים קלאסיים של SCTG',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'classic-tees.png');
 
-  const capsCategory = await api('/v1/categories', {
+  const capsCategory = await createCat({
     handle: 'caps',
     name: JSON.stringify({
       'en-US': 'Caps',
@@ -384,9 +395,9 @@ async function seedCategories() {
       'he-IL': 'כובעים של SCTG',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'caps.png');
 
-  const hoodiesCategory = await api('/v1/categories', {
+  const hoodiesCategory = await createCat({
     handle: 'hoodies',
     name: JSON.stringify({
       'en-US': 'Hoodies',
@@ -405,10 +416,10 @@ async function seedCategories() {
       'he-IL': 'סווטשירטים של SCTG',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'hoodies.png');
 
-  const stickersCategory = await api('/v1/categories', {
-    handle: 'stickers',
+  const stickersCategory = await createCat({
+    handle: 'stickers-category',
     name: JSON.stringify({
       'en-US': 'Stickers',
       'fr-FR': 'Autocollants',
@@ -426,9 +437,9 @@ async function seedCategories() {
       'he-IL': 'מדבקות של SCTG',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'stickers-category.png');
 
-  const bagsCarryCategory = await api('/v1/categories', {
+  const bagsCarryCategory = await createCat({
     handle: 'bags-carry',
     name: JSON.stringify({
       'en-US': 'Bags & Carry',
@@ -447,9 +458,9 @@ async function seedCategories() {
       'he-IL': 'מוצרים המיועדים לנשיאה, אחסון והובלה יומיומית.',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'bags-carry.png');
 
-  const drinkwareCategory = await api('/v1/categories', {
+  const drinkwareCategory = await createCat({
     handle: 'drinkware',
     name: JSON.stringify({
       'en-US': 'Drinkware',
@@ -468,9 +479,9 @@ async function seedCategories() {
       'he-IL': 'מכלי שתייה רב-פעמיים ומוצרים קשורים לשימוש יומיומי או כמתנה.',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'drinkware.png');
 
-  const accessoriesTechCategory = await api('/v1/categories', {
+  const accessoriesTechCategory = await createCat({
     handle: 'accessories-tech',
     name: JSON.stringify({
       'en-US': 'Accessories & Tech',
@@ -489,9 +500,9 @@ async function seedCategories() {
       'he-IL': 'פריטי קידום קטנים, אביזרי שולחן ומוצרים טכנולוגיים לשימוש יומיומי.',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'accessories-tech.png');
 
-  const homeLivingCategory = await api('/v1/categories', {
+  const homeLivingCategory = await createCat({
     handle: 'home-living',
     name: JSON.stringify({
       'en-US': 'Home & Living',
@@ -510,9 +521,9 @@ async function seedCategories() {
       'he-IL': 'מוצרי נוחות, עיצוב ושימוש פרקטי לבית, לאזורי ישיבה או למרחבים אישיים.',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'home-living.png');
 
-  const eventsSignageCategory = await api('/v1/categories', {
+  const eventsSignageCategory = await createCat({
     handle: 'events-signage',
     name: JSON.stringify({
       'en-US': 'Events & Signage',
@@ -531,9 +542,9 @@ async function seedCategories() {
       'he-IL': 'מוצרים המיועדים לנראות, מיתוג, תערוכות, תצוגה וסביבות קידום מכירות.',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'events-signage.png');
 
-  const sportsOutdoorCategory = await api('/v1/categories', {
+  const sportsOutdoorCategory = await createCat({
     handle: 'sports-outdoor',
     name: JSON.stringify({
       'en-US': 'Sports & Outdoor',
@@ -552,7 +563,7 @@ async function seedCategories() {
       'he-IL': 'מוצרים המיועדים לספורט, לפעילויות חוץ, למועדונים ולאורח חיים פעיל.',
     }),
     parent_id: parentCategory.id,
-  });
+  }, 'sports-outdoor.png');
 
   return {
     merchandising: parentCategory.id,

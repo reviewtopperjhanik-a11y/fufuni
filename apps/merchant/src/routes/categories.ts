@@ -325,8 +325,8 @@ adminApp.openapi(createCategoryRoute, async (c) => {
 
     const id = uuid();
     await db.run(
-      `INSERT INTO categories (id, handle, name, description, parent_id, image_url, position, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO categories (id, handle, name, description, parent_id, image_url, thumbnail_url, position, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         id,
         body.handle,
@@ -334,6 +334,7 @@ adminApp.openapi(createCategoryRoute, async (c) => {
         body.description ?? null,
         body.parent_id ?? null,
         body.image_url ?? null,
+        body.thumbnail_url ?? null,
         body.position ?? 0,
         'active',
         now(),
@@ -441,6 +442,10 @@ adminApp.openapi(updateCategoryRoute, async (c) => {
     if (body.image_url !== undefined) {
       updates.push('image_url = ?');
       values.push(body.image_url);
+    }
+    if (body.thumbnail_url !== undefined) {
+      updates.push('thumbnail_url = ?');
+      values.push(body.thumbnail_url);
     }
     if (body.position !== undefined) {
       updates.push('position = ?');

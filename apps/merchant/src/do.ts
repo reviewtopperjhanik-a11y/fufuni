@@ -587,6 +587,9 @@ CREATE INDEX IF NOT EXISTS idx_orders_region ON orders(region_id);
 CREATE INDEX IF NOT EXISTS idx_orders_warehouse ON orders(warehouse_id);
 CREATE INDEX IF NOT EXISTS idx_tax_rates_country ON tax_rates(country_code);
 CREATE INDEX IF NOT EXISTS idx_tax_rates_tax_code ON tax_rates(tax_code);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_orders_viewtoken ON orders(viewtoken);
+CREATE INDEX IF NOT EXISTS idx_carts_shipping_country ON carts(shipping_country);
+CREATE INDEX IF NOT EXISTS idx_customers_auth_provider_id ON customers(auth_provider_id);
 
 CREATE TABLE IF NOT EXISTS product_reviews (
   id           TEXT PRIMARY KEY,
@@ -611,6 +614,69 @@ CREATE INDEX IF NOT EXISTS idx_product_reviews_product
 
 CREATE INDEX IF NOT EXISTS idx_product_reviews_customer
   ON product_reviews (customer_id);
+
+-- ============================================================
+-- SAVED CARTS (migration 026)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS saved_carts (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  auth0_user_id TEXT NOT NULL,
+  cart_id       TEXT NOT NULL,
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(auth0_user_id, cart_id),
+  FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
+);
+
+CREATE INDEX IF NOT EXISTS idx_saved_carts_user ON saved_carts(auth0_user_id);
+
+-- ============================================================
+-- CATEGORIES (migrations 027 + 031)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS categories (
+  id            TEXT PRIMARY KEY,
+  handle        TEXT NOT NULL UNIQUE,
+  name          TEXT NOT NULL,
+  description   TEXT,
+  parent_id     TEXT REFERENCES categories(id) ON DELETE SET NULL,
+  image_url     TEXT,
+  thumbnail_url TEXT,
+  position      INTEGER NOT NULL DEFAULT 0,
+  status        TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'inactive')),
+  created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS product_categories (
+  product_id  TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+  category_id TEXT NOT NULL REFERENCES categories(id) ON DELETE CASCADE,
+  position    INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (product_id, category_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_product_categories_category ON product_categories (category_id, position);
+CREATE INDEX IF NOT EXISTS idx_categories_handle_active ON categories (handle) WHERE status = 'active';
+CREATE INDEX IF NOT EXISTS idx_categories_parent ON categories (parent_id) WHERE status = 'active';
+
+-- ============================================================
+-- STORE THEMES (migration 030)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS store_themes (
+  id          TEXT    PRIMARY KEY,
+  name        TEXT    NOT NULL,
+  is_active   INTEGER NOT NULL DEFAULT 0,
+  config_json TEXT    NOT NULL,
+  created_at  TEXT    NOT NULL DEFAULT (datetime('now')),
+  updated_at  TEXT    NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
+  VALUES ('theme_classic', 'Fufuni Classic', 1, '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}');
+INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
+  VALUES ('theme_luxury', 'Luxury Minimal', 0, '{"themeSlug":"luxury","radius":"none","accentOklch":"oklch(15% 0 0)"}');
 `;
 
 export class MerchantDO extends DurableObject<MerchantEnv> {
@@ -1035,6 +1101,13 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
               'theme_luxury', 'Luxury Minimal', 0,
               '{"themeSlug":"luxury","radius":"none","accentOklch":"oklch(15% 0 0)"}'
             )`,
+        },
+        // ── Migration 031 ── Categories: add thumbnail_url ───────────────────────
+        // Small WebP thumbnail (≤ 300 px) auto-generated on image upload.
+        // Stored as base64 data URI for images < 1 MB, or as an R2 URL otherwise.
+        {
+          name: '031_categories_add_thumbnail_url',
+          sql: 'ALTER TABLE categories ADD COLUMN thumbnail_url TEXT',
         },
       ];
 

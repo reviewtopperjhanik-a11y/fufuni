@@ -150,6 +150,7 @@ function CategoryFormModal({
         descriptionValue: string;
         parent_id: string;
         image_url: string;
+        thumbnail_url: string;
         position: string;
         status: 'active' | 'inactive';
     }>({
@@ -160,6 +161,7 @@ function CategoryFormModal({
         descriptionValue: '',
         parent_id: '',
         image_url: '',
+        thumbnail_url: '',
         position: '0',
         status: 'active',
     });
@@ -177,6 +179,7 @@ function CategoryFormModal({
                 descriptionValue: getEditorContent(category.description || '', selectedLocale),
                 parent_id: category.parent_id || '',
                 image_url: category.image_url || '',
+                thumbnail_url: category.thumbnail_url || '',
                 position: String(category.position || 0),
                 status: category.status,
             });
@@ -189,6 +192,7 @@ function CategoryFormModal({
                 descriptionValue: '',
                 parent_id: '',
                 image_url: '',
+                thumbnail_url: '',
                 position: '0',
                 status: 'active',
             });
@@ -389,6 +393,7 @@ function CategoryFormModal({
             position: parseInt(formData.position, 10),
             parent_id: formData.parent_id === '' ? undefined : formData.parent_id,
             image_url: formData.image_url === '' ? undefined : formData.image_url,
+            thumbnail_url: formData.thumbnail_url === '' ? undefined : formData.thumbnail_url,
             status: formData.status,
         });
     };
@@ -564,7 +569,10 @@ function CategoryFormModal({
                                 <ImageUploadInput
                                     value={formData.image_url || null}
                                     onChange={(url) =>
-                                        setFormData({ ...formData, image_url: url || '' })
+                                        setFormData((prev) => ({ ...prev, image_url: url || '' }))
+                                    }
+                                    onThumbnailChange={(url) =>
+                                        setFormData((prev) => ({ ...prev, thumbnail_url: url || '' }))
                                     }
                                     disabled={isLoading}
                                     apiBaseUrl={import.meta.env.API_BASE_URL}

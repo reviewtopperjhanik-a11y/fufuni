@@ -28,6 +28,8 @@ import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { getDb } from '../db';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { calculateOrderTaxes } from '../lib/tax';
+import { getUserMetadata, updateUserMetadata } from '../lib/auth0';
+import { normalizeStoreUrl } from '../lib/store-metadata';
 
 const app = new OpenAPIHono<HonoEnv>();
 app.use('*', customerAuthMiddleware);
@@ -852,6 +854,29 @@ app.openapi(updateMyPreferences, async (c) => {
         ...Object.values(updates),
         customer.id,
     ]);
+
+    // Persist theme into Auth0 user_metadata so the JWT reflects the change
+    if (body.theme !== undefined) {
+        try {
+            const userMetadata = await getUserMetadata(jwtSub, c.env);
+            const storeKey = normalizeStoreUrl(c.env.STORE_URL);
+            if (storeKey) {
+                const existingStore =
+                    userMetadata[storeKey] && typeof userMetadata[storeKey] === 'object'
+                        ? { ...userMetadata[storeKey] }
+                        : {};
+                await updateUserMetadata(jwtSub, {
+                    ...userMetadata,
+                    [storeKey]: { ...existingStore, theme: body.theme },
+                }, c.env);
+            } else {
+                await updateUserMetadata(jwtSub, { ...userMetadata, theme: body.theme }, c.env);
+            }
+        } catch (err) {
+            // Non-fatal: Auth0 metadata update failed, SQLite is the source of truth
+            console.warn('[me] Failed to sync theme to Auth0 user_metadata:', err);
+        }
+    }
 
     return c.json({ ok: true }, 200);
 });
