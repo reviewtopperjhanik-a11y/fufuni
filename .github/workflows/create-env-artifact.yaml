@@ -85,7 +85,8 @@ jobs:
           echo "KV_CACHE_REVIEWS_TTL_SECONDS=${{ secrets.KV_CACHE_REVIEW_TTL_SECONDS }}" >> .env
           echo "KV_CACHE_DEFAULT_TTL_SECONDS=${{ secrets.KV_CACHE_DEFAULT_TTL_SECONDS }}" >> .env
 
-          echo "AUTH0_MANAGEMENT_TOKEN=${{ secrets.AUTH0_MANAGEMENT_TOKEN }}" >> .env
+          # Disabled yet because token size is 8kB and Cloudflare limit is 5kB
+          # echo "AUTH0_MANAGEMENT_TOKEN=${{ secrets.AUTH0_MANAGEMENT_TOKEN }}" >> .env
 
       - name: Generate wrangler.jsonc from .env
         run: |
