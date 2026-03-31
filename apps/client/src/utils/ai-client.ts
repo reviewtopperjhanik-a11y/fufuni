@@ -253,6 +253,7 @@ export async function translateWithAi(
   targetLanguage: string,
   aiParams: AiParams,
   isHtml = true,
+  options?: { maxTokens?: number; contentType?: "product_description" | "email_template" },
 ): Promise<TranslationResult> {
   const provider = detectProvider(aiParams.url, aiParams.provider);
 
@@ -264,6 +265,7 @@ export async function translateWithAi(
           targetLanguage,
           aiParams,
           isHtml,
+          options,
         );
       case "groq":
       case "openai":
@@ -273,6 +275,7 @@ export async function translateWithAi(
           targetLanguage,
           aiParams,
           isHtml,
+          options,
         );
     }
   } catch (error) {
@@ -291,12 +294,20 @@ async function callOpenAiCompatibleApi(
   targetLanguage: string,
   aiParams: AiParams,
   isHtml = true,
+  options?: { maxTokens?: number; contentType?: "product_description" | "email_template" },
 ): Promise<TranslationResult> {
+  const contentType = options?.contentType ?? "product_description";
   const systemPrompt = isHtml
-    ? `You are a professional e-commerce translator and copywriter. ` +
-      `Translate the following HTML product description to ${targetLanguage}. ` +
-      `Important: Preserve ALL HTML tags exactly as they are. ` +
-      `Return ONLY the translated HTML content, no explanations or extra text.`
+    ? contentType === "email_template"
+      ? `You are a professional e-commerce translator. ` +
+        `Translate the following HTML email template to ${targetLanguage}. ` +
+        `Important: Preserve ALL HTML tags and ALL placeholder tokens (e.g. TMPLVAR0, TMPLVAR1) exactly as they are — do NOT translate them. ` +
+        `Use formal register and formal address forms throughout (e.g. "vous" in French, "usted" in Spanish, "Sie" in German, "Lei" in Italian) — this is a transactional email to a customer. ` +
+        `Return ONLY the translated HTML content, no explanations or extra text.`
+      : `You are a professional e-commerce translator and copywriter. ` +
+        `Translate the following HTML product description to ${targetLanguage}. ` +
+        `Important: Preserve ALL HTML tags exactly as they are. ` +
+        `Return ONLY the translated HTML content, no explanations or extra text.`
     : `You are a professional e-commerce copywriter. ` +
       `Translate the following product title to ${targetLanguage}. ` +
       `Return only the translated title as plain text, no quotes, no HTML, no extra text.`;
@@ -307,12 +318,11 @@ async function callOpenAiCompatibleApi(
     : aiParams.url + "/";
   const endpoint = new URL("chat/completions", baseUrl).toString();
 
-  // Adapt max_tokens based on provider
-  // Groq has strict limits per model, OpenAI is more generous
-  let maxTokens = 2048;
+  // Adapt max_tokens based on provider — caller can override via options.maxTokens
+  let maxTokens = options?.maxTokens ?? 2048;
 
-  if (aiParams.url.includes("groq")) {
-    maxTokens = 512; // Groq's typical limit
+  if (!options?.maxTokens && aiParams.url.includes("groq")) {
+    maxTokens = 2048; // raise Groq default (was 512, too low for reasoning models)
   }
 
   const response = await fetch(endpoint, {
@@ -377,12 +387,20 @@ async function callAnthropicApi(
   targetLanguage: string,
   aiParams: AiParams,
   isHtml = true,
+  options?: { maxTokens?: number; contentType?: "product_description" | "email_template" },
 ): Promise<TranslationResult> {
+  const contentType = options?.contentType ?? "product_description";
   const systemPrompt = isHtml
-    ? `You are a professional e-commerce translator and copywriter. ` +
-      `Translate the following HTML product description to ${targetLanguage}. ` +
-      `Important: Preserve ALL HTML tags exactly as they are. ` +
-      `Return ONLY the translated HTML content, no explanations or extra text.`
+    ? contentType === "email_template"
+      ? `You are a professional e-commerce translator. ` +
+        `Translate the following HTML email template to ${targetLanguage}. ` +
+        `Important: Preserve ALL HTML tags and ALL placeholder tokens (e.g. TMPLVAR0, TMPLVAR1) exactly as they are — do NOT translate them. ` +
+        `Use formal register and formal address forms throughout (e.g. "vous" in French, "usted" in Spanish, "Sie" in German, "Lei" in Italian) — this is a transactional email to a customer. ` +
+        `Return ONLY the translated HTML content, no explanations or extra text.`
+      : `You are a professional e-commerce translator and copywriter. ` +
+        `Translate the following HTML product description to ${targetLanguage}. ` +
+        `Important: Preserve ALL HTML tags exactly as they are. ` +
+        `Return ONLY the translated HTML content, no explanations or extra text.`
     : `You are a professional e-commerce copywriter. ` +
       `Translate the following product title to ${targetLanguage}. ` +
       `Return only the translated title as plain text, no quotes, no HTML, no extra text.`;
@@ -402,7 +420,7 @@ async function callAnthropicApi(
     },
     body: JSON.stringify({
       model: aiParams.model,
-      max_tokens: 2048,
+      max_tokens: options?.maxTokens ?? 2048,
       system: systemPrompt,
       messages: [{ role: "user", content }],
     }),

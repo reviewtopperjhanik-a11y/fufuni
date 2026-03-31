@@ -32,7 +32,7 @@ import { ApiError, uuid, now, generateOrderNumber, type HonoEnv } from '../types
 import { validateDiscount, calculateDiscount, type Discount } from './discounts';
 import { dispatchWebhooks, type WebhookEventType } from '../lib/webhooks';
 import { resolveVariantPrice, getCurrencyIdForRegion } from '../lib/pricing';
-import { sendOrderConfirmationEmail } from '../lib/order-email';
+import { sendOrderConfirmationEmail, sendOrderStatusEmail, type OrderEmailEvent } from '../lib/order-email';
 import { verifyOrderViewToken, hashOrderToken } from '../lib/order-token';
 import {
   OrderIdParam,
@@ -213,6 +213,13 @@ app.openapi(updateOrder, async (c) => {
       order: formattedOrder,
       previous_status: order.status,
     });
+
+    const emailableStatuses: OrderEmailEvent[] = ['processing', 'shipped', 'delivered', 'refunded', 'canceled'];
+    if (emailableStatuses.includes(status as OrderEmailEvent)) {
+      c.executionCtx.waitUntil(
+        sendOrderStatusEmail(c.env, c.var.db, orderId, status as OrderEmailEvent).catch(() => {}),
+      );
+    }
   }
 
   return c.json(formattedOrder, 200);
@@ -340,6 +347,10 @@ app.openapi(refundOrder, async (c) => {
         order: formatOrder(refundedOrder, orderItems),
         refund: { stripe_refund_id: refund.id, amount_cents: refund.amount },
       });
+
+      c.executionCtx.waitUntil(
+        sendOrderStatusEmail(c.env, c.var.db, orderId, 'refunded').catch(() => {}),
+      );
     }
 
     return c.json({ stripe_refund_id: refund.id, status: refund.status ?? 'succeeded' }, 200);

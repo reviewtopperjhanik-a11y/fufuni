@@ -36,6 +36,7 @@ import CustomersPage from "@/pages/admin/customers";
 import InventoryPage from "@/pages/admin/inventory";
 import OrdersPage from "@/pages/admin/orders";
 import WebhooksPage from "@/pages/admin/webhooks";
+import EmailTemplatesPage from "@/pages/admin/email-templates";
 import RegionsPage from "@/pages/admin/regions";
 import CurrenciesPage from "@/pages/admin/currencies";
 import CountriesPage from "@/pages/admin/countries";
@@ -135,6 +136,10 @@ function App() {
         <Route
           element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><WebhooksPage /></AuthenticationGuardWithPermission>}
           path="/admin/webhooks"
+        />
+        <Route
+          element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><EmailTemplatesPage /></AuthenticationGuardWithPermission>}
+          path="/admin/email-templates"
         />
         <Route
           element={<AuthenticationGuardWithPermission permission={import.meta.env.ADMIN_STORE_PERMISSION}><RegionsPage /></AuthenticationGuardWithPermission>}

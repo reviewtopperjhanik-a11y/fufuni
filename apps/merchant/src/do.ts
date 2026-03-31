@@ -343,6 +343,7 @@ CREATE TABLE IF NOT EXISTS orders (
   confirmationemailsentat TEXT,
   confirmationemaillasterror TEXT,
   confirmationemailupdatedat TEXT,
+  locale TEXT NOT NULL DEFAULT 'en-US',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -677,7 +678,24 @@ INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
   VALUES ('theme_classic', 'Fufuni Classic', 1, '{"themeSlug":"light","radius":"md","accentOklch":"oklch(87.41% 0.0128 244.59)"}');
 INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
   VALUES ('theme_luxury', 'Luxury Minimal', 0, '{"themeSlug":"luxury","radius":"none","accentOklch":"oklch(15% 0 0)"}');
+
+-- ============================================================
+-- ORDER EMAIL SETTINGS (migration 032)
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS order_email_settings (
+  id        TEXT PRIMARY KEY,
+  event     TEXT NOT NULL UNIQUE
+            CHECK (event IN ('global','payment_failed','processing','shipped','delivered','refunded','canceled')),
+  enabled   INTEGER NOT NULL DEFAULT 0,
+  subject   TEXT NOT NULL DEFAULT '',
+  html_body TEXT NOT NULL DEFAULT '',
+  text_body TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
+
 
 export class MerchantDO extends DurableObject<MerchantEnv> {
   private sql: SqlStorage;
@@ -1108,6 +1126,25 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
         {
           name: '031_categories_add_thumbnail_url',
           sql: 'ALTER TABLE categories ADD COLUMN thumbnail_url TEXT',
+        },
+        // ── Migration 032 ── Order status email notifications ────────────────────
+        {
+          name: '032_order_email_settings_table',
+          sql: `CREATE TABLE IF NOT EXISTS order_email_settings (
+            id        TEXT PRIMARY KEY,
+            event     TEXT NOT NULL UNIQUE
+                      CHECK (event IN ('global','payment_failed','processing','shipped','delivered','refunded','canceled')),
+            enabled   INTEGER NOT NULL DEFAULT 0,
+            subject   TEXT NOT NULL DEFAULT '',
+            html_body TEXT NOT NULL DEFAULT '',
+            text_body TEXT NOT NULL DEFAULT '',
+            created_at TEXT NOT NULL DEFAULT (datetime('now')),
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+          )`,
+        },
+        {
+          name: '032_orders_add_locale',
+          sql: "ALTER TABLE orders ADD COLUMN locale TEXT NOT NULL DEFAULT 'en-US'",
         },
       ];
 

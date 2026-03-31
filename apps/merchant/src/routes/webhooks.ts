@@ -29,7 +29,7 @@ import { getDb } from '../db';
 import { ApiError, uuid, now, generateOrderNumber, type HonoEnv } from '../types';
 import { dispatchWebhooks } from '../lib/webhooks';
 import { handleUCPStripeWebhook } from './ucp';
-import { sendOrderConfirmationEmail } from '../lib/order-email';
+import { sendOrderConfirmationEmail, sendOrderStatusEmail } from '../lib/order-email';
 
 // ============================================================
 // WEBHOOK ROUTES
@@ -298,12 +298,12 @@ webhooks.post('/stripe', async (c) => {
         // Create order (now with customer link, shipping details, and discount)
         const orderId = uuid();
         await db.run(
-          `INSERT INTO orders (id, customer_id, number, status, customer_email, 
+          `INSERT INTO orders (id, customer_id, number, status, customer_email,
            shipping_name, shipping_phone, ship_to,
            subtotal_cents, tax_cents, shipping_cents, total_cents, currency,
            discount_code, discount_id, discount_amount_cents,
-           stripe_checkout_session_id, stripe_payment_intent_id, taxes_json)
-           VALUES (?, ?, ?, 'paid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           stripe_checkout_session_id, stripe_payment_intent_id, taxes_json, locale)
+           VALUES (?, ?, ?, 'paid', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
           [
             orderId,
             customerId,
@@ -323,6 +323,7 @@ webhooks.post('/stripe', async (c) => {
             session.id,
             paymentIntentId,
             cart.taxes_json,
+            cart.locale ?? 'en-US',
           ]
         );
 
@@ -473,6 +474,19 @@ webhooks.post('/stripe', async (c) => {
           },
         });
       }
+    }
+  }
+
+  if (event.type === 'payment_intent.payment_failed') {
+    const pi = event.data.object as Stripe.PaymentIntent;
+    const [failedOrder] = await db.query<any>(
+      `SELECT id FROM orders WHERE stripe_payment_intent_id = ?`,
+      [pi.id],
+    );
+    if (failedOrder) {
+      c.executionCtx.waitUntil(
+        sendOrderStatusEmail(c.env, db, failedOrder.id, 'payment_failed').catch(() => {}),
+      );
     }
   }
 

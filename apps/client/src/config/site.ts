@@ -92,6 +92,11 @@ export const siteConfig = () => ({
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
     {
+      label: i18next.t("admin-email-templates-title"),
+      href: "/admin/email-templates",
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+    },
+    {
       label: i18next.t("admin-regions-title"),
       href: "/admin/regions",
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
@@ -166,6 +171,11 @@ export const siteConfig = () => ({
     {
       label: i18next.t("admin-webhooks-title"),
       href: "/admin/webhooks",
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
+    },
+    {
+      label: i18next.t("admin-email-templates-title"),
+      href: "/admin/email-templates",
       permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
     {
