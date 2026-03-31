@@ -106,14 +106,14 @@ jobs:
           fi
 
           # 3. Obtain a fresh API token for AUTH0_AUDIENCE with DATABASE_PERMISSION scope
-          echo "Requesting API token for audience ${{ secrets.AUTH0_AUDIENCE }} with scope '${{ secrets.DATABASE_PERMISSION }}'..."
+          echo "Requesting API token for audience ${{ secrets.AUTH0_AUDIENCE }} with scope '${{ secrets.ADMIN_STORE_PERMISSION }} ${{ secrets.DATABASE_PERMISSION }}'..."
           API_RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "https://${{ secrets.AUTH0_DOMAIN }}/oauth/token" \
             -H "Content-Type: application/json" \
             -d "{
               \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
               \"client_secret\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}\",
               \"audience\":\"${{ secrets.AUTH0_AUDIENCE }}\",
-              \"scope\":\"${{ secrets.DATABASE_PERMISSION }}\",
+              \"scope\":\"${{ secrets.ADMIN_STORE_PERMISSION }} ${{ secrets.DATABASE_PERMISSION }}\",
               \"grant_type\":\"client_credentials\"
             }")
           API_STATUS=$(echo "$API_RESPONSE" | tail -1)

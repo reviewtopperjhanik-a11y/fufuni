@@ -11,6 +11,7 @@ import datetime
 import json
 import os
 import sys
+from datetime import timezone
 
 token = os.environ.get("JWT_TOKEN", "")
 if not token:
@@ -29,9 +30,9 @@ except Exception as e:
     sys.exit(1)
 
 exp = claims.get("exp")
-exp_str = datetime.datetime.utcfromtimestamp(exp).strftime("%Y-%m-%dT%H:%M:%SZ") if exp else "N/A"
-now = datetime.datetime.utcnow()
-remaining = (datetime.datetime.utcfromtimestamp(exp) - now).days if exp else "?"
+exp_str = datetime.datetime.fromtimestamp(exp, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ") if exp else "N/A"
+now = datetime.datetime.now(tz=timezone.utc)
+remaining = (datetime.datetime.fromtimestamp(exp, tz=timezone.utc) - now).days if exp else "?"
 
 print(f"[jwt-info] sub         : {claims.get('sub', 'N/A')}")
 print(f"[jwt-info] aud         : {claims.get('aud', 'N/A')}")
