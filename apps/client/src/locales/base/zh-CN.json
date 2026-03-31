@@ -850,5 +850,10 @@
   "admin-rich-html-editor-placeholder": "输入 HTML 内容…",
   "admin-rich-html-editor-link": "插入链接",
   "admin-rich-html-editor-unlink": "删除链接",
-  "admin-rich-html-editor-link-prompt": "URL"
+  "admin-rich-html-editor-link-prompt": "URL",
+  "account-theme-switcher-aria": "更改主题",
+  "account-theme-switcher-label": "可用主题",
+  "admin-email-templates-generate-text": "从 HTML 生成",
+  "admin-email-templates-generate-text-tooltip": "从 HTML 正文中提取纯文本（不翻译）",
+  "admin-email-templates-use-default-subject": "插入默认主题"
 }

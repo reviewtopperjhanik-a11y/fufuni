@@ -52,6 +52,8 @@ app.use('*', authMiddleware);
 
 export const ORDER_EMAIL_EVENTS = [
   'global',
+  'pending',
+  'paid',
   'payment_failed',
   'processing',
   'shipped',

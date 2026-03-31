@@ -174,6 +174,18 @@ Visitors see an attractive landing page with a Log in button and direct links to
 - **Orders by status** breakdown (paid, processing, shipped, delivered, …)
 - Multilingual product title decoding via `resolveTitle()` — JSON-localized titles render in the admin's active locale
 
+### � Configurable Order Email Templates
+- **Per-event transactional emails** — independent template for each lifecycle event: `pending`, `paid`, `payment_failed`, `processing`, `shipped`, `delivered`, `refunded`, `canceled`, plus a `global` fallback
+- **TipTap WYSIWYG editor** for the HTML body with full rich-text controls
+- **Plain-text body** — editable textarea; one-click **Generate from HTML** button strips tags from the current HTML body (does not translate)
+- **Multilingual templates** — locale selector (6 built-in locales); each field (subject, HTML body, plain-text body) stores a JSON locale map (`{"en-US":"...", "fr-FR":"..."}`)
+- **One-click AI translation** — Sparkles button on both the subject and HTML body fields; tokenises `{{variables}}` before sending to the LLM so placeholders survive translation; uses formal register and `vous`/`usted`/`Sie`/`Lei` address forms
+- **Default templates** — per-event polished HTML with status badge, heading, dynamic order details and CTA button; inserted with a single click
+- **Default subjects** — per-event pre-written English subject line (e.g. *Your order has shipped! — {{storeName}}*), insertable with one click
+- **Test send** — send a live email to any address from within the admin UI
+- **Enable/disable per event** — each event-specific template can be toggled on/off independently; the `global` row acts as the catch-all fallback
+- **Template variables** available in all fields: `{{storeName}}`, `{{orderNumber}}`, `{{orderUrl}}`, `{{status}}`, `{{total}}`, `{{customerName}}`, `{{trackingNumber}}`, `{{trackingUrl}}`
+
 ### 🖥 Admin Panel
 Full-featured back-office covering:
 - Products, Variants, Inventory, Orders, Customers
@@ -181,6 +193,7 @@ Full-featured back-office covering:
 - **Shipping Rates** + **Shipping Classes**
 - Webhooks, Discounts, Users & Permissions
 - **Analytics Dashboard** — store KPIs and top products
+- **Order Email Templates** — per-event configurable HTML/plain-text emails with AI translation
 - OpenAPI / Swagger UI integrated
 
 ### ⚙️ Infrastructure
@@ -913,6 +926,36 @@ All outbound webhooks are signed with `X-Merchant-Signature` (HMAC-SHA256).
 
 ---
 
+### Order Email Settings
+
+Per-event transactional email templates stored in the `order_email_settings` table.
+
+| Method | Path | Auth | Description |
+|---|---|---|---|
+| `GET` | `/v1/admin/order-email-settings` | `admin:store` | List all event settings |
+| `GET` | `/v1/admin/order-email-settings/:event` | `admin:store` | Get setting for one event |
+| `PUT` | `/v1/admin/order-email-settings/:event` | `admin:store` | Upsert (create or update) a setting |
+| `DELETE` | `/v1/admin/order-email-settings/:event` | `admin:store` | Delete a setting (reverts to global fallback) |
+
+**Valid `:event` values:** `global` · `pending` · `paid` · `payment_failed` · `processing` · `shipped` · `delivered` · `refunded` · `canceled`
+
+`PUT` body (all fields optional):
+
+| Field | Type | Description |
+|---|---|---|
+| `enabled` | boolean | Enable this event template (overrides global fallback when `true`) |
+| `subject` | string | Subject line — plain text or a JSON locale map `{"en-US":"...","fr-FR":"..."}` |
+| `html_body` | string | HTML email body — plain HTML or a JSON locale map |
+| `text_body` | string | Plain-text fallback body — plain text or a JSON locale map |
+
+**Fallback logic:** when an order event fires, `sendOrderStatusEmail()` in `lib/order-email.ts` first looks for an enabled event-specific row; if none is found it falls back to the `global` row; if that is also absent or disabled it generates a default email via `buildDefaultStatusEmail()`.
+
+**Template variables** resolved at send time: `{{storeName}}`, `{{orderNumber}}`, `{{orderUrl}}`, `{{status}}`, `{{total}}`, `{{customerName}}`, `{{trackingNumber}}`, `{{trackingUrl}}`.
+
+**Multilingual delivery:** `sendOrderStatusEmail()` reads the customer's `locale` preference (stored on the order) and extracts the matching locale from the JSON map via `getEditorContent(raw, locale)`.
+
+---
+
 ### Auth0 helpers
 
 | Method | Path | Auth | Description |
@@ -1090,6 +1133,9 @@ Migrations are run both via `ensureInitialized()` (inline in `do.ts`) and as sta
 | `028` | **Product reviews & ratings** — `reviews` table with moderation workflow and guest review support |
 | `029` | `thumbnail_url` column on `variants` (small WebP thumbnails, base64 or R2 URL) |
 | `030` | **Store themes** — `store_themes` table with `config_json` + seed rows for `classic` and `luxury` |
+| `031` | `thumbnail_url` column on `categories` |
+| `032` | **Order email settings** — `order_email_settings` table (per-event HTML/text templates, enabled flag); `locale` column on `orders` |
+| `033` | Expand `order_email_settings` CHECK constraint to include `pending` and `paid` events |
 
 ---
 
@@ -1388,6 +1434,7 @@ Available at `/admin/*` — requires the permission configured in `ADMIN_STORE_P
 | `/admin/shipping-classes` | Transport constraint groups |
 | `/admin/discounts` | Discount codes |
 | `/admin/analytics` | Store analytics dashboard (revenue, customers, top products, stock alerts) |
+| `/admin/email-templates` | Configurable transactional email templates per order event — TipTap editor, multilingual, AI translate, test send |
 | `/admin/users` | Auth0 user and permission management |
 | `/openapi` | Swagger UI |
 

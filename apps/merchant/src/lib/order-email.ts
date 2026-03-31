@@ -70,23 +70,29 @@ function renderTemplate(template: string, vars: OrderEmailVars): string {
 }
 
 /**
- * Resolve the localised subject from a setting row.
- * The `subject` field can be either:
+ * Resolve a locale-aware field from a setting row.
+ * The field can be either:
  * - A plain string (used for all locales)
  * - A JSON locale map, e.g. `{"en-US":"...","fr-FR":"..."}`
  */
-function resolveSubject(subjectField: string, locale: string, vars: OrderEmailVars): string {
-  const raw = subjectField.trim();
+function resolveLocaleField(field: string, locale: string): string {
+  const raw = field.trim();
   if (raw.startsWith('{')) {
     try {
       const map = JSON.parse(raw) as Record<string, string>;
-      const resolved = map[locale] ?? map['en-US'] ?? Object.values(map)[0] ?? '';
-      return renderTemplate(resolved, vars);
+      return map[locale] ?? map['en-US'] ?? Object.values(map)[0] ?? '';
     } catch {
       // fall through to plain string
     }
   }
-  return renderTemplate(raw, vars);
+  return raw;
+}
+
+/**
+ * Resolve the localised subject from a setting row, then render template vars.
+ */
+function resolveSubject(subjectField: string, locale: string, vars: OrderEmailVars): string {
+  return renderTemplate(resolveLocaleField(subjectField, locale), vars);
 }
 
 /**
@@ -418,8 +424,8 @@ export async function sendOrderStatusEmail(
   let subject: string, html: string, text: string;
   if (setting.html_body?.trim()) {
     subject = resolveSubject(setting.subject, locale, vars);
-    html = renderTemplate(setting.html_body, vars);
-    text = renderTemplate(setting.text_body ?? '', vars);
+    html = renderTemplate(resolveLocaleField(setting.html_body, locale), vars);
+    text = renderTemplate(resolveLocaleField(setting.text_body ?? '', locale), vars);
   } else {
     const defaults = buildDefaultStatusEmail(vars, event);
     subject = setting.subject?.trim()

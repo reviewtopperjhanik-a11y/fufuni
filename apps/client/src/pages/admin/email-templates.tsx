@@ -19,7 +19,7 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
-import { Button, Card, Switch } from "@heroui/react";
+import { Button, Card, Switch, Tooltip } from "@heroui/react";
 import { TextField, Label, Input, TextArea, Select, ListBox } from "@heroui/react";
 import { CheckCircle, AlertCircle, Mail, SendHorizonal, Sparkles } from "lucide-react";
 import { availableLanguages } from "@/i18n";
@@ -96,6 +96,7 @@ export default function EmailTemplatesPage() {
   // ── AI permission ─────────────────────────────────────────────────────
   const [canUseAi, setCanUseAi] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
+  const [isTranslatingSubject, setIsTranslatingSubject] = useState(false);
   const aiPermission = (import.meta as any).env?.AI_PERMISSION || "ai:api";
   useEffect(() => {
     hasPermission(aiPermission)
@@ -112,7 +113,7 @@ export default function EmailTemplatesPage() {
     queryKey: ["admin-email-settings"],
     queryFn: () =>
       getJson(`${apiBase}/v1/admin/order-email-settings`).then(
-        (r: any) => r.settings,
+        (r: any) => r.items ?? r.settings ?? [],
       ),
   });
 
@@ -202,8 +203,10 @@ export default function EmailTemplatesPage() {
 
   // ── AI translation ─────────────────────────────────────────────────────────
   const htmlBodyRef = useRef(form.html_body);
+  const subjectRef = useRef(form.subject);
   const selectedLocaleRef = useRef(selectedLocale);
   useEffect(() => { htmlBodyRef.current = form.html_body; }, [form.html_body]);
+  useEffect(() => { subjectRef.current = form.subject; }, [form.subject]);
   useEffect(() => { selectedLocaleRef.current = selectedLocale; }, [selectedLocale]);
 
   const handleAiTranslate = useCallback(async () => {
@@ -271,6 +274,81 @@ export default function EmailTemplatesPage() {
     }
   }, [getJson, t]);
 
+  const handleAiTranslateSubject = useCallback(async () => {
+    setIsTranslatingSubject(true);
+    try {
+      const params = await getJson(
+        `${(import.meta as any).env?.API_BASE_URL}/v1/ai/parameters`,
+      ) as AiParams;
+
+      const FALLBACK = ["en-US", "fr-FR", "es-ES", "zh-CN", "ar-SA", "he-IL"];
+      const raw = subjectRef.current;
+      const currentLocale = selectedLocaleRef.current;
+
+      let parsedMap: Record<string, string> | null = null;
+      if (raw.trimStart().startsWith("{")) {
+        try { parsedMap = JSON.parse(raw) as Record<string, string>; } catch { /* ignore */ }
+      }
+
+      let sourceText = "";
+      if (parsedMap) {
+        const sourceLang = FALLBACK.find((l) => l !== currentLocale && !!parsedMap![l]);
+        sourceText = sourceLang ? parsedMap[sourceLang] : "";
+      } else {
+        sourceText = raw;
+      }
+
+      if (!sourceText) {
+        alert(t("admin-email-templates-ai-no-source"));
+        return;
+      }
+
+      const tokens: Record<string, string> = {};
+      let i = 0;
+      const tokenized = sourceText.replace(/\{\{[^}]+\}\}/g, (m) => {
+        const k = `TMPLVAR${i++}`;
+        tokens[k] = m;
+        return k;
+      });
+
+      const targetLangName =
+        availableLanguages.find((l) => l.code === currentLocale)?.nativeName ?? currentLocale;
+
+      const result = await translateWithAi(tokenized, targetLangName, params, false, {
+        maxTokens: 256,
+        contentType: "email_template",
+      });
+      if (!result.success) throw new Error(result.error ?? "Translation failed");
+
+      let restored = result.content ?? "";
+      for (const [k, v] of Object.entries(tokens)) restored = restored.split(k).join(v);
+
+      setForm((prev) => ({
+        ...prev,
+        subject: mergeLocale(prev.subject, currentLocale, restored),
+      }));
+    } catch (err) {
+      const errorMsg = err instanceof Error ? err.message : "Unknown error";
+      alert(t("admin-email-templates-ai-error", { defaultValue: `Translation failed: ${errorMsg}` }));
+    } finally {
+      setIsTranslatingSubject(false);
+    }
+  }, [getJson, t]);
+
+  function handleGenerateTextFromHtml() {
+    const htmlSource = getEditorContent(form.html_body, selectedLocale);
+    if (!htmlSource) return;
+    const div = document.createElement("div");
+    div.innerHTML = htmlSource;
+    const plain = (div.textContent || div.innerText || "")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+    setForm((prev) => ({
+      ...prev,
+      text_body: mergeLocale(prev.text_body, selectedLocale, plain),
+    }));
+  }
+
   // ── Default templates ────────────────────────────────────────────────────
   function getDefaultTemplate(event: OrderEmailEvent): string {
     const cfg: Record<OrderEmailEvent, { badge: string; badgeBg: string; badgeColor: string; heading: string; body: string }> = {
@@ -331,6 +409,21 @@ export default function EmailTemplatesPage() {
   </div>
 </body>
 </html>`;
+  }
+
+  function getDefaultSubject(event: OrderEmailEvent): string {
+    const subjects: Record<OrderEmailEvent, string> = {
+      global:         "An update about your order \u2014 {{storeName}}",
+      pending:        "We've received your order \u2014 {{storeName}}",
+      paid:           "Payment confirmed \u2014 {{storeName}}",
+      payment_failed: "Action required: payment failed \u2014 {{storeName}}",
+      processing:     "Your order is being prepared \u2014 {{storeName}}",
+      shipped:        "Your order has shipped! \u2014 {{storeName}}",
+      delivered:      "Your order has been delivered \u2014 {{storeName}}",
+      refunded:       "Your refund has been processed \u2014 {{storeName}}",
+      canceled:       "Your order has been canceled \u2014 {{storeName}}",
+    };
+    return subjects[event];
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
@@ -501,18 +594,50 @@ export default function EmailTemplatesPage() {
                   </div>
 
                   {/* Subject */}
-                  <TextField
-                    value={getEditorContent(form.subject, selectedLocale)}
-                    onChange={(v) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        subject: mergeLocale(prev.subject, selectedLocale, v),
-                      }))
-                    }
-                  >
-                    <Label>{t("admin-email-templates-subject")}</Label>
-                    <Input placeholder={t("admin-email-templates-subject-placeholder")} />
-                  </TextField>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm font-medium text-default-700">
+                        {t("admin-email-templates-subject")}
+                      </p>
+                      <div className="flex items-center gap-2">
+                        {canUseAi && (
+                          <Button
+                            isIconOnly
+                            isDisabled={isTranslatingSubject}
+                            isPending={isTranslatingSubject}
+                            size="sm"
+                            variant="tertiary"
+                            onPress={handleAiTranslateSubject}
+                          >
+                            <Sparkles className="w-4 h-4" />
+                          </Button>
+                        )}
+                        <button
+                          type="button"
+                          className="text-xs text-primary hover:underline"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              subject: mergeLocale(prev.subject, selectedLocale, getDefaultSubject(selectedEvent)),
+                            }))
+                          }
+                        >
+                          {t("admin-email-templates-use-default-subject")}
+                        </button>
+                      </div>
+                    </div>
+                    <TextField
+                      value={getEditorContent(form.subject, selectedLocale)}
+                      onChange={(v) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          subject: mergeLocale(prev.subject, selectedLocale, v),
+                        }))
+                      }
+                    >
+                      <Input placeholder={t("admin-email-templates-subject-placeholder")} />
+                    </TextField>
+                  </div>
 
                   {/* HTML body — TipTap WYSIWYG */}
                   <div>
@@ -564,21 +689,41 @@ export default function EmailTemplatesPage() {
                   </div>
 
                   {/* Text body */}
-                  <TextField
-                    value={getEditorContent(form.text_body, selectedLocale)}
-                    onChange={(v) =>
-                      setForm((prev) => ({
-                        ...prev,
-                        text_body: mergeLocale(prev.text_body, selectedLocale, v),
-                      }))
-                    }
-                  >
-                    <Label>{t("admin-email-templates-text-body")}</Label>
-                    <TextArea
-                      className="font-mono text-xs min-h-24"
-                      placeholder={t("admin-email-templates-text-body-placeholder")}
-                    />
-                  </TextField>
+                  <div>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="text-sm font-medium text-default-700">
+                        {t("admin-email-templates-text-body")}
+                      </p>
+                      <Tooltip>
+                        <Tooltip.Trigger>
+                          <button
+                            type="button"
+                            className="text-xs text-primary hover:underline"
+                            onClick={handleGenerateTextFromHtml}
+                          >
+                            {t("admin-email-templates-generate-text")}
+                          </button>
+                        </Tooltip.Trigger>
+                        <Tooltip.Content>
+                          {t("admin-email-templates-generate-text-tooltip")}
+                        </Tooltip.Content>
+                      </Tooltip>
+                    </div>
+                    <TextField
+                      value={getEditorContent(form.text_body, selectedLocale)}
+                      onChange={(v) =>
+                        setForm((prev) => ({
+                          ...prev,
+                          text_body: mergeLocale(prev.text_body, selectedLocale, v),
+                        }))
+                      }
+                    >
+                      <TextArea
+                        className="font-mono text-xs min-h-24"
+                        placeholder={t("admin-email-templates-text-body-placeholder")}
+                      />
+                    </TextField>
+                  </div>
 
                   {/* Actions */}
                   <div className="flex items-center gap-3 pt-2">

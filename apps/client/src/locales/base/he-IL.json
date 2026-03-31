@@ -850,5 +850,10 @@
   "admin-rich-html-editor-placeholder": "הכנס תוכן HTML…",
   "admin-rich-html-editor-link": "הוספת קישור",
   "admin-rich-html-editor-unlink": "הסרת קישור",
-  "admin-rich-html-editor-link-prompt": "URL"
+  "admin-rich-html-editor-link-prompt": "URL",
+  "account-theme-switcher-aria": "שנה נושא",
+  "account-theme-switcher-label": "ערכות נושא זמינות",
+  "admin-email-templates-generate-text": "צור מ-HTML",
+  "admin-email-templates-generate-text-tooltip": "מחלץ טקסט רגיל מגוף ה-HTML (לא מתרגם)",
+  "admin-email-templates-use-default-subject": "הוסף נושא ברירת מחדל"
 }

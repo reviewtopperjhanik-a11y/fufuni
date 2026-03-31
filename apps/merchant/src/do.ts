@@ -686,7 +686,7 @@ INSERT OR IGNORE INTO store_themes (id, name, is_active, config_json)
 CREATE TABLE IF NOT EXISTS order_email_settings (
   id        TEXT PRIMARY KEY,
   event     TEXT NOT NULL UNIQUE
-            CHECK (event IN ('global','payment_failed','processing','shipped','delivered','refunded','canceled')),
+            CHECK (event IN ('global','pending','paid','payment_failed','processing','shipped','delivered','refunded','canceled')),
   enabled   INTEGER NOT NULL DEFAULT 0,
   subject   TEXT NOT NULL DEFAULT '',
   html_body TEXT NOT NULL DEFAULT '',
@@ -1133,7 +1133,7 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
           sql: `CREATE TABLE IF NOT EXISTS order_email_settings (
             id        TEXT PRIMARY KEY,
             event     TEXT NOT NULL UNIQUE
-                      CHECK (event IN ('global','payment_failed','processing','shipped','delivered','refunded','canceled')),
+                      CHECK (event IN ('global','pending','paid','payment_failed','processing','shipped','delivered','refunded','canceled')),
             enabled   INTEGER NOT NULL DEFAULT 0,
             subject   TEXT NOT NULL DEFAULT '',
             html_body TEXT NOT NULL DEFAULT '',
@@ -1145,6 +1145,26 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
         {
           name: '032_orders_add_locale',
           sql: "ALTER TABLE orders ADD COLUMN locale TEXT NOT NULL DEFAULT 'en-US'",
+        },
+        // ── Migration 033 ── Expand order_email_settings CHECK constraint ────────
+        {
+          name: '033_order_email_settings_add_pending_paid',
+          sql: `
+            CREATE TABLE IF NOT EXISTS order_email_settings_new (
+              id        TEXT PRIMARY KEY,
+              event     TEXT NOT NULL UNIQUE
+                        CHECK (event IN ('global','pending','paid','payment_failed','processing','shipped','delivered','refunded','canceled')),
+              enabled   INTEGER NOT NULL DEFAULT 0,
+              subject   TEXT NOT NULL DEFAULT '',
+              html_body TEXT NOT NULL DEFAULT '',
+              text_body TEXT NOT NULL DEFAULT '',
+              created_at TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            INSERT INTO order_email_settings_new SELECT * FROM order_email_settings;
+            DROP TABLE order_email_settings;
+            ALTER TABLE order_email_settings_new RENAME TO order_email_settings;
+          `,
         },
       ];
 

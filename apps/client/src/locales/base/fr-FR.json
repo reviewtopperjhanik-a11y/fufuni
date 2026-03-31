@@ -832,6 +832,9 @@
   "admin-email-templates-html-body-placeholder": "<p>Bonjour {{customerName}}, votre commande {{orderNumber}} est {{status}}.</p>",
   "admin-email-templates-text-body": "Corps en texte brut",
   "admin-email-templates-text-body-placeholder": "Bonjour {{customerName}}, votre commande {{orderNumber}} est {{status}}.",
+  "admin-email-templates-use-default-subject": "Insérer l'objet par défaut",
+  "admin-email-templates-generate-text": "Générer depuis le HTML",
+  "admin-email-templates-generate-text-tooltip": "Extrait le texte brut depuis le corps HTML (ne traduit pas)",
   "admin-email-templates-variables-hint": "Variables disponibles",
   "admin-email-templates-save": "Enregistrer",
   "admin-email-templates-saving": "Enregistrement...",
@@ -850,5 +853,7 @@
   "admin-rich-html-editor-placeholder": "Saisissez le contenu HTML…",
   "admin-rich-html-editor-link": "Insérer un lien",
   "admin-rich-html-editor-unlink": "Supprimer le lien",
-  "admin-rich-html-editor-link-prompt": "URL"
+  "admin-rich-html-editor-link-prompt": "URL",
+  "account-theme-switcher-aria": "Changer de thème",
+  "account-theme-switcher-label": "Thèmes disponibles"
 }

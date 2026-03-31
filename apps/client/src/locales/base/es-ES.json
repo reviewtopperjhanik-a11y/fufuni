@@ -850,5 +850,10 @@
   "admin-rich-html-editor-placeholder": "Introduce el contenido HTML…",
   "admin-rich-html-editor-link": "Insertar enlace",
   "admin-rich-html-editor-unlink": "Eliminar enlace",
-  "admin-rich-html-editor-link-prompt": "URL"
+  "admin-rich-html-editor-link-prompt": "URL",
+  "account-theme-switcher-aria": "Cambiar tema",
+  "admin-email-templates-generate-text-tooltip": "Extrae texto sin formato del cuerpo HTML (no traduce)",
+  "admin-email-templates-use-default-subject": "Insertar asunto predeterminado",
+  "account-theme-switcher-label": "Temas disponibles",
+  "admin-email-templates-generate-text": "Generar desde HTML"
 }

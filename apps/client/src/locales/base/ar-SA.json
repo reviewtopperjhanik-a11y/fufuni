@@ -850,5 +850,10 @@
   "admin-rich-html-editor-placeholder": "أدخل محتوى HTML…",
   "admin-rich-html-editor-link": "إدراج رابط",
   "admin-rich-html-editor-unlink": "إزالة الرابط",
-  "admin-rich-html-editor-link-prompt": "URL"
+  "admin-rich-html-editor-link-prompt": "URL",
+  "account-theme-switcher-aria": "تغيير الموضوع",
+  "account-theme-switcher-label": "المواضيع المتاحة",
+  "admin-email-templates-generate-text": "توليد من HTML",
+  "admin-email-templates-generate-text-tooltip": "استخراج نص عادي من نص HTML (لا يترجم)",
+  "admin-email-templates-use-default-subject": "أدخل الموضوع الافتراضي"
 }
