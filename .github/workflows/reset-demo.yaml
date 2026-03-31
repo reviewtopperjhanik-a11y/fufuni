@@ -1,0 +1,106 @@
+# Copyright (c) 2026 Ronan LE MEILLAT
+# License: AGPL-3.0-or-later
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as
+# published by the Free Software Foundation, either version 3 of the
+# License, or (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program. If not, see <http://www.gnu.org/licenses/>.
+#
+name: Reset and Reinitialize Demo
+
+on:
+#   schedule:
+#     - cron: "0 3 * * *" # Every day at 3am UTC --- Currently disabled to avoid unintended resets during development/testing
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+  packages: write
+  attestations: write
+
+jobs:
+  reset:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Obtain Auth0 M2M token and reset merchant database
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW }}
+          CURRENT_MGMT_TOKEN: ${{ secrets.AUTH0_MANAGEMENT_TOKEN }}
+        run: |
+          echo "::add-mask::$CURRENT_MGMT_TOKEN"
+
+          # 1. Reuse stored management token if still valid for more than 7 days
+          NOW=$(date +%s)
+          THRESHOLD=$((NOW + 604800))
+          JWT_TOKEN="$CURRENT_MGMT_TOKEN" EXP=$(python3 scripts/jwt-exp.py)
+
+          if [ "$EXP" -gt "$THRESHOLD" ]; then
+            echo "Reusing stored management token (valid until $(date -d @$EXP --utc))"
+            MGMT_TOKEN="$CURRENT_MGMT_TOKEN"
+          else
+            echo "Obtaining new 30-day management token..."
+            MGMT_TOKEN=$(curl -sf -X POST "https://${{ secrets.AUTH0_DOMAIN }}/oauth/token" \
+              -H "Content-Type: application/json" \
+              -d "{
+                \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
+                \"client_secret\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}\",
+                \"audience\":\"https://${{ secrets.AUTH0_DOMAIN }}/api/v2/\",
+                \"grant_type\":\"client_credentials\"
+              }" | jq -r '.access_token')
+            echo "::add-mask::$MGMT_TOKEN"
+            # Persist new token as GitHub secret for future runs
+            echo "$MGMT_TOKEN" | gh secret set AUTH0_MANAGEMENT_TOKEN --repo "$GITHUB_REPOSITORY"
+          fi
+
+          # 2. Ensure the client grant exists for AUTH0_AUDIENCE (idempotent — 409 is acceptable)
+          curl -sf -X POST "https://${{ secrets.AUTH0_DOMAIN }}/api/v2/client-grants" \
+            -H "Authorization: Bearer $MGMT_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
+              \"audience\":\"${{ secrets.AUTH0_AUDIENCE }}\",
+              \"scope\":[\"${{ secrets.DATABASE_PERMISSION }}\"]
+            }" || true
+
+          # 3. Obtain a fresh API token for AUTH0_AUDIENCE with DATABASE_PERMISSION scope
+          API_TOKEN=$(curl -sf -X POST "https://${{ secrets.AUTH0_DOMAIN }}/oauth/token" \
+            -H "Content-Type: application/json" \
+            -d "{
+              \"client_id\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_ID }}\",
+              \"client_secret\":\"${{ secrets.AUTH0_MANAGEMENT_API_CLIENT_SECRET }}\",
+              \"audience\":\"${{ secrets.AUTH0_AUDIENCE }}\",
+              \"scope\":\"${{ secrets.DATABASE_PERMISSION }}\",
+              \"grant_type\":\"client_credentials\"
+            }" | jq -r '.access_token')
+          echo "::add-mask::$API_TOKEN"
+
+          # 4. Reset the merchant database
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
+            -X POST "${{ secrets.API_BASE_URL }}/v1/setup/reset" \
+            -H "Authorization: Bearer $API_TOKEN" \
+            -H "Content-Type: application/json")
+          echo "Reset returned HTTP $HTTP_STATUS"
+          [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 300 ]
+
+  init:
+    needs: reset
+    uses: ./.github/workflows/init.yaml
+    secrets: inherit
+
+  seed:
+    needs: init
+    uses: ./.github/workflows/seed.yaml
+    secrets: inherit

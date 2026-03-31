@@ -17,7 +17,8 @@
 name: Init Merchant
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: {}
+  workflow_call: {}
 
 permissions:
   contents: write

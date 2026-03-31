@@ -72,6 +72,7 @@ Visitors see an attractive landing page with a Log in button and direct links to
 - [Internationalisation](#internationalisation)
 - [Admin Panel](#admin-panel)
 - [Deployment](#deployment)
+- [GitHub Actions — Demo Reset Workflow](#github-actions--demo-reset-workflow)
 - [Contributing](#contributing)
 - [License](#license)
 
@@ -1410,6 +1411,66 @@ In the Stripe dashboard, point `checkout.session.completed` to:
 ```
 https://<your-worker>.workers.dev/v1/webhooks/stripe
 ```
+
+---
+
+## GitHub Actions — Demo Reset Workflow
+
+The workflow `.github/workflows/reset-demo.yaml` automates a full reset of the hosted demo (Cloudflare Workers + Auth0).
+
+### What it does
+
+```
+reset → init → seed
+```
+
+| Job | Description |
+|-----|-------------|
+| `reset` | Obtains an Auth0 M2M token with `admin:database` permission and calls `POST /v1/setup/reset` |
+| `init` | Re-initialises the Cloudflare Worker store (runs `scripts/init.ts --remote`) and re-configures Stripe |
+| `seed` | Seeds the store with sample products, categories and orders (runs `scripts/seed.ts`) |
+
+### Triggers
+
+- **Scheduled** — runs daily at 03:00 UTC (configurable via the `cron` expression)
+- **Manual** — via *Actions → Reset and Reinitialize Demo → Run workflow*
+
+### Auth0 token management
+
+Calling the Auth0 Management API token endpoint is **rate-limited** per tenant. To minimise calls, the workflow caches the Management token in the GitHub secret `AUTH0_MANAGEMENT_TOKEN`:
+
+1. On each run, `scripts/jwt-exp.py` decodes the `exp` claim of the stored token.
+2. If the token is still valid for **more than 7 days**, it is reused directly.
+3. If it is absent or about to expire, a new **30-day token** is obtained via `client_credentials` and saved back to the secret with `gh secret set`.
+
+The script `scripts/jwt-exp.py` reads the token from the `JWT_TOKEN` environment variable and prints the `exp` claim as a Unix timestamp (prints `0` on any error).
+
+### Required GitHub secrets
+
+All secrets from the local `.env` file have a direct equivalent as a GitHub secret (same name). Two additional secrets are required specifically for this workflow:
+
+| Secret | Purpose |
+|--------|---------|
+| `AUTH0_MANAGEMENT_TOKEN` | Cached Management API JWT — create it initially with any value (e.g. `none`); the workflow will replace it on first run |
+| `GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW` | Fine-grained PAT allowing the workflow to update `AUTH0_MANAGEMENT_TOKEN` via the GitHub API |
+
+### Creating `GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW`
+
+1. Go to **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens**
+2. Click **Generate new token**
+3. Fill in:
+   - **Token name** — `GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW` (or any descriptive name)
+   - **Expiration** — set to 1 year (maximum) and calendar-remind yourself to rotate it
+   - **Resource owner** — your user or organisation that owns the `fufuni` repository
+   - **Repository access** — select **Only select repositories** → choose `fufuni`
+4. Under **Permissions → Repository permissions**, set **Secrets** to **Read and write**
+5. All other permissions can remain **No access**
+6. Click **Generate token**, copy it
+7. In the `fufuni` repository go to **Settings → Secrets and variables → Actions → New repository secret**:
+   - Name: `GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW`
+   - Value: the token you just copied
+
+> ⚠️ Fine-grained PATs have a maximum lifetime of 1 year on GitHub.com. Set a calendar reminder to rotate `GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW` before it expires, otherwise the workflow will still run but the Management token cache will no longer be updated (it will be re-fetched from Auth0 on every run until the PAT is replaced).
 
 ---
 
