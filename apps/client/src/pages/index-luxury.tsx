@@ -15,7 +15,6 @@ import { CategoryBentoGrid } from "@/components/ui/bento-grid";
 import { useCategories } from "@/hooks/use-categories";
 import { getProductsPage } from "@/lib/store-api";
 import FreeFly from "@/assets/freeflying.png";
-import Bottles from "@/assets/bottles.png";
 
 /** Placehold hero image — replace with a real asset or R2 URL */
 const HERO_IMAGE =
