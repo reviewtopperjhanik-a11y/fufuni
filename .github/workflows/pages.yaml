@@ -93,13 +93,6 @@ jobs:
             echo "Decrypted artifact does not contain apps/merchant/wrangler.jsonc"
             exit 1
           fi
-      
-      - name: Build llms export
-        run: |
-          source .env
-          npm run export:llms
-          npm run export:llms:slim
-          cp -v llm* apps/client/public/
           
       - name: Build project
         # You can change the base path to your repository name
@@ -108,6 +101,13 @@ jobs:
           export NODE_ENV=production
           npm run build:env -- --base="/${{ github.event.repository.name }}/"
         
+      - name: Build llms export
+        run: |
+          source .env
+          npm run export:llms
+          npm run export:llms:slim
+          cp -v llm* apps/client/dist/
+          ls -lR apps/client/dist/
 
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v4
