@@ -13,6 +13,10 @@
       "path": "./apps/merchant"
     },
     {
+      "name": "MCP",
+      "path": "./apps/mcp"
+    },
+    {
       "name": "Sensitive datas",
       "path": "./_sensitive_datas"
     },

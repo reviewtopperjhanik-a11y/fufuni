@@ -1,0 +1,41 @@
+// Copyright (c) 2024-2026 Ronan LE MEILLAT
+// License: AGPL-3.0-or-later
+/**
+ * For more details on how to configure Wrangler, refer to:
+ * https://developers.cloudflare.com/workers/wrangler/configuration/
+ *
+ * NOTE: This is the BASE configuration committed to git.
+ * The CI pipeline patches it (routes, KV IDs, secrets) via scripts/generate-wrangler-jsonc.py.
+ * Do not add secrets here.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "fufuni-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-12-01",
+  "compatibility_flags": ["nodejs_compat"],
+
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "MCP_OBJECT",
+        "class_name": "FufuniMCP"
+      }
+    ]
+  },
+
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["FufuniMCP"]
+    }
+  ],
+
+  "observability": {
+    "enabled": true
+  },
+
+  "dev": {
+    "port": 8788
+  }
+}
