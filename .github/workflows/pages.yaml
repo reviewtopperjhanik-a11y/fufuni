@@ -99,7 +99,7 @@ jobs:
           source .env
           npm run export:llms
           npm run export:llms:slim
-          cp llms* apps/client/public/
+          cp -v llm* apps/client/public/
           
       - name: Build project
         # You can change the base path to your repository name
