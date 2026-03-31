@@ -591,8 +591,11 @@
   "account-appearance": "Appearance",
   "account-theme": "Theme",
   "account-theme-default": "Default",
+  "account-theme-default-description": "Modern, rounded corners",
   "account-theme-luxury": "Luxury",
+  "account-theme-luxury-description": "Minimalist, straight borders, serif fonts",
   "account-theme-luxury-dark": "Luxury Dark",
+  "account-theme-luxury-dark-description": "Dark minimalist, high contrast, elegant",
   "admin-products-ai-error": "AI model error",
   "admin-products-ai-no-source": "No source text",
   "login-modal-title": "Welcome back",
@@ -801,5 +804,7 @@
   "footer-newsletter-placeholder": "Your email address",
   "footer-newsletter-subscribe": "Subscribe",
   "footer-copyright": "© {{year}} Fufuni. All rights reserved.",
-  "footer-payment-methods": "Accepted payment methods"
+  "footer-payment-methods": "Accepted payment methods",
+  "account-theme-switcher-aria": "Change theme",
+  "account-theme-switcher-label": "Avalaible themes"
 }

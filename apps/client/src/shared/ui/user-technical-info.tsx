@@ -158,7 +158,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                       </p>
                     </div>
 
-                    <Separator className="my-2"/>
+                    <Separator className="my-2" />
 
                     {/* Token Status */}
                     <div className="space-y-2">
@@ -229,7 +229,7 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                     {/* Permissions */}
                     {permissions.length > 0 && (
                       <>
-                        <Separator className="my-2"/>
+                        <Separator className="my-2" />
                         <div className="space-y-2">
                           <p className="text-xs text-default-400 uppercase tracking-wider font-bold">
                             Permissions

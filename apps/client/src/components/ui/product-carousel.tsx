@@ -16,13 +16,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+import type { StoreProduct } from "@/lib/store-api";
+
 import { useRef } from "react";
 import { Link } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
-import type { StoreProduct } from "@/lib/store-api";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitle } from "@/utils/description";
-import { useTranslation } from "react-i18next";
 
 interface ProductCarouselProps {
   title: string;
@@ -43,8 +44,8 @@ function CarouselProductCard({ product }: { product: StoreProduct }) {
 
   return (
     <Link
-      to={`/product/${product.id}`}
       className="group flex flex-col cursor-pointer"
+      to={`/product/${product.id}`}
     >
       <div className="relative overflow-hidden bg-brand-100 aspect-3/4">
         <img
@@ -90,10 +91,7 @@ export function ProductCarousel({ title, products }: ProductCarouselProps) {
         className="flex gap-6 overflow-x-auto snap-x snap-mandatory hide-scrollbar pb-8"
       >
         {products.map((product) => (
-          <div
-            key={product.id}
-            className="min-w-70 md:min-w-80 snap-start"
-          >
+          <div key={product.id} className="min-w-70 md:min-w-80 snap-start">
             <CarouselProductCard product={product} />
           </div>
         ))}

@@ -16,11 +16,12 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { Link } from "react-router-dom";
-
 import type { Category } from "@/hooks/use-categories";
-import { resolveTitle } from "@/utils/description";
+
+import { Link } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+
+import { resolveTitle } from "@/utils/description";
 
 interface CategoryBentoGridProps {
   categories: Category[];
@@ -70,23 +71,21 @@ export function CategoryBentoGrid({ categories }: CategoryBentoGridProps) {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 max-w-7xl mx-auto px-4 py-12">
       {/* Large featured category — spans 2 columns */}
-      <BentoItem cat={first} className="h-125 md:col-span-2" textSize="text-3xl" />
+      <BentoItem
+        cat={first}
+        className="h-125 md:col-span-2"
+        textSize="text-3xl"
+      />
 
       {/* Stacked smaller categories */}
       <div className="flex flex-col gap-4">
         <BentoItem cat={second} className="h-60" textSize="text-xl" />
-        {third && (
-          <BentoItem cat={third} className="h-60" textSize="text-xl" />
-        )}
+        {third && <BentoItem cat={third} className="h-60" textSize="text-xl" />}
       </div>
 
       {/* Optional 4th and 5th */}
-      {fourth && (
-        <BentoItem cat={fourth} className="h-70" textSize="text-xl" />
-      )}
-      {fifth && (
-        <BentoItem cat={fifth} className="h-70" textSize="text-xl" />
-      )}
+      {fourth && <BentoItem cat={fourth} className="h-70" textSize="text-xl" />}
+      {fifth && <BentoItem cat={fifth} className="h-70" textSize="text-xl" />}
     </div>
   );
 }

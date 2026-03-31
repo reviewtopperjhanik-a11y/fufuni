@@ -16,37 +16,49 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useState } from "react";
+import { useMemo } from "react";
+import { useTranslation } from "react-i18next";
 import { Button, Description, Dropdown, Label } from "@heroui/react";
 import { Palette } from "lucide-react";
 
-type ThemeKey = "light" | "luxury";
-
-const THEMES: { id: ThemeKey; label: string; description: string }[] = [
-  {
-    id: "light",
-    label: "Fufuni Classic",
-    description: "Moderne, coins arrondis",
-  },
-  {
-    id: "luxury",
-    label: "Thème Luxe",
-    description: "Minimaliste, bordures droites, polices Serif",
-  },
-];
+import { useAuth } from "@/authentication";
+import {
+  useStoreTheme,
+  AVAILABLE_THEMES,
+  ThemeSlug,
+} from "@/providers/theme-provider";
 
 export function ThemeSwitcher() {
-  const [current, setCurrent] = useState<ThemeKey>(() => {
-    return (
-      (document.documentElement.getAttribute("data-theme") as ThemeKey) ??
-      "light"
-    );
-  });
+  const { t } = useTranslation();
+  const { isAuthenticated } = useAuth();
+  const { theme, setTheme } = useStoreTheme();
 
-  const applyTheme = (key: ThemeKey) => {
-    setCurrent(key);
-    document.documentElement.setAttribute("data-theme", key);
-    localStorage.setItem("ui-theme", key);
+  const currentTheme = (theme as ThemeSlug | null) ?? "default";
+
+  const themes = useMemo(
+    () =>
+      (AVAILABLE_THEMES as readonly ThemeSlug[]).map((id) => ({
+        id,
+        label: t(`account-theme-${id}`),
+        description: t(`account-theme-${id}-description`),
+      })),
+    [t],
+  );
+
+  const handleThemeChange = (id: React.Key) => {
+    const slug = String(id) as ThemeSlug;
+    const normalized = slug === "default" ? null : slug;
+
+    void setTheme(normalized);
+
+    if (isAuthenticated) {
+      // Persisted in /v1/me/preferences by useStoreTheme().
+      // Ce log est facultatif, mais rend explicite le comportement requis.
+      console.debug(
+        "Thème enregistré dans les préférences pour utilisateur authentifié",
+        normalized,
+      );
+    }
   };
 
   return (
@@ -55,7 +67,7 @@ export function ThemeSwitcher() {
         <Dropdown.Trigger>
           <Button
             isIconOnly
-            aria-label="Changer de thème"
+            aria-label={t("account-theme-switcher-aria")}
             className="w-12 h-12 rounded-full shadow-lg"
             variant="secondary"
           >
@@ -64,16 +76,20 @@ export function ThemeSwitcher() {
         </Dropdown.Trigger>
         <Dropdown.Popover placement="top end">
           <Dropdown.Menu
-            aria-label="Thèmes disponibles"
-            selectedKeys={new Set([current])}
+            aria-label={t("account-theme-switcher-label")}
+            selectedKeys={new Set([currentTheme])}
             selectionMode="single"
-            onAction={(id) => applyTheme(id as ThemeKey)}
+            onAction={handleThemeChange}
           >
-            {THEMES.map((t) => (
-              <Dropdown.Item key={t.id} id={t.id} textValue={t.label}>
+            {themes.map((themeOption) => (
+              <Dropdown.Item
+                key={themeOption.id}
+                id={themeOption.id}
+                textValue={themeOption.label}
+              >
                 <Dropdown.ItemIndicator />
-                <Label>{t.label}</Label>
-                <Description>{t.description}</Description>
+                <Label>{themeOption.label}</Label>
+                <Description>{themeOption.description}</Description>
               </Dropdown.Item>
             ))}
           </Dropdown.Menu>

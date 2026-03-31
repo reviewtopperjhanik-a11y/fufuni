@@ -21,10 +21,7 @@ import { useAuth } from "@/authentication";
 import { availableLanguages } from "@/i18n";
 import { getApiBase } from "@/lib/api-base";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
-import {
-  AVAILABLE_THEMES,
-  useStoreTheme,
-} from "@/providers/theme-provider";
+import { AVAILABLE_THEMES, useStoreTheme } from "@/providers/theme-provider";
 
 interface Profile {
   id: string;
@@ -266,7 +263,11 @@ export default function Preferences() {
             <Select.Popover>
               <ListBox>
                 {AVAILABLE_THEMES.map((slug) => (
-                  <ListBox.Item key={slug} id={slug} textValue={t(`account-theme-${slug}`)}>
+                  <ListBox.Item
+                    key={slug}
+                    id={slug}
+                    textValue={t(`account-theme-${slug}`)}
+                  >
                     {t(`account-theme-${slug}`)}
                     <ListBox.ItemIndicator />
                   </ListBox.Item>

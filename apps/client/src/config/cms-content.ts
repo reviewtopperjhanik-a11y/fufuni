@@ -1351,7 +1351,7 @@ export const CMS_CONTENT: Record<string, Record<string, CmsPageContent>> = {
       sections: [
         {
           heading: "מידע על המפרסם",
-          body: "Fufuni מנוהלת על ידי SCTG Development, חברה הרשומה לפי החוק החל. כתובת רשומה: זמינה על פי בקשה. מספר מע\"מ: זמין על פי בקשה. לשאלות משפטיות: legal@fufuni.io.",
+          body: 'Fufuni מנוהלת על ידי SCTG Development, חברה הרשומה לפי החוק החל. כתובת רשומה: זמינה על פי בקשה. מספר מע"מ: זמין על פי בקשה. לשאלות משפטיות: legal@fufuni.io.',
         },
         {
           heading: "אחסון",
@@ -1375,12 +1375,15 @@ export function getCmsPage(
   locale: string,
 ): CmsPageContent | null {
   const page = CMS_CONTENT[handle];
+
   if (!page) return null;
 
   // Try exact match, then language code only (e.g. "fr" from "fr-FR"), then en-US
   return (
     page[locale] ??
-    page[Object.keys(page).find((k) => k.startsWith(locale.split("-")[0])) ?? ""] ??
+    page[
+      Object.keys(page).find((k) => k.startsWith(locale.split("-")[0])) ?? ""
+    ] ??
     page["en-US"] ??
     null
   );
