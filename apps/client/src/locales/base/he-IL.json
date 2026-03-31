@@ -20,6 +20,10 @@
   "calendar": "לוח שנה",
   "settings": "הגדרות",
   "help-and-feedback": "עזרה ומשוב",
+  "discover-collection": "גלה את האוסף",
+  "hero-subtitle": "בחירה על-זמנית למי שמחפש מצוינות.",
+  "hero-title": "ציוד מחדש",
+  "featured-products": "מוצרים נבחרים",
   "logout": "התנתק",
   "heroui-com-homepage": "דף הבית של heroui.com",
   "powered-by": "מופעל על ידי",
@@ -801,5 +805,6 @@
   "footer-newsletter-placeholder": "כתובת הדואר האלקטרוני שלך",
   "footer-newsletter-subscribe": "הצטרפות",
   "footer-copyright": "© {{year}} Fufuni. כל הזכויות שמורות.",
-  "footer-payment-methods": "אמצעי תשלום מקובלים"
+  "footer-payment-methods": "אמצעי תשלום מקובלים",
+  "openapi-explorer": "Openapi Explorer"
 }

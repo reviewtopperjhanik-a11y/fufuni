@@ -20,6 +20,10 @@
   "calendar": "日历",
   "settings": "设置",
   "help-and-feedback": "帮助与反馈",
+  "discover-collection": "发现系列",
+  "hero-subtitle": "为追求卓越的人打造的永恒精选。",
+  "hero-title": "装备再造",
+  "featured-products": "精选产品",
   "logout": "退出登录",
   "heroui-com-homepage": "heroui.com 主页",
   "powered-by": "技术支持",
@@ -801,5 +805,6 @@
   "footer-newsletter-placeholder": "您的电子邮件地址",
   "footer-newsletter-subscribe": "订阅",
   "footer-copyright": "© {{year}} Fufuni。保留所有权利。",
-  "footer-payment-methods": "接受的支付方式"
+  "footer-payment-methods": "接受的支付方式",
+  "openapi-explorer": "OpenAPI 浏览器"
 }

@@ -20,6 +20,10 @@
   "calendar": "Calendario",
   "settings": "Configuración",
   "help-and-feedback": "Ayuda y comentarios",
+  "discover-collection": "Descubrir la colección",
+  "hero-subtitle": "Una selección atemporal para quienes exigen la excelencia.",
+  "hero-title": "El equipo reinventado",
+  "featured-products": "Productos destacados",
   "logout": "Cerrar sesión",
   "heroui-com-homepage": "Página principal de heroui.com",
   "powered-by": "Desarrollado por",
@@ -801,5 +805,6 @@
   "footer-newsletter-placeholder": "Tu dirección de email",
   "footer-newsletter-subscribe": "Suscribirse",
   "footer-copyright": "© {{year}} Fufuni. Todos los derechos reservados.",
-  "footer-payment-methods": "Métodos de pago aceptados"
+  "footer-payment-methods": "Métodos de pago aceptados",
+  "openapi-explorer": "explorador de openapi"
 }

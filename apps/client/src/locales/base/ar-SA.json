@@ -20,6 +20,10 @@
   "calendar": "التقويم",
   "settings": "الإعدادات",
   "help-and-feedback": "المساعدة والتعليقات",
+  "discover-collection": "اكتشف المجموعة",
+  "hero-subtitle": "مختارات خالدة لمن يطلبون التميز.",
+  "hero-title": "إعادة اختراع المعدات",
+  "featured-products": "منتجات مميزة",
   "logout": "تسجيل الخروج",
   "heroui-com-homepage": "الصفحة الرئيسية لـ heroui.com",
   "powered-by": "مدعوم بواسطة",
@@ -801,5 +805,6 @@
   "footer-newsletter-placeholder": "عنوان بريدك الإلكتروني",
   "footer-newsletter-subscribe": "اشترك",
   "footer-copyright": "© {{year}} فوفوني. جميع الحقوق محفوظة.",
-  "footer-payment-methods": "طرق الدفع المقبولة"
+  "footer-payment-methods": "طرق الدفع المقبولة",
+  "openapi-explorer": "مستكشف أوبنابي"
 }

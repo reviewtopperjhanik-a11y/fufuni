@@ -39,13 +39,10 @@ export default function IndexLuxuryPage() {
     <LuxuryLayout>
       {/* ── Hero ──────────────────────────────────────────────────── */}
       <HeroBanner
-        ctaText={t("discover-collection", "Découvrir la collection")}
+        ctaText={t("discover-collection")}
         imageUrl={HERO_IMAGE}
-        subtitle={t(
-          "hero-subtitle",
-          "Une sélection intemporelle, pensée pour ceux qui exigent l'excellence.",
-        )}
-        title={t("hero-title", "L'Équipement Réinventé")}
+        subtitle={t("hero-subtitle")}
+        title={t("hero-title")}
         overlayOpacity={0.35}
         onCtaClick={() => navigate("/products")}
       />
@@ -71,7 +68,7 @@ export default function IndexLuxuryPage() {
         products.length > 0 && (
           <ProductCarousel
             products={products}
-            title={t("featured-products", "Sélection du Moment")}
+            title={t("featured-products")}
           />
         )
       )}
