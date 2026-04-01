@@ -44,9 +44,9 @@ import {
   ErrorResponse,
 } from '../schemas';
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 const listInventory = createRoute({
   method: 'get',
@@ -73,7 +73,7 @@ const listInventory = createRoute({
   },
 });
 
-app.openapi(listInventory, async (c) => {
+adminApp.openapi(listInventory, async (c) => {
   const { sku, limit: limitStr, cursor, low_stock } = c.req.valid('query');
   const db = getDb(c.var.db);
 
@@ -218,7 +218,7 @@ const adjustInventory = createRoute({
   },
 });
 
-app.openapi(adjustInventory, async (c) => {
+adminApp.openapi(adjustInventory, async (c) => {
   const { sku } = c.req.valid('param');
   const { delta, reason } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -277,7 +277,7 @@ const listWarehouseInventory = createRoute({
   },
 });
 
-app.openapi(listWarehouseInventory, async (c) => {
+adminApp.openapi(listWarehouseInventory, async (c) => {
   const { sku, warehouse_id, limit: limitStr, cursor, low_stock } = c.req.valid('query');
   const db = getDb(c.var.db);
   const limit = Math.min(parseInt(limitStr || '100'), 500);
@@ -359,7 +359,7 @@ const adjustWarehouseInventory = createRoute({
   },
 });
 
-app.openapi(adjustWarehouseInventory, async (c) => {
+adminApp.openapi(adjustWarehouseInventory, async (c) => {
   const { sku } = c.req.valid('param');
   const { warehouse_id, delta, reason } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -492,7 +492,7 @@ const deleteWarehouseInventory = createRoute({
   },
 });
 
-app.openapi(deleteWarehouseInventory, async (c) => {
+adminApp.openapi(deleteWarehouseInventory, async (c) => {
   const { sku } = c.req.valid('param');
   const { warehouse_id } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -594,7 +594,7 @@ const getRegionalInventory = createRoute({
   },
 });
 
-app.openapi(getRegionalInventory, async (c) => {
+adminApp.openapi(getRegionalInventory, async (c) => {
   const { sku } = c.req.valid('param');
   const { region_id } = c.req.valid('query');
   const db = getDb(c.var.db);
@@ -637,4 +637,4 @@ app.openapi(getRegionalInventory, async (c) => {
   }, 200);
 });
 
-export { app as inventory };
+export { adminApp as adminInventory };

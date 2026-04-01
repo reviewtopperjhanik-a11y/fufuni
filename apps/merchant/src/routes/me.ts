@@ -31,8 +31,8 @@ import { calculateOrderTaxes } from '../lib/tax';
 import { getUserMetadata, updateUserMetadata } from '../lib/auth0';
 import { normalizeStoreUrl } from '../lib/store-metadata';
 
-const app = new OpenAPIHono<HonoEnv>();
-app.use('*', customerAuthMiddleware);
+const adminApp = new OpenAPIHono<HonoEnv>();
+adminApp.use('*', customerAuthMiddleware);
 
 /**
  * Resolves the currently authenticated customer from the database.
@@ -156,7 +156,7 @@ const getMyProfile = createRoute({
     },
 });
 
-app.openapi(getMyProfile, async (c) => {
+adminApp.openapi(getMyProfile, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -231,7 +231,7 @@ const updateMyProfile = createRoute({
     },
 });
 
-app.openapi(updateMyProfile, async (c) => {
+adminApp.openapi(updateMyProfile, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -321,7 +321,7 @@ const getMyOrders = createRoute({
     },
 });
 
-app.openapi(getMyOrders, async (c) => {
+adminApp.openapi(getMyOrders, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -459,7 +459,7 @@ const getOrderByNumber = createRoute({
     },
 });
 
-app.openapi(getOrderByNumber, async (c) => {
+adminApp.openapi(getOrderByNumber, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -565,7 +565,7 @@ const getMyAddresses = createRoute({
     },
 });
 
-app.openapi(getMyAddresses, async (c) => {
+adminApp.openapi(getMyAddresses, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -634,7 +634,7 @@ const createAddress = createRoute({
     },
 });
 
-app.openapi(createAddress, async (c) => {
+adminApp.openapi(createAddress, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -705,7 +705,7 @@ const deleteAddress = createRoute({
     },
 });
 
-app.openapi(deleteAddress, async (c) => {
+adminApp.openapi(deleteAddress, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -760,7 +760,7 @@ const getMyPreferences = createRoute({
     },
 });
 
-app.openapi(getMyPreferences, async (c) => {
+adminApp.openapi(getMyPreferences, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -822,7 +822,7 @@ const updateMyPreferences = createRoute({
     },
 });
 
-app.openapi(updateMyPreferences, async (c) => {
+adminApp.openapi(updateMyPreferences, async (c) => {
     const auth = c.get('auth') as any;
     const jwtSub = auth?.sub as string;
     const email = auth?.email as string | undefined;
@@ -881,4 +881,4 @@ app.openapi(updateMyPreferences, async (c) => {
     return c.json({ ok: true }, 200);
 });
 
-export { app as me };
+export { adminApp as adminMe };

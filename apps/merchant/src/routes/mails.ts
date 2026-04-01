@@ -29,8 +29,8 @@ import { authMiddleware, mailAccessOnly } from '../middleware/auth';
 import { ApiError, type HonoEnv } from '../types';
 import { sendMailgunEmail } from '../mailgun';
 
-const app = new OpenAPIHono<HonoEnv>();
-app.use('*', authMiddleware);
+const adminApp = new OpenAPIHono<HonoEnv>();
+adminApp.use('*', authMiddleware);
 
 const SendMailBody = z.object({
   to: z.union([z.string(), z.array(z.string())]).optional(),
@@ -69,7 +69,7 @@ const sendMail = createRoute({
   },
 });
 
-app.openapi(sendMail, async (c) => {
+adminApp.openapi(sendMail, async (c) => {
   const body = c.req.valid('json');
   const to = body.to ?? c.env.MAILGUN_USER;
   const subject = body.subject ?? 'Test email from Merchant API';
@@ -99,4 +99,4 @@ app.openapi(sendMail, async (c) => {
   }
 });
 
-export { app as mails };
+export { adminApp as adminMails };

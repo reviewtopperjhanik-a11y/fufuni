@@ -55,9 +55,9 @@ const RemoveDiscountResponse = z.object({
   totals: CartTotals,
 }).openapi('RemoveDiscountResponse');
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 const getCart = createRoute({
   method: 'get',
@@ -71,7 +71,7 @@ const getCart = createRoute({
   },
 });
 
-app.openapi(getCart, async (c) => {
+adminApp.openapi(getCart, async (c) => {
   const { cartId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -134,7 +134,7 @@ const createCart = createRoute({
   },
 });
 
-app.openapi(createCart, async (c) => {
+adminApp.openapi(createCart, async (c) => {
   const { customer_email, region_id, locale } = c.req.valid('json');
 
   if (!isValidEmail(customer_email)) {
@@ -220,7 +220,7 @@ const addCartItems = createRoute({
   },
 });
 
-app.openapi(addCartItems, async (c) => {
+adminApp.openapi(addCartItems, async (c) => {
   const { cartId } = c.req.valid('param');
   const { items } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -371,7 +371,7 @@ const checkoutCart = createRoute({
   },
 });
 
-app.openapi(checkoutCart, async (c) => {
+adminApp.openapi(checkoutCart, async (c) => {
   const { cartId } = c.req.valid('param');
   const { success_url, cancel_url, collect_shipping, shipping_countries, shipping_options } = c.req.valid('json');
 
@@ -832,7 +832,7 @@ const applyDiscount = createRoute({
   },
 });
 
-app.openapi(applyDiscount, async (c) => {
+adminApp.openapi(applyDiscount, async (c) => {
   const { cartId } = c.req.valid('param');
   const { code } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -894,7 +894,7 @@ const removeDiscount = createRoute({
   },
 });
 
-app.openapi(removeDiscount, async (c) => {
+adminApp.openapi(removeDiscount, async (c) => {
   const { cartId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -954,7 +954,7 @@ const setShippingAddress = createRoute({
   },
 });
 
-app.openapi(setShippingAddress, async (c) => {
+adminApp.openapi(setShippingAddress, async (c) => {
   const { cartId } = c.req.valid('param');
   const body = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1080,7 +1080,7 @@ const getAvailableShippingRates = createRoute({
   },
 });
 
-app.openapi(getAvailableShippingRates, async (c) => {
+adminApp.openapi(getAvailableShippingRates, async (c) => {
   const { cartId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1141,7 +1141,7 @@ const selectShippingRate = createRoute({
   },
 });
 
-app.openapi(selectShippingRate, async (c) => {
+adminApp.openapi(selectShippingRate, async (c) => {
   const { cartId } = c.req.valid('param');
   const { shipping_rate_id } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1235,4 +1235,4 @@ app.openapi(selectShippingRate, async (c) => {
   }, 200);
 });
 
-export { app as checkout };
+export { adminApp as adminCheckout };

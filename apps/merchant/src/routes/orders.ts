@@ -46,9 +46,9 @@ import {
   ErrorResponse,
 } from '../schemas';
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 const listOrders = createRoute({
   method: 'get',
@@ -64,7 +64,7 @@ const listOrders = createRoute({
   },
 });
 
-app.openapi(listOrders, async (c) => {
+adminApp.openapi(listOrders, async (c) => {
   const db = getDb(c.var.db);
   const { limit: limitStr, cursor, status, email } = c.req.valid('query');
   const limit = Math.min(parseInt(limitStr || '20'), 100);
@@ -133,7 +133,7 @@ const getOrder = createRoute({
   },
 });
 
-app.openapi(getOrder, async (c) => {
+adminApp.openapi(getOrder, async (c) => {
   const { orderId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -163,7 +163,7 @@ const updateOrder = createRoute({
   },
 });
 
-app.openapi(updateOrder, async (c) => {
+adminApp.openapi(updateOrder, async (c) => {
   const { orderId } = c.req.valid('param');
   const { status, tracking_number, tracking_url } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -241,7 +241,7 @@ const resendOrderConfirmation = createRoute({
   },
 });
 
-app.openapi(resendOrderConfirmation, async (c) => {
+adminApp.openapi(resendOrderConfirmation, async (c) => {
   const { orderId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -272,7 +272,7 @@ const regenerateOrderTrackingLink = createRoute({
   },
 });
 
-app.openapi(regenerateOrderTrackingLink, async (c) => {
+adminApp.openapi(regenerateOrderTrackingLink, async (c) => {
   const { orderId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -308,7 +308,7 @@ const refundOrder = createRoute({
   },
 });
 
-app.openapi(refundOrder, async (c) => {
+adminApp.openapi(refundOrder, async (c) => {
   const { orderId } = c.req.valid('param');
   const { amount_cents } = c.req.valid('json');
 
@@ -377,7 +377,7 @@ const createTestOrder = createRoute({
   },
 });
 
-app.openapi(createTestOrder, async (c) => {
+adminApp.openapi(createTestOrder, async (c) => {
   const {
     customer_email,
     items,
@@ -945,4 +945,4 @@ function formatOrder(order: any, items: any[]) {
   };
 }
 
-export { app as orders, publicApp as publicOrders };
+export { adminApp as adminOrders, publicApp as publicOrders };

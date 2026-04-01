@@ -30,7 +30,7 @@ import { authMiddleware, adminOnly, databaseAdminOnly } from '../middleware/auth
 import { ApiError, now, type HonoEnv } from '../types';
 import { SetupStripeBody, OkResponse, ErrorResponse, ConfigListResponse } from '../schemas';
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
 const InitKeysBody = z.object({
   keys: z.array(z.object({
@@ -65,7 +65,7 @@ const initKeys = createRoute({
   },
 });
 
-app.openapi(initKeys, async (c) => {
+adminApp.openapi(initKeys, async (c) => {
   const { keys } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -101,7 +101,7 @@ const setupStripe = createRoute({
   },
 });
 
-app.openapi(setupStripe, async (c) => {
+adminApp.openapi(setupStripe, async (c) => {
   const { stripe_secret_key, stripe_webhook_secret } = c.req.valid('json');
 
   const res = await fetch('https://api.stripe.com/v1/balance', {
@@ -141,7 +141,7 @@ const getConfig = createRoute({
   },
 });
 
-app.openapi(getConfig, async (c) => {
+adminApp.openapi(getConfig, async (c) => {
   const db = getDb(c.var.db);
   const items = await db.query<{ key: string; value: string | null }>(
     `SELECT key, value FROM config`
@@ -163,7 +163,7 @@ const resetDatabase = createRoute({
   },
 });
 
-app.openapi(resetDatabase, async (c) => {
+adminApp.openapi(resetDatabase, async (c) => {
   const db = getDb(c.var.db);
 
   // Disable foreign key checks to allow deletion in any order
@@ -233,7 +233,7 @@ const listMigrations = createRoute({
   },
 });
 
-app.openapi(listMigrations, async (c) => {
+adminApp.openapi(listMigrations, async (c) => {
   const db = getDb(c.var.db);
   const items = await db.query<{ name: string; applied_at: string }>(
     `SELECT name, applied_at FROM migrations ORDER BY applied_at ASC`
@@ -254,7 +254,7 @@ const cleanMigrations = createRoute({
   },
 });
 
-app.openapi(cleanMigrations, async (c) => {
+adminApp.openapi(cleanMigrations, async (c) => {
   const db = getDb(c.var.db);
   await db.run('DELETE FROM migrations');
   return c.json({ ok: true as const }, 200);
@@ -273,11 +273,11 @@ const runMigrations = createRoute({
   },
 });
 
-app.openapi(runMigrations, async (c) => {
+adminApp.openapi(runMigrations, async (c) => {
   const db = getDb(c.var.db);
   // Trigger database initialization/migrations by running a no-op query.
   await db.query('SELECT 1');
   return c.json({ ok: true as const }, 200);
 });
 
-export { app as setup };
+export { adminApp as adminSetup };

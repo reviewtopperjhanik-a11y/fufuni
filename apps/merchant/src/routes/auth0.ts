@@ -27,9 +27,9 @@ import { authMiddleware, adminOnly, superAdminOnly } from '../middleware/auth';
 import { getManagementToken, addPermissionsToUser } from '../lib/auth0';
 import { ApiError, type HonoEnv } from '../types';
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 const auth0TokenRoute = createRoute({
   method: 'post',
@@ -47,7 +47,7 @@ const auth0TokenRoute = createRoute({
   },
 });
 
-app.openapi(auth0TokenRoute, async (c) => {
+adminApp.openapi(auth0TokenRoute, async (c) => {
   try {
     const token = await getManagementToken(c.env);
 
@@ -93,7 +93,7 @@ const autoPermsRoute = createRoute({
   },
 });
 
-app.openapi(autoPermsRoute, async (c) => {
+adminApp.openapi(autoPermsRoute, async (c) => {
   try {
     const perms = (c.env.AUTH0_AUTOMATIC_PERMISSIONS || '')
       .split(',')
@@ -169,7 +169,7 @@ const debugUserRoute = createRoute({
   },
 });
 
-app.openapi(debugUserRoute, async (c) => {
+adminApp.openapi(debugUserRoute, async (c) => {
   try {
     const user = c.req.param('user') || '';
     const sub = (c.get('auth') as any)?.sub || '';
@@ -182,4 +182,4 @@ app.openapi(debugUserRoute, async (c) => {
   }
 });
 
-export { app as auth0Routes };
+export { adminApp as adminAuth0 };

@@ -637,4 +637,4 @@ adminApp.openapi(seedReviewRoute, async (c) => {
   return c.json({ id, status }, 201);
 });
 
-export { adminApp as reviewsAdmin };
+export { adminApp as adminReviews };

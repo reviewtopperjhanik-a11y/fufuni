@@ -64,9 +64,9 @@ import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { getDb } from '../db';
 import { adminOnly, authMiddleware } from '../middleware/auth';
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 // ============================================================
 // CURRENCIES ROUTES
@@ -89,7 +89,7 @@ const listCurrencies = createRoute({
   },
 });
 
-app.openapi(listCurrencies, async (c) => {
+adminApp.openapi(listCurrencies, async (c) => {
   const { limit: limitStr, cursor } = c.req.valid('query');
   const db = getDb(c.var.db);
   const limit = Math.min(parseInt(limitStr || '100'), 500);
@@ -147,7 +147,7 @@ const createCurrency = createRoute({
   },
 });
 
-app.openapi(createCurrency, async (c) => {
+adminApp.openapi(createCurrency, async (c) => {
   const { code, display_name, symbol, decimal_places } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -194,7 +194,7 @@ const getCurrency = createRoute({
   },
 });
 
-app.openapi(getCurrency, async (c) => {
+adminApp.openapi(getCurrency, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -236,7 +236,7 @@ const updateCurrency = createRoute({
   },
 });
 
-app.openapi(updateCurrency, async (c) => {
+adminApp.openapi(updateCurrency, async (c) => {
   const { id } = c.req.valid('param');
   const { display_name, symbol, decimal_places, status } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -289,7 +289,7 @@ const deleteCurrency = createRoute({
   },
 });
 
-app.openapi(deleteCurrency, async (c) => {
+adminApp.openapi(deleteCurrency, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -370,7 +370,7 @@ const listCountries = createRoute({
   },
 });
 
-app.openapi(listCountries, async (c) => {
+adminApp.openapi(listCountries, async (c) => {
   const { limit: limitStr, cursor } = c.req.valid('query');
   const db = getDb(c.var.db);
   const limit = Math.min(parseInt(limitStr || '100'), 500);
@@ -428,7 +428,7 @@ const createCountry = createRoute({
   },
 });
 
-app.openapi(createCountry, async (c) => {
+adminApp.openapi(createCountry, async (c) => {
   const { code, display_name, country_name, language_code } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -475,7 +475,7 @@ const listCountriesBatch = createRoute({
   },
 });
 
-app.openapi(listCountriesBatch, async (c) => {
+adminApp.openapi(listCountriesBatch, async (c) => {
   const db = getDb(c.var.db);
 
   const items = await db.query<any>('SELECT * FROM countries ORDER BY code ASC');
@@ -529,7 +529,7 @@ const createCountriesBatch = createRoute({
   },
 });
 
-app.openapi(createCountriesBatch, async (c) => {
+adminApp.openapi(createCountriesBatch, async (c) => {
   const { countries } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -588,7 +588,7 @@ const getCountry = createRoute({
   },
 });
 
-app.openapi(getCountry, async (c) => {
+adminApp.openapi(getCountry, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -629,7 +629,7 @@ const updateCountry = createRoute({
   },
 });
 
-app.openapi(updateCountry, async (c) => {
+adminApp.openapi(updateCountry, async (c) => {
   const { id } = c.req.valid('param');
   const { display_name, country_name, language_code, status } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -682,7 +682,7 @@ const deleteCountry = createRoute({
   },
 });
 
-app.openapi(deleteCountry, async (c) => {
+adminApp.openapi(deleteCountry, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -715,7 +715,7 @@ const listWarehouses = createRoute({
   },
 });
 
-app.openapi(listWarehouses, async (c) => {
+adminApp.openapi(listWarehouses, async (c) => {
   const { limit: limitStr, cursor } = c.req.valid('query');
   const db = getDb(c.var.db);
   const limit = Math.min(parseInt(limitStr || '100'), 500);
@@ -777,7 +777,7 @@ const createWarehouse = createRoute({
   },
 });
 
-app.openapi(createWarehouse, async (c) => {
+adminApp.openapi(createWarehouse, async (c) => {
   const { display_name, address_line1, address_line2, city, state, postal_code, country_code, priority } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -828,7 +828,7 @@ const getWarehouse = createRoute({
   },
 });
 
-app.openapi(getWarehouse, async (c) => {
+adminApp.openapi(getWarehouse, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -874,7 +874,7 @@ const updateWarehouse = createRoute({
   },
 });
 
-app.openapi(updateWarehouse, async (c) => {
+adminApp.openapi(updateWarehouse, async (c) => {
   const { id } = c.req.valid('param');
   const { display_name, address_line1, address_line2, city, state, postal_code, country_code, priority, status } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -936,7 +936,7 @@ const deleteWarehouse = createRoute({
   },
 });
 
-app.openapi(deleteWarehouse, async (c) => {
+adminApp.openapi(deleteWarehouse, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -968,7 +968,7 @@ const listShippingClasses = createRoute({
   },
 });
 
-app.openapi(listShippingClasses, async (c) => {
+adminApp.openapi(listShippingClasses, async (c) => {
   const { limit: limitStr, cursor } = c.req.valid('query');
   const db = getDb(c.var.db);
   const limit = Math.min(parseInt(limitStr || '100'), 500);
@@ -1028,7 +1028,7 @@ const createShippingClass = createRoute({
   },
 });
 
-app.openapi(createShippingClass, async (c) => {
+adminApp.openapi(createShippingClass, async (c) => {
   const { code, display_name, description, resolution } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -1079,7 +1079,7 @@ const getShippingClass = createRoute({
   },
 });
 
-app.openapi(getShippingClass, async (c) => {
+adminApp.openapi(getShippingClass, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1121,7 +1121,7 @@ const updateShippingClass = createRoute({
   },
 });
 
-app.openapi(updateShippingClass, async (c) => {
+adminApp.openapi(updateShippingClass, async (c) => {
   const { id } = c.req.valid('param');
   const { display_name, description, resolution, status } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1192,7 +1192,7 @@ const deleteShippingClass = createRoute({
   },
 });
 
-app.openapi(deleteShippingClass, async (c) => {
+adminApp.openapi(deleteShippingClass, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1225,7 +1225,7 @@ const listShippingRates = createRoute({
   },
 });
 
-app.openapi(listShippingRates, async (c) => {
+adminApp.openapi(listShippingRates, async (c) => {
   const { limit: limitStr, cursor } = c.req.valid('query');
   const db = getDb(c.var.db);
   const limit = Math.min(parseInt(limitStr || '100'), 500);
@@ -1287,7 +1287,7 @@ const createShippingRate = createRoute({
   },
 });
 
-app.openapi(createShippingRate, async (c) => {
+adminApp.openapi(createShippingRate, async (c) => {
   const { display_name, description, max_weight_g, min_delivery_days, max_delivery_days, shipping_class_id, tax_code, tax_inclusive } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -1338,7 +1338,7 @@ const getShippingRate = createRoute({
   },
 });
 
-app.openapi(getShippingRate, async (c) => {
+adminApp.openapi(getShippingRate, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1384,7 +1384,7 @@ const updateShippingRate = createRoute({
   },
 });
 
-app.openapi(updateShippingRate, async (c) => {
+adminApp.openapi(updateShippingRate, async (c) => {
   const { id } = c.req.valid('param');
   const { display_name, description, max_weight_g, min_delivery_days, max_delivery_days, shipping_class_id, tax_code, tax_inclusive, status } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1446,7 +1446,7 @@ const deleteShippingRate = createRoute({
   },
 });
 
-app.openapi(deleteShippingRate, async (c) => {
+adminApp.openapi(deleteShippingRate, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1479,7 +1479,7 @@ const listRegions = createRoute({
   },
 });
 
-app.openapi(listRegions, async (c) => {
+adminApp.openapi(listRegions, async (c) => {
   const { limit: limitStr, cursor } = c.req.valid('query');
   const db = getDb(c.var.db);
   const limit = Math.min(parseInt(limitStr || '100'), 500);
@@ -1539,7 +1539,7 @@ const createRegion = createRoute({
   },
 });
 
-app.openapi(createRegion, async (c) => {
+adminApp.openapi(createRegion, async (c) => {
   const { display_name, currency_id, is_default, tax_inclusive, country_ids, warehouse_ids, shipping_rate_ids } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -1630,7 +1630,7 @@ const getRegion = createRoute({
   },
 });
 
-app.openapi(getRegion, async (c) => {
+adminApp.openapi(getRegion, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1677,7 +1677,7 @@ const updateRegion = createRoute({
   },
 });
 
-app.openapi(updateRegion, async (c) => {
+adminApp.openapi(updateRegion, async (c) => {
   const { id } = c.req.valid('param');
   const { display_name, currency_id, is_default, tax_inclusive, status } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1741,7 +1741,7 @@ const deleteRegion = createRoute({
   },
 });
 
-app.openapi(deleteRegion, async (c) => {
+adminApp.openapi(deleteRegion, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1780,7 +1780,7 @@ const addCountryToRegion = createRoute({
   },
 });
 
-app.openapi(addCountryToRegion, async (c) => {
+adminApp.openapi(addCountryToRegion, async (c) => {
   const { id } = c.req.valid('param');
   const { country_id } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1827,7 +1827,7 @@ const addWarehouseToRegion = createRoute({
   },
 });
 
-app.openapi(addWarehouseToRegion, async (c) => {
+adminApp.openapi(addWarehouseToRegion, async (c) => {
   const { id } = c.req.valid('param');
   const { warehouse_id } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1874,7 +1874,7 @@ const addShippingRateToRegion = createRoute({
   },
 });
 
-app.openapi(addShippingRateToRegion, async (c) => {
+adminApp.openapi(addShippingRateToRegion, async (c) => {
   const { id } = c.req.valid('param');
   const { shipping_rate_id } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1921,7 +1921,7 @@ const addShippingRatePrice = createRoute({
   },
 });
 
-app.openapi(addShippingRatePrice, async (c) => {
+adminApp.openapi(addShippingRatePrice, async (c) => {
   const { id } = c.req.valid('param');
   const { currency_id, amount_cents } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1966,7 +1966,7 @@ const listShippingRatePrices = createRoute({
   },
 });
 
-app.openapi(listShippingRatePrices, async (c) => {
+adminApp.openapi(listShippingRatePrices, async (c) => {
   const { id } = c.req.valid('param');
   const { currency_id } = c.req.valid('query');
   const db = getDb(c.var.db);
@@ -1992,4 +1992,4 @@ app.openapi(listShippingRatePrices, async (c) => {
   return c.json({ items }, 200);
 });
 
-export { app as regions };
+export { adminApp as adminRegions };

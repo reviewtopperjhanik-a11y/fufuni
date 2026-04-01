@@ -84,9 +84,9 @@ const CustomerOrdersResponse = z.object({
   }),
 }).openapi('CustomerOrdersList');
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 const listCustomers = createRoute({
   method: 'get',
@@ -102,7 +102,7 @@ const listCustomers = createRoute({
   },
 });
 
-app.openapi(listCustomers, async (c) => {
+adminApp.openapi(listCustomers, async (c) => {
   const db = getDb(c.var.db);
   const { limit: limitStr, cursor, search } = c.req.valid('query');
   const limit = Math.min(parseInt(limitStr || '50'), 100);
@@ -151,7 +151,7 @@ const getCustomer = createRoute({
   },
 });
 
-app.openapi(getCustomer, async (c) => {
+adminApp.openapi(getCustomer, async (c) => {
   const db = getDb(c.var.db);
   const { id } = c.req.valid('param');
 
@@ -186,7 +186,7 @@ const getCustomerOrders = createRoute({
   },
 });
 
-app.openapi(getCustomerOrders, async (c) => {
+adminApp.openapi(getCustomerOrders, async (c) => {
   const db = getDb(c.var.db);
   const { id } = c.req.valid('param');
   const { limit: limitStr, cursor } = c.req.valid('query');
@@ -259,7 +259,7 @@ const updateCustomer = createRoute({
   },
 });
 
-app.openapi(updateCustomer, async (c) => {
+adminApp.openapi(updateCustomer, async (c) => {
   const db = getDb(c.var.db);
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
@@ -320,7 +320,7 @@ const createAddress = createRoute({
   },
 });
 
-app.openapi(createAddress, async (c) => {
+adminApp.openapi(createAddress, async (c) => {
   const db = getDb(c.var.db);
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
@@ -379,7 +379,7 @@ const deleteAddress = createRoute({
   },
 });
 
-app.openapi(deleteAddress, async (c) => {
+adminApp.openapi(deleteAddress, async (c) => {
   const db = getDb(c.var.db);
   const { id, addressId } = c.req.valid('param');
 
@@ -471,4 +471,4 @@ function formatOrder(o: any) {
   };
 }
 
-export { app as customers };
+export { adminApp as adminCustomers };

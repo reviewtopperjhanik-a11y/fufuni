@@ -39,7 +39,7 @@ const ImageKeyParam = z.object({
   key: z.string().openapi({ param: { name: 'key', in: 'path' }, example: 'abc123.jpg' }),
 });
 
-const app = new OpenAPIHono<HonoEnv>();
+const publicApp = new OpenAPIHono<HonoEnv>();
 
 const uploadImage = createRoute({
   method: 'post',
@@ -65,7 +65,7 @@ const uploadImage = createRoute({
   },
 });
 
-app.openapi(uploadImage, async (c) => {
+publicApp.openapi(uploadImage, async (c) => {
   if (!c.env.IMAGES) {
     throw ApiError.invalidRequest('R2 bucket not configured');
   }
@@ -109,7 +109,7 @@ const getImage = createRoute({
   },
 });
 
-app.openapi(getImage, async (c) => {
+publicApp.openapi(getImage, async (c) => {
   const { key } = c.req.valid('param');
 
   if (!c.env.IMAGES) {
@@ -168,7 +168,7 @@ const deleteImage = createRoute({
   },
 });
 
-app.openapi(deleteImage, async (c) => {
+publicApp.openapi(deleteImage, async (c) => {
   const { key } = c.req.valid('param');
 
   if (!c.env.IMAGES) {
@@ -214,7 +214,7 @@ const purgeAllImagesCache = createRoute({
   },
 });
 
-app.openapi(purgeAllImagesCache, async (c) => {
+publicApp.openapi(purgeAllImagesCache, async (c) => {
   if (!c.env.IMAGES) {
     throw ApiError.invalidRequest('R2 bucket not configured');
   }
@@ -254,7 +254,7 @@ const purgeImageCache = createRoute({
   },
 });
 
-app.openapi(purgeImageCache, async (c) => {
+publicApp.openapi(purgeImageCache, async (c) => {
   const { key } = c.req.valid('param');
 
   const cache = cfCaches.default;
@@ -264,4 +264,4 @@ app.openapi(purgeImageCache, async (c) => {
   return c.json({ ok: true as const }, 200);
 });
 
-export { app as images };
+export { publicApp as publicImages };

@@ -33,8 +33,8 @@ import { type HonoEnv } from '../types';
 import { getDb } from '../db';
 import { authMiddleware, adminOnly } from '../middleware/auth';
 
-const app = new OpenAPIHono<HonoEnv>();
-app.use('*', authMiddleware);
+const adminApp = new OpenAPIHono<HonoEnv>();
+adminApp.use('*', authMiddleware);
 
 const getDashboardRoute = createRoute({
   method: 'get',
@@ -83,7 +83,7 @@ const getDashboardRoute = createRoute({
   },
 });
 
-app.openapi(getDashboardRoute, async (c) => {
+adminApp.openapi(getDashboardRoute, async (c) => {
   const { period } = c.req.valid('query');
   const db         = getDb(c.var.db);
 
@@ -212,7 +212,7 @@ const getCacheStatsRoute = createRoute({
   },
 });
 
-app.openapi(getCacheStatsRoute, async (c) => {
+adminApp.openapi(getCacheStatsRoute, async (c) => {
   const kv = c.env.KV_CACHE;
 
   const [
@@ -276,4 +276,4 @@ app.openapi(getCacheStatsRoute, async (c) => {
   );
 });
 
-export { app as analytics };
+export { adminApp as adminAnalytics };

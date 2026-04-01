@@ -22,8 +22,8 @@ import { getUserMetadata, updateUserMetadata } from '../lib/auth0';
 import { normalizeStoreUrl } from '../lib/store-metadata';
 import { CartItem, CartTotals, CartResponse } from '../schemas';
 
-const app = new OpenAPIHono<HonoEnv>();
-app.use('*', customerAuthMiddleware);
+const adminApp = new OpenAPIHono<HonoEnv>();
+adminApp.use('*', customerAuthMiddleware);
 
 /**
  * SavedCartSnapshot — Complete cart snapshot stored in Auth0 user_metadata
@@ -128,7 +128,7 @@ const getSavedCartsRoute = createRoute({
   },
 });
 
-app.openapi(getSavedCartsRoute, async (c) => {
+adminApp.openapi(getSavedCartsRoute, async (c) => {
   try {
     const auth = c.get('auth') as any;
     const userId = auth?.sub;
@@ -188,7 +188,7 @@ const savecartRoute = createRoute({
   },
 });
 
-app.openapi(savecartRoute, async (c) => {
+adminApp.openapi(savecartRoute, async (c) => {
   try {
     const auth = c.get('auth') as any;
     const userId = auth?.sub;
@@ -321,7 +321,7 @@ const deleteSavedCartRoute = createRoute({
   },
 });
 
-app.openapi(deleteSavedCartRoute, async (c) => {
+adminApp.openapi(deleteSavedCartRoute, async (c) => {
   try {
     const auth = c.get('auth') as any;
     const userId = auth?.sub;
@@ -370,4 +370,4 @@ app.openapi(deleteSavedCartRoute, async (c) => {
   }
 });
 
-export { app as savedCartsRouter };
+export { adminApp as adminSavedCartsRouter };

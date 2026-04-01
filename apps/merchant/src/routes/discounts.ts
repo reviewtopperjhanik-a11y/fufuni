@@ -233,9 +233,9 @@ async function syncDiscountToStripe(
   }
 }
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 const listDiscounts = createRoute({
   method: 'get',
@@ -249,7 +249,7 @@ const listDiscounts = createRoute({
   },
 });
 
-app.openapi(listDiscounts, async (c) => {
+adminApp.openapi(listDiscounts, async (c) => {
   const db = getDb(c.var.db);
 
   const discounts = await db.query<any>(`SELECT * FROM discounts ORDER BY created_at DESC`, []);
@@ -287,7 +287,7 @@ const getDiscount = createRoute({
   },
 });
 
-app.openapi(getDiscount, async (c) => {
+adminApp.openapi(getDiscount, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -329,7 +329,7 @@ const createDiscount = createRoute({
   },
 });
 
-app.openapi(createDiscount, async (c) => {
+adminApp.openapi(createDiscount, async (c) => {
   const body = c.req.valid('json');
   const {
     code,
@@ -442,7 +442,7 @@ const updateDiscount = createRoute({
   },
 });
 
-app.openapi(updateDiscount, async (c) => {
+adminApp.openapi(updateDiscount, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
   const {
@@ -591,7 +591,7 @@ const deleteDiscount = createRoute({
   },
 });
 
-app.openapi(deleteDiscount, async (c) => {
+adminApp.openapi(deleteDiscount, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -603,4 +603,4 @@ app.openapi(deleteDiscount, async (c) => {
   return c.json({ ok: true as const }, 200);
 });
 
-export { app as discounts };
+export { adminApp as adminDiscounts };

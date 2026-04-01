@@ -20,8 +20,8 @@ import { ApiError, type HonoEnv } from '../types';
 import { getUserMetadata, updateUserMetadata } from '../lib/auth0';
 import { normalizeStoreUrl } from '../lib/store-metadata';
 
-const app = new OpenAPIHono<HonoEnv>();
-app.use('*', customerAuthMiddleware);
+const adminApp = new OpenAPIHono<HonoEnv>();
+adminApp.use('*', customerAuthMiddleware);
 
 /**
  * Wishlist schema for validation
@@ -88,7 +88,7 @@ const getWishlistRoute = createRoute({
   },
 });
 
-app.openapi(getWishlistRoute, async (c) => {
+adminApp.openapi(getWishlistRoute, async (c) => {
   try {
     const auth = c.get('auth') as any;
     const userId = auth?.sub;
@@ -138,7 +138,7 @@ const addWishlistProductRoute = createRoute({
   },
 });
 
-app.openapi(addWishlistProductRoute, async (c) => {
+adminApp.openapi(addWishlistProductRoute, async (c) => {
   try {
     const auth = c.get('auth') as any;
     const userId = auth?.sub;
@@ -194,7 +194,7 @@ const removeWishlistProductRoute = createRoute({
   },
 });
 
-app.openapi(removeWishlistProductRoute, async (c) => {
+adminApp.openapi(removeWishlistProductRoute, async (c) => {
   try {
     const auth = c.get('auth') as any;
     const userId = auth?.sub;
@@ -223,4 +223,4 @@ app.openapi(removeWishlistProductRoute, async (c) => {
   }
 });
 
-export { app as userPreferencesRouter };
+export { adminApp as adminUserPreferencesRouter };

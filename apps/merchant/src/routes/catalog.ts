@@ -49,9 +49,9 @@ const VariantIdParam = z.object({
   variantId: z.string().uuid().openapi({ param: { name: 'variantId', in: 'path' } }),
 });
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 const listProducts = createRoute({
   method: 'get',
@@ -306,7 +306,7 @@ function mapProduct(
   }
 }
 
-app.openapi(listProducts, async (c) => {
+adminApp.openapi(listProducts, async (c) => {
   const db = getDb(c.var.db);
   const { limit: limitStr, cursor, status, noimage, thumbnail } = c.req.valid('query');
   const imageMode = noimage === 'true' ? 'none' : thumbnail === 'true' ? 'thumb' : 'full';
@@ -396,7 +396,7 @@ app.openapi(listProducts, async (c) => {
   return c.json({ items, pagination: { has_more: hasMore, next_cursor: nextCursor } } as any, 200);
 });
 
-app.openapi(searchProducts, async (c) => {
+adminApp.openapi(searchProducts, async (c) => {
   const db = getDb(c.var.db);
   const { q, limit: limitStr, cursor, noimage, thumbnail } = c.req.valid('query');
   const imageMode = noimage === 'true' ? 'none' : thumbnail === 'true' ? 'thumb' : 'full';
@@ -493,7 +493,7 @@ const getProduct = createRoute({
   },
 });
 
-app.openapi(getProduct, async (c) => {
+adminApp.openapi(getProduct, async (c) => {
   const db = getDb(c.var.db);
   const { id } = c.req.valid('param');
 
@@ -545,7 +545,7 @@ const createProduct = createRoute({
   },
 });
 
-app.openapi(createProduct, async (c) => {
+adminApp.openapi(createProduct, async (c) => {
   const { title, description, vendor, tags, handle } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -634,7 +634,7 @@ const updateProduct = createRoute({
   },
 });
 
-app.openapi(updateProduct, async (c) => {
+adminApp.openapi(updateProduct, async (c) => {
   const { id } = c.req.valid('param');
   const body = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -752,7 +752,7 @@ const deleteProduct = createRoute({
   },
 });
 
-app.openapi(deleteProduct, async (c) => {
+adminApp.openapi(deleteProduct, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -802,7 +802,7 @@ const createVariant = createRoute({
   },
 });
 
-app.openapi(createVariant, async (c) => {
+adminApp.openapi(createVariant, async (c) => {
   const { id: productId } = c.req.valid('param');
   const {
     sku, title, price_cents, currency, image_url, thumbnail_url,
@@ -862,7 +862,7 @@ const updateVariant = createRoute({
   },
 });
 
-app.openapi(updateVariant, async (c) => {
+adminApp.openapi(updateVariant, async (c) => {
   const { id: productId, variantId } = c.req.valid('param');
   const body = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -957,7 +957,7 @@ const deleteVariant = createRoute({
   },
 });
 
-app.openapi(deleteVariant, async (c) => {
+adminApp.openapi(deleteVariant, async (c) => {
   const { id: productId, variantId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -996,7 +996,7 @@ const listVariantPrices = createRoute({
   },
 });
 
-app.openapi(listVariantPrices, async (c) => {
+adminApp.openapi(listVariantPrices, async (c) => {
   const { id: productId, variantId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1035,7 +1035,7 @@ const upsertVariantPrice = createRoute({
   },
 });
 
-app.openapi(upsertVariantPrice, async (c) => {
+adminApp.openapi(upsertVariantPrice, async (c) => {
   const { id: productId, variantId } = c.req.valid('param');
   const { currency_id: currencyId, price_cents: priceCents } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -1093,7 +1093,7 @@ const deleteVariantPrice = createRoute({
   },
 });
 
-app.openapi(deleteVariantPrice, async (c) => {
+adminApp.openapi(deleteVariantPrice, async (c) => {
   const { id: productId, variantId, currencyId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -1163,7 +1163,7 @@ const pricingAudit = createRoute({
   },
 });
 
-app.openapi(pricingAudit, async (c) => {
+adminApp.openapi(pricingAudit, async (c) => {
   const { currencyId } = c.req.valid('query');
   const db = getDb(c.var.db);
 
@@ -1205,4 +1205,4 @@ app.openapi(pricingAudit, async (c) => {
   }, 200);
 });
 
-export { app as catalog };
+export { adminApp as adminCatalog };

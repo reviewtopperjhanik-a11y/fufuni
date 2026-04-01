@@ -26,34 +26,34 @@
 import { OpenAPIHono } from '@hono/zod-openapi';
 import { cors } from 'hono/cors';
 import { swaggerUI } from '@hono/swagger-ui';
-import { setup } from './routes/setup';
-import { catalog } from './routes/catalog';
-import { inventory } from './routes/inventory';
-import { checkout } from './routes/checkout';
-import { orders, publicOrders } from './routes/orders';
-import { customers } from './routes/customers';
+import { adminSetup } from './routes/setup';
+import { adminCatalog } from './routes/catalog';
+import { adminInventory } from './routes/inventory';
+import { adminCheckout } from './routes/checkout';
+import { adminOrders, publicOrders } from './routes/orders';
+import { adminCustomers } from './routes/customers';
 import { webhooks } from './routes/webhooks';
-import { webhooksRoutes } from './routes/webhooks-outbound';
-import { images } from './routes/images';
-import { discounts } from './routes/discounts';
+import { adminWebhooksRoutes } from './routes/webhooks-outbound';
+import { publicImages } from './routes/images';
+import { adminDiscounts } from './routes/discounts';
 import { oauth } from './routes/oauth';
 import { ucp } from './routes/ucp';
-import { auth0Routes } from './routes/auth0';
-import { me } from './routes/me';
-import { userPreferencesRouter } from './routes/user-preferences';
-import { savedCartsRouter } from './routes/saved-carts';
+import { adminAuth0 } from './routes/auth0';
+import { adminMe } from './routes/me';
+import { adminUserPreferencesRouter } from './routes/user-preferences';
+import { adminSavedCartsRouter } from './routes/saved-carts';
 import { publicCategories, adminCategories } from './routes/categories';
-import { analytics } from './routes/analytics';
-import { reviews, reviewsAdmin } from './routes/reviews';
-import { regions } from './routes/regions';
-import { orderEmailSettings } from './routes/order-email-settings';
+import { adminAnalytics } from './routes/analytics';
+import { reviews, adminReviews } from './routes/reviews';
+import { adminRegions } from './routes/regions';
+import { adminOrderEmailSettings } from './routes/order-email-settings';
 import { rateLimitMiddleware } from './middleware/rate-limit';
 import { kvCacheMiddleware, kvInvalidateMiddleware } from './middleware/kv-cache';
-import { ai } from './routes/ai';
-import { taxRates } from './routes/tax-rates';
+import { adminAi } from './routes/ai';
+import { adminTaxRates } from './routes/tax-rates';
 import { ApiError, type Env, type DOStub } from './types';
 import { MerchantDO } from './do';
-import { mails } from './routes/mails';
+import { adminMails } from './routes/mails';
 
 export { MerchantDO };
 
@@ -130,34 +130,34 @@ app.onError((err, c) => {
 
 app.get('/', (c) => c.json({ name: 'merchant', version: '0.1.0', ok: true }));
 
-app.route('/v1/setup', setup);
-app.route('/v1/ai', ai);
+app.route('/v1/setup', adminSetup);
+app.route('/v1/ai', adminAi);
 // Mount reviews BEFORE catalog — catalog has app.use('*', authMiddleware) which
 // would otherwise intercept /v1/products/:productId/reviews/guest (a public route)
 app.route('/v1/products/:productId/reviews', reviews);
-app.route('/v1/products', catalog);
-app.route('/v1/inventory', inventory);
-app.route('/v1/carts', checkout);
-app.route('/v1/orders', orders);
+app.route('/v1/products', adminCatalog);
+app.route('/v1/inventory', adminInventory);
+app.route('/v1/carts', adminCheckout);
+app.route('/v1/orders', adminOrders);
 app.route('/v1/categories', adminCategories);
-app.route('/v1/analytics', analytics);
-app.route('/v1/reviews', reviewsAdmin);
-app.route('/v1/customers', customers);
+app.route('/v1/analytics', adminAnalytics);
+app.route('/v1/reviews', adminReviews);
+app.route('/v1/customers', adminCustomers);
 app.route('/v1/webhooks', webhooks);
-app.route('/v1/webhooks', webhooksRoutes);
-app.route('/v1/images', images);
-app.route('/v1/discounts', discounts);
-app.route('/v1/regions', regions);
-app.route('/v1/tax-rates', taxRates);
-app.route('/v1/mails', mails);
-app.route('/v1/admin/order-email-settings', orderEmailSettings);
-app.route('/v1/me', me);
-app.route('/v1', userPreferencesRouter);
-app.route('/v1', savedCartsRouter);
+app.route('/v1/webhooks', adminWebhooksRoutes);
+app.route('/v1/images', publicImages);
+app.route('/v1/discounts', adminDiscounts);
+app.route('/v1/regions', adminRegions);
+app.route('/v1/tax-rates', adminTaxRates);
+app.route('/v1/mails', adminMails);
+app.route('/v1/admin/order-email-settings', adminOrderEmailSettings);
+app.route('/v1/me', adminMe);
+app.route('/v1', adminUserPreferencesRouter);
+app.route('/v1', adminSavedCartsRouter);
 app.route('/oauth', oauth);
 app.route('', oauth);
 app.route('', ucp);
-app.route('/v1/__auth0', auth0Routes);
+app.route('/v1/__auth0', adminAuth0);
 
 app.doc31('/openapi.json', {
   openapi: '3.1.0',

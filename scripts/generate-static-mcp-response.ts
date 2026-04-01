@@ -85,24 +85,55 @@
  * constant if they exceed this budget.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, globSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+
+// Conservative limit: keeps input prompt small enough for the 32k-token models
+// on Groq.  8000 chars ≈ 2000 tokens; leaves ≥ 80% of context for the output.
+const MAX_SOURCE_CHARS = 24_000;
+const MAX_OUTPUT_TOKENS = 6000;
+
+// ── Shared system prompt fragment reused across topics ──────────────────────
+const BASE_SYSTEM_v0 = `You are a senior TypeScript developer documenting the Fufuni e-commerce framework.
+Fufuni runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod-OpenAPI)
+and React 19 + Vite + HeroUI v3 for the frontend.
+Write concise, structured Markdown with TypeScript/SQL code examples.
+Always use fenced code blocks with language tags (typescript, sql, etc.).
+Target audience: junior developers contributing to or customising this framework.
+Output ONLY the Markdown content — no preamble like "Here is the documentation:", no trailing notes.
+When "## Verified facts" are provided, treat them as ground truth — they override any contradicting
+inference from source code.`;
+
+const BASE_SYSTEM = `You are a senior TypeScript developer documenting the Fufuni e‑commerce framework.
+Fufuni runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod‑OpenAPI),
+and React 19 + Vite + HeroUI v3 for the frontend.
+
+WRITING RULES:
+- Write in ENGLISH, using structured Markdown with typed code blocks (typescript, sql, bash, etc.)
+- Every section must contain AT LEAST one complete and functional code example
+- Examples must reflect the REAL conventions of the codebase (imports, naming, structure)
+- Use only ## and ### headings — never # (reserved for the whole file)
+- Target audience: junior developers contributing to the framework
+- Target length: 800 to 1500 words per topic
+- When “## Verified facts” are provided, they have PRIORITY over the source code — treat them as absolute truth
+- NEVER start with a generic introductory sentence — jump straight into the topic
+- NEVER add a final note such as “I hope this documentation is helpful”`
 
 // ─── resolve project root ────────────────────────────────────────────────────
 // __dirname is not available in ESM; we derive it from import.meta.url.
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = dirname(__filename);
-const ROOT       = resolve(__dirname, '..'); // repository root
+const __dirname = dirname(__filename);
+const ROOT = resolve(__dirname, '..'); // repository root
 
 // ─── CLI flags ────────────────────────────────────────────────────────────────
-const argv          = process.argv.slice(2);
-const topicFlag     = argv.find(a => a.startsWith('--topic='))?.split('=')[1];
-const dryRun        = argv.includes('--dry-run');
-const skipAI        = argv.includes('--skip-ai');
-const force         = argv.includes('--force');
+const argv = process.argv.slice(2);
+const topicFlag = argv.find(a => a.startsWith('--topic='))?.split('=')[1];
+const dryRun = argv.includes('--dry-run');
+const skipAI = argv.includes('--skip-ai');
+const force = argv.includes('--force');
 const discoverModels = argv.includes('--discover-models');
-const verbose       = argv.includes('--verbose');
+const verbose = argv.includes('--verbose');
 
 // ─── load .env from project root ────────────────────────────────────────────
 // We do a minimal manual parse rather than importing dotenv to keep this script
@@ -120,7 +151,7 @@ function loadDotenv(envPath: string): Record<string, string> {
     // Strip optional surrounding quotes from values
     let value = line.slice(eqIdx + 1).trim();
     if ((value.startsWith('"') && value.endsWith('"')) ||
-        (value.startsWith("'") && value.endsWith("'"))) {
+      (value.startsWith("'") && value.endsWith("'"))) {
       value = value.slice(1, -1);
     }
     env[key] = value;
@@ -152,30 +183,26 @@ let keyIndex = 0;
  * buckets.
  */
 function nextApiKey(): string {
-  const raw  = process.env.AI_API_KEY ?? '';
+  const raw = process.env.AI_API_KEY ?? '';
   if (!raw) throw new Error('AI_API_KEY is not set. Add it to your .env file.');
   const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
-  const key  = keys[keyIndex % keys.length];
+  const key = keys[keyIndex % keys.length];
   keyIndex++;
   return key;
 }
 
 const AI_API_URL = process.env.AI_API_URL ?? 'https://api.groq.com/openai/v1';
 
-// Conservative limit: keeps input prompt small enough for the 32k-token models
-// on Groq.  8000 chars ≈ 2000 tokens; leaves ≥ 80% of context for the output.
-const MAX_SOURCE_CHARS = 8_000;
-
 // ─── model discovery ─────────────────────────────────────────────────────────
 
 /** Shape returned by GET /openai/v1/models on Groq and other OAI-compatible APIs. */
 type GroqModel = {
-  id:                    string;
-  object:                'model';
-  created:               number;
-  owned_by:              string;
-  active:                boolean;
-  context_window:        number;
+  id: string;
+  object: 'model';
+  created: number;
+  owned_by: string;
+  active: boolean;
+  context_window: number;
   max_completion_tokens?: number;
 };
 
@@ -233,9 +260,9 @@ async function initModels(): Promise<void> {
   }
 
   // Peek at key[0] without advancing keyIndex for subsequent callAI() calls.
-  const raw     = process.env.AI_API_KEY ?? '';
-  const keys    = raw.split(',').map(k => k.trim()).filter(Boolean);
-  const apiKey  = keys[0] ?? '';
+  const raw = process.env.AI_API_KEY ?? '';
+  const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+  const apiKey = keys[0] ?? '';
 
   const url = `${AI_API_URL}/models`;
   try {
@@ -248,8 +275,8 @@ async function initModels(): Promise<void> {
       modelPool = [process.env.AI_MODEL ?? 'openai/gpt-oss-20b'];
       return;
     }
-    const data    = await res.json() as { data: GroqModel[] };
-    const usable  = (data.data ?? [])
+    const data = await res.json() as { data: GroqModel[] };
+    const usable = (data.data ?? [])
       .filter(m => m.active)
       .filter(m => (m.context_window ?? 0) >= MIN_CONTEXT_WINDOW)
       .filter(m => !EXCLUDED_MODEL_PATTERNS.test(m.id))
@@ -260,10 +287,10 @@ async function initModels(): Promise<void> {
       modelPool = [process.env.AI_MODEL ?? 'openai/gpt-oss-20b'];
     } else {
       modelObjects = usable;
-      modelPool    = usable.map(m => m.id);
+      modelPool = usable.map(m => m.id);
 
       // ── formatted table ──────────────────────────────────────────────────
-      const colId  = Math.max(8, ...usable.map(m => m.id.length));
+      const colId = Math.max(8, ...usable.map(m => m.id.length));
       const colOwn = Math.max(5, ...usable.map(m => m.owned_by.length));
       const header =
         `  ${'#'.padStart(2)}  ${'Model'.padEnd(colId)}  ${'Owner'.padEnd(colOwn)}  ${'Context'.padStart(9)}  ${'Max out'.padStart(9)}`;
@@ -324,20 +351,46 @@ function estimateTokens(text: string): number {
  *
  * @param systemPrompt  High-level instructions to the model (role, output format).
  * @param userPrompt    The actual question / source context to summarise.
- * @param maxTokens     Maximum output size (defaults to 4096).
+ * @param maxTokens     Maximum output size (defaults to 6000).
  */
 async function callAI(
   systemPrompt: string,
-  userPrompt:   string,
-  maxTokens = 4096,
+  userPrompt: string,
+  maxTokens = MAX_OUTPUT_TOKENS,
   model = nextModel(),
 ): Promise<{ content: string; tokensIn: number; tokensOut: number }> {
   const apiKey = nextApiKey();
-  const url    = `${AI_API_URL}/chat/completions`;
+  const url = `${AI_API_URL}/chat/completions`;
+  const isAnthropic = AI_API_URL.includes('anthropic.com');
 
   if (verbose) {
     console.log(`  [ai] model=${model} endpoint=${AI_API_URL}`);
     console.log(`  [ai] input tokens ≈ ${estimateTokens(systemPrompt + userPrompt)}`);
+  }
+
+  if (isAnthropic) {
+    // Utiliser l'endpoint /messages d'Anthropic
+    const body = {
+      model,
+      max_tokens: maxTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    };
+    const response = await fetch(`${AI_API_URL}/messages`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': nextApiKey(),
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify(body),
+    });
+    const data = await response.json();
+    return {
+      content: data.content?.[0]?.text ?? '',
+      tokensIn: data.usage?.input_tokens ?? 0,
+      tokensOut: data.usage?.output_tokens ?? 0,
+    };
   }
 
   const body = {
@@ -345,14 +398,14 @@ async function callAI(
     max_tokens: maxTokens,
     messages: [
       { role: 'system', content: systemPrompt },
-      { role: 'user',   content: userPrompt   },
+      { role: 'user', content: userPrompt },
     ],
   };
 
   const response = await fetch(url, {
     method: 'POST',
     headers: {
-      'Content-Type':  'application/json',
+      'Content-Type': 'application/json',
       'Authorization': `Bearer ${apiKey}`,
     },
     body: JSON.stringify(body),
@@ -368,8 +421,8 @@ async function callAI(
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
 
-  const content   = data.choices?.[0]?.message?.content ?? '';
-  const tokensIn  = data.usage?.prompt_tokens     ?? estimateTokens(systemPrompt + userPrompt);
+  const content = data.choices?.[0]?.message?.content ?? '';
+  const tokensIn = data.usage?.prompt_tokens ?? estimateTokens(systemPrompt + userPrompt);
   const tokensOut = data.usage?.completion_tokens ?? estimateTokens(content);
 
   if (verbose) {
@@ -390,9 +443,9 @@ if (!dryRun) {
  * the API endpoint so readers can trace exactly how the file was produced.
  */
 function buildHeader(meta?: {
-  model:      string;
-  tokensIn:   number;
-  tokensOut:  number;
+  model: string;
+  tokensIn: number;
+  tokensOut: number;
 }): string {
   if (!meta) {
     return `<!--
@@ -439,28 +492,17 @@ function buildHeader(meta?: {
  *                 is written directly without any AI call.
  */
 type Topic = {
-  name:          string;
-  description:   string;
-  sources:       string[];
-  systemPrompt:  string;
-  buildPrompt:   (sources: string) => string;
+  name: string;
+  description: string;
+  sources: string[];
+  systemPrompt: string;
+  buildPrompt: (sources: string) => string;
   staticHeader?: string;
   /** Curated facts injected verbatim into the AI prompt for priority inclusion. */
-  manualFacts?:  string[];
+  manualFacts?: string[];
   /** Verbatim Markdown appended after the AI section (never reformulated). */
   staticAppend?: string;
 };
-
-// ── Shared system prompt fragment reused across topics ──────────────────────
-const BASE_SYSTEM = `You are a senior TypeScript developer documenting the Fufuni e-commerce framework.
-Fufuni runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod-OpenAPI)
-and React 19 + Vite + HeroUI v3 for the frontend.
-Write concise, structured Markdown with TypeScript/SQL code examples.
-Always use fenced code blocks with language tags (typescript, sql, etc.).
-Target audience: junior developers contributing to or customising this framework.
-Output ONLY the Markdown content — no preamble like "Here is the documentation:", no trailing notes.
-When "## Verified facts" are provided, treat them as ground truth — they override any contradicting
-inference from source code.`;
 
 /**
  * Helper: append the manualFacts block to a user prompt when facts are provided.
@@ -490,14 +532,16 @@ const TOPICS: Topic[] = [
 -->
 `,
     manualFacts: [
-      'The monorepo has three main workspaces: apps/client (React SPA), apps/merchant (Hono Worker + Durable Object), apps/cloudflare-worker.',
+      'The monorepo has three main workspaces: apps/client (React SPA), apps/merchant (Hono Worker + Durable Object), apps/mcp (MCP server).',
+      'The monorepo uses **Turborepo** for task orchestration. The `npm run ddev:env` inject the .env and launches the full stack locally with hot-reloading for both frontend, backend, mcp and stripe.',
       'The entire backend runs inside a single Durable Object (MerchantDO) so that all SQL is executed in one JS isolate — no connection pools, no latency.',
       'Public API keys are prefixed pk_; admin/secret keys are prefixed sk_. Never expose sk_ keys to the frontend.',
+      'Secret sk_ key is kept only for legacy compatibility, RBAC auth via Auth0 permissions on access tokens is the source of truth.',
       'All database schema changes must be applied in THREE places simultaneously: SCHEMA constant in do.ts, ensureInitialized() in do.ts, and a new numbered SQL file in apps/merchant/migrations/.',
       'Auth0 is the sole identity provider. RBAC is managed via Auth0 permissions on the access token, not in the database.',
       'The frontend navbar items and their visibility are driven by siteConfig() in apps/client/src/config/site.ts — each navItem has a permissions[] array. Add a new page by adding an entry there.',
       'Fufuni is designed to run 100% free: Cloudflare Workers free tier (100k req/day), Durable Object SQLite (included), R2 free tier (10 GB/month), KV free tier (100k reads/day), Auth0 free tenant (7500 MAU), GitHub Pages for the frontend, and Mailgun 3000 emails/month. No credit card required.',
-      'Three GitHub Actions workflows automate the full deployment: (1) deploy-cloudflare-worker.yaml (push to main → Worker deploy, needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID secrets); (2) pages.yaml (push to main → GitHub Pages frontend deploy); (3) reset-demo.yaml (manual/scheduled → resets and re-seeds the live demo).',,
+      'Three GitHub Actions workflows automate the full deployment: (1) deploy-cloudflare-worker.yaml (push to main → Worker deploy, needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID secrets); (2) pages.yaml (push to main → GitHub Pages frontend deploy); (3) reset-demo.yaml (manual/scheduled → resets and re-seeds the live demo).', ,
     ],
     buildPrompt: (src) => appendFacts(`
 Below is the root README and the Hono application entry point of the Fufuni framework.
@@ -569,6 +613,8 @@ Do not include any DDL code — summarise in tables and prose only.
       'ensureInitialized() is synchronous (no await) because Durable Object SQL is synchronous. Use this.sql.exec() directly, not db.run().',
       'Always use IF NOT EXISTS on CREATE TABLE and CREATE INDEX to make migrations idempotent.',
       'Column types: use TEXT for UUIDs and ISO dates, INTEGER for booleans (0/1) and cents, REAL for percentages and ratings.',
+      'Migrations are **idempotent by design** — `ensureInitialized()` never re‑applies a migration already recorded in the `migrations` table.',
+      'Never retroactively modify a migration that has already been deployed to production — always create a new migration instead.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are:
@@ -1096,6 +1142,40 @@ Include:
 6. Step-by-step: adding a new permission end-to-end.
 `),
   },
+
+  // ── 16. Conventions & Anti-Patterns ─────────────────────────────────
+  {
+    name: 'conventions-and-anti-patterns',
+    description: 'What NOT to do — common mistakes and the canonical patterns to use instead',
+    sources: [],
+    systemPrompt: BASE_SYSTEM,
+    manualFacts: [
+      'NEVER use c.req.json() directly — always use c.req.valid("json") after declaring the body schema in createRoute().',
+      'NEVER declare Zod schemas inline in route files — always put them in apps/merchant/src/schemas/ and import them.',
+      'NEVER modify an existing migration file — create a new numbered migration instead.',
+      'NEVER update SCHEMA in do.ts without also updating ensureInitialized() and creating the SQL migration file.',
+      'NEVER expose sk_ API keys to the frontend — only pk_ keys are safe for browser use.',
+      'NEVER read variant price from the variants table directly in multi-region context — always use variant_prices joined with region.',
+      'NEVER call the Auth0 Management API from the frontend directly — use the backend proxy /v1/__auth0/* endpoints.',
+      'NEVER create a new AI client utility — always add helpers to the existing apps/client/src/utils/ai-client.ts.',
+      'NEVER use localStorage or sessionStorage in artifacts or React components — they are not supported in the Claude.ai environment.',
+      'NEVER use the legacy cloudflare-worker workspace — it is deprecated. All backend code lives in apps/merchant.',
+      'NEVER add a new page to the router without also adding it to apps/client/src/config/site.ts if it needs navbar visibility.',
+      'NEVER call a refund by modifying the DB directly — always go through the Stripe API first, then the DB update follows.',
+      'NEVER pass jwt tokens manually in API calls — use the useSecuredApi() hook which handles this automatically.',
+    ],
+    buildPrompt: (_src) => appendFacts(`
+Task: Write a "Conventions & Anti-Patterns" reference for Fufuni developers.
+Structure it as a series of DO / DON'T pairs covering:
+1. Backend (routes, schemas, DB queries, auth, migrations)
+2. Frontend (hooks, components, auth guards, image upload)
+3. Infrastructure (env vars, CI secrets, Stripe webhooks)
+4. AI features (ai-client.ts, permissions)
+
+For each anti-pattern, show the WRONG code, then the CORRECT alternative.
+`),
+  },
+
 ];
 
 // ─── main ─────────────────────────────────────────────────────────────────────
@@ -1126,8 +1206,8 @@ async function main() {
   console.log('─'.repeat(60));
 
   let generated = 0;
-  let skipped   = 0;
-  let errors    = 0;
+  let skipped = 0;
+  let errors = 0;
 
   for (const topic of topics) {
     const outPath = join(MCP_DIR, `${topic.name}.md`);
@@ -1158,8 +1238,8 @@ async function main() {
     // Inject manualFacts into the prompt if the topic defines them.
     // appendFacts() appends them under a "## Verified facts" heading so the
     // AI treats them as ground truth and incorporates them into the document.
-    const rawPrompt    = topic.buildPrompt(combinedSources);
-    const userPrompt   = appendFacts(rawPrompt, topic.manualFacts);
+    const rawPrompt = topic.buildPrompt(combinedSources);
+    const userPrompt = appendFacts(rawPrompt, topic.manualFacts);
 
     if (verbose) {
       console.log('  User prompt preview:');
@@ -1193,7 +1273,7 @@ async function main() {
           try {
             const result = await callAI(topic.systemPrompt, userPrompt, 4096, chosenModel);
             aiContent = result.content;
-            aiMeta    = { model: chosenModel, tokensIn: result.tokensIn, tokensOut: result.tokensOut };
+            aiMeta = { model: chosenModel, tokensIn: result.tokensIn, tokensOut: result.tokensOut };
             console.log(`  → received ${result.tokensOut} tokens out (${result.tokensIn} in)`);
             succeeded = true;
             break;
@@ -1221,7 +1301,7 @@ async function main() {
 
     // Build the file: dynamic header (with AI metadata when available) +
     // AI content + optional static appendix.
-    const header      = buildHeader(aiMeta);
+    const header = buildHeader(aiMeta);
     const fileContent = header + aiContent +
       (topic.staticAppend ? '\n\n' + topic.staticAppend : '');
 

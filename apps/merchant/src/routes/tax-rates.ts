@@ -37,9 +37,9 @@ import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { getDb } from '../db';
 import { adminOnly, authMiddleware } from '../middleware/auth';
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 // ============================================================
 // TAX RATES ROUTES
@@ -62,7 +62,7 @@ const listTaxRates = createRoute({
   },
 });
 
-app.openapi(listTaxRates, async (c) => {
+adminApp.openapi(listTaxRates, async (c) => {
   const { limit: limitStr, cursor } = c.req.valid('query');
   const db = getDb(c.var.db);
   const limit = Math.min(parseInt(limitStr || '100'), 500);
@@ -120,7 +120,7 @@ const createTaxRate = createRoute({
   },
 });
 
-app.openapi(createTaxRate, async (c) => {
+adminApp.openapi(createTaxRate, async (c) => {
   const { display_name, country_code, tax_code, rate_percentage } = c.req.valid('json');
   const db = getDb(c.var.db);
 
@@ -167,7 +167,7 @@ const getTaxRate = createRoute({
   },
 });
 
-app.openapi(getTaxRate, async (c) => {
+adminApp.openapi(getTaxRate, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -209,7 +209,7 @@ const updateTaxRate = createRoute({
   },
 });
 
-app.openapi(updateTaxRate, async (c) => {
+adminApp.openapi(updateTaxRate, async (c) => {
   const { id } = c.req.valid('param');
   const { display_name, country_code, tax_code, rate_percentage, status } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -263,7 +263,7 @@ const deleteTaxRate = createRoute({
   },
 });
 
-app.openapi(deleteTaxRate, async (c) => {
+adminApp.openapi(deleteTaxRate, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -275,4 +275,4 @@ app.openapi(deleteTaxRate, async (c) => {
   return c.json({ deleted: true } as const, 200);
 });
 
-export { app as taxRates };
+export { adminApp as adminTaxRates };

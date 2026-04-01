@@ -45,8 +45,8 @@ import { authMiddleware, adminOnly } from '../middleware/auth';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { getDb } from '../db';
 
-const app = new OpenAPIHono<HonoEnv>();
-app.use('*', authMiddleware);
+const adminApp = new OpenAPIHono<HonoEnv>();
+adminApp.use('*', authMiddleware);
 
 // ── Shared schemata ───────────────────────────────────────────────────────────
 
@@ -103,7 +103,7 @@ const listSettingsRoute = createRoute({
   },
 });
 
-app.openapi(listSettingsRoute, async (c) => {
+adminApp.openapi(listSettingsRoute, async (c) => {
   const db = getDb(c.var.db);
   const rows = await db.query<any>(
     `SELECT * FROM order_email_settings ORDER BY
@@ -134,7 +134,7 @@ const getSettingRoute = createRoute({
   },
 });
 
-app.openapi(getSettingRoute, async (c) => {
+adminApp.openapi(getSettingRoute, async (c) => {
   const { event } = c.req.valid('param');
   const db = getDb(c.var.db);
   const [row] = await db.query<any>(
@@ -164,7 +164,7 @@ const upsertSettingRoute = createRoute({
   },
 });
 
-app.openapi(upsertSettingRoute, async (c) => {
+adminApp.openapi(upsertSettingRoute, async (c) => {
   const { event } = c.req.valid('param');
   const body = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -224,7 +224,7 @@ const deleteSettingRoute = createRoute({
   },
 });
 
-app.openapi(deleteSettingRoute, async (c) => {
+adminApp.openapi(deleteSettingRoute, async (c) => {
   const { event } = c.req.valid('param');
   const db = getDb(c.var.db);
   await db.run(`DELETE FROM order_email_settings WHERE event = ?`, [event]);
@@ -232,4 +232,4 @@ app.openapi(deleteSettingRoute, async (c) => {
   return c.json({ ok: true }, 200);
 });
 
-export { app as orderEmailSettings };
+export { adminApp as adminOrderEmailSettings };

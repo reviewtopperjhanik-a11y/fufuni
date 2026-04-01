@@ -54,9 +54,9 @@ const VALID_EVENTS = [
   '*',
 ] as const;
 
-const app = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
 
-app.use('*', authMiddleware);
+adminApp.use('*', authMiddleware);
 
 const listWebhooks = createRoute({
   method: 'get',
@@ -70,7 +70,7 @@ const listWebhooks = createRoute({
   },
 });
 
-app.openapi(listWebhooks, async (c) => {
+adminApp.openapi(listWebhooks, async (c) => {
   const db = getDb(c.var.db);
 
   const webhooks = await db.query<any>(`SELECT * FROM webhooks ORDER BY created_at DESC`, []);
@@ -101,7 +101,7 @@ const getWebhook = createRoute({
   },
 });
 
-app.openapi(getWebhook, async (c) => {
+adminApp.openapi(getWebhook, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -152,7 +152,7 @@ const createWebhook = createRoute({
   },
 });
 
-app.openapi(createWebhook, async (c) => {
+adminApp.openapi(createWebhook, async (c) => {
   const { url, events } = c.req.valid('json');
 
   try {
@@ -211,7 +211,7 @@ const updateWebhook = createRoute({
   },
 });
 
-app.openapi(updateWebhook, async (c) => {
+adminApp.openapi(updateWebhook, async (c) => {
   const { id } = c.req.valid('param');
   const { url, events, status } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -281,7 +281,7 @@ const deleteWebhook = createRoute({
   },
 });
 
-app.openapi(deleteWebhook, async (c) => {
+adminApp.openapi(deleteWebhook, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -308,7 +308,7 @@ const rotateSecret = createRoute({
   },
 });
 
-app.openapi(rotateSecret, async (c) => {
+adminApp.openapi(rotateSecret, async (c) => {
   const { id } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -335,7 +335,7 @@ const getDelivery = createRoute({
   },
 });
 
-app.openapi(getDelivery, async (c) => {
+adminApp.openapi(getDelivery, async (c) => {
   const { id, deliveryId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -375,7 +375,7 @@ const retryDeliveryRoute = createRoute({
   },
 });
 
-app.openapi(retryDeliveryRoute, async (c) => {
+adminApp.openapi(retryDeliveryRoute, async (c) => {
   const { id, deliveryId } = c.req.valid('param');
   const db = getDb(c.var.db);
 
@@ -395,4 +395,4 @@ app.openapi(retryDeliveryRoute, async (c) => {
   return c.json({ status: 'pending', message: 'Delivery retry triggered' }, 200);
 });
 
-export { app as webhooksRoutes };
+export { adminApp as adminWebhooksRoutes };

@@ -28,8 +28,8 @@ import { z } from '@hono/zod-openapi';
 import { authMiddleware, aiAccessOnly } from '../middleware/auth';
 import { ApiError, type HonoEnv } from '../types';
 
-const app = new OpenAPIHono<HonoEnv>();
-app.use('*', authMiddleware);
+const adminApp = new OpenAPIHono<HonoEnv>();
+adminApp.use('*', authMiddleware);
 
 // Response schema
 const AiParamsResponse = z.object({
@@ -60,7 +60,7 @@ const aiParamsRoute = createRoute({
   },
 });
 
-app.openapi(aiParamsRoute, async (c) => {
+adminApp.openapi(aiParamsRoute, async (c) => {
   const rawApiKey = c.env.AI_API_KEY;
   const model = c.env.AI_MODEL;
   const url = c.env.AI_API_URL;
@@ -93,4 +93,4 @@ app.openapi(aiParamsRoute, async (c) => {
   return c.json({ apiKey, model, url }, 200);
 });
 
-export { app as ai };
+export { adminApp as adminAi };
