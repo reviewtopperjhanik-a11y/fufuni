@@ -3,39 +3,39 @@
   Do not edit manually. Run the script to regenerate.
   model:        meta-llama/llama-4-scout-17b-16e-instruct
   tokens_in:    7648
-  tokens_out:   1187
+  tokens_out:   1055
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Frontend React Patterns
 
 ### 1. React Router Setup
 
-The React Router setup in Fufuni uses the `react-router-dom` library to manage client-side routing. Routes are declared in the `app.tsx` file, where each route is associated with a specific component.
+The React Router setup in Fufuni uses the `react-router-dom` library to manage client-side routing. Routes are declared in the `apps/client/src/app.tsx` file.
 
 ```typescript
-// apps/client/src/app.tsx
 import { Route, Routes } from "react-router-dom";
 
 // ...
 
-<Routes>
-  <Route element={<IndexPage />} path="/" />
-  <Route element={<LoginPage />} path="/login" />
-  {/* ... */}
-</Routes>
+return (
+  <Suspense fallback={<SiteLoading />}>
+    <Routes>
+      {/* Routes declaration */}
+    </Routes>
+  </Suspense>
+);
 ```
 
-To protect routes that require authentication, the `AuthenticationGuard` component is used. This component checks if the user is authenticated and redirects them to the login page if not.
+Protected routes use the `AuthenticationGuard` component to restrict access to certain routes.
 
 ```typescript
-// apps/client/src/app.tsx
 import { AuthenticationGuard } from "./authentication";
 
 // ...
 
 <Route
-  element={<AuthenticationGuard component={AdminPage} />}
-  path="/admin"
+  element={<AuthenticationGuard component={ApiPage} />}
+  path="/api"
 />
 ```
 
@@ -43,10 +43,29 @@ import { AuthenticationGuard } from "./authentication";
 
 To add a new page, follow these three steps:
 
-1. **Create the page component**: Create a new file in the `apps/client/src/pages/` directory, e.g., `NewPage.tsx`.
-2. **Add the page to the router**: Add a new route to the `app.tsx` file, e.g., `<Route element={<NewPage />} path="/new-page" />`.
-3. **Optionally add a navItem entry**: If you want to display a link to the new page in the navbar, add a new entry to the `siteConfig().navItems` array in `apps/client/src/config/site.ts`.
+1. Create a new page component in `apps/client/src/pages/`.
+```typescript
+// apps/client/src/pages/new-page.tsx
+import React from "react";
 
+const NewPage = () => {
+  return <div>New Page</div>;
+};
+
+export default NewPage;
+```
+
+2. Add the new page to the router in `app.tsx`.
+```typescript
+// apps/client/src/app.tsx
+import NewPage from "@/pages/new-page";
+
+// ...
+
+<Route element={<NewPage />} path="/new-page" />
+```
+
+3. Optionally add a navItem entry in `apps/client/src/config/site.ts` with a permissions[] array to control visibility.
 ```typescript
 // apps/client/src/config/site.ts
 export const siteConfig = () => ({
@@ -56,15 +75,15 @@ export const siteConfig = () => ({
     {
       label: "New Page",
       href: "/new-page",
-      permissions: [], // or specify permissions if required
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
   ],
 });
 ```
 
-### 3. Navbar Auto-Showing/Hiding Items based on Auth0 Permissions
+### 3. Navbar Auto-Showing/Hiding Items Based on Auth0 Permissions
 
-The navbar uses the `AuthenticationGuardWithPermission` component to show or hide items based on the user's permissions.
+The navbar uses the `AuthenticationGuardWithPermission` component to show/hide items based on Auth0 permissions.
 
 ```typescript
 // apps/client/src/components/navbar.tsx
@@ -79,111 +98,84 @@ import { AuthenticationGuardWithPermission } from "@/authentication";
 </AuthenticationGuardWithPermission>
 ```
 
-The `siteConfig().navItems` array contains a `permissions` property for each item, which determines whether the item is visible to the user.
+The navbar reads the `siteConfig().navItems` array and shows/hides items based on the permissions[] array on each item.
 
 ### 4. HeroUI v3
 
-HeroUI v3 is a UI component library used in Fufuni. It provides a compound component pattern for building reusable UI components.
+Fufuni uses HeroUI v3 for its UI components. The library provides a set of compound components that can be used to build complex UI elements.
 
 ```typescript
-// apps/client/src/components/card.tsx
-import { Card, Card.Header, Card.Body } from "@heroui/react";
+import { Button, Card, Modal } from "@heroui/react";
 
 // ...
 
-<Card>
-  <Card.Header>Header</Card.Header>
-  <Card.Body>Body</Card.Body>
-</Card>
+<Button onPress={() => console.log("Button clicked")}>Click me</Button>
 ```
 
-Some key components in HeroUI v3 include:
+Key components include:
 
-* `Button`
-* `Card`
-* `Modal`
-* `Table`
-* `Form`
+* Button
+* Card
+* Modal
+* Table
+* Form
 
 ### 5. ThemeSwitch
 
-The ThemeSwitch component allows users to switch between light, dark, and custom themes. It is already included in the navbar.
+The ThemeSwitch component allows users to switch between light/dark and custom themes. The theme config is stored in the `store_themes` DB table.
 
 ```typescript
-// apps/client/src/components/navbar.tsx
-import { ThemeSwitch } from "@/shared/ui/navigation/theme-switch";
+// apps/client/src/shared/ui/navigation/theme-switch.tsx
+import React from "react";
 
-// ...
+const ThemeSwitch = () => {
+  // ...
+};
 
-<ThemeSwitch />
+export default ThemeSwitch;
 ```
 
-The theme configuration is stored in the `store_themes` DB table.
+The ThemeSwitch component is already included in the navbar.
 
 ### 6. Feature Folder Structure and Hook Placement Conventions
 
-The feature folder structure in Fufuni is organized as follows:
+The feature folder structure is as follows:
 
-* `apps/client/src/features/<feature-name>/components/`: feature-specific components
-* `apps/client/src/features/<feature-name>/hooks/`: feature-specific hooks
-* `apps/client/src/features/<feature-name>/index.ts`: public API for the feature
+* `apps/client/src/features/<feature-name>/components/`
+* `apps/client/src/features/<feature-name>/hooks/`
+* `apps/client/src/features/<feature-name>/index.ts`
 
-Page-agnostic hooks go in `apps/client/src/hooks/`, while feature-specific hooks go in the feature folder.
+New React hooks go in `apps/client/src/hooks/` if they are page-agnostic, or in the feature folder if feature-specific.
 
 ### 7. Worked Example: Adding a "Product Tags" Admin Page
 
-Let's add a new admin page for product tags.
+To add a "Product Tags" admin page, follow these steps:
 
-**Step 1: Create the page component**
-
-Create a new file `apps/client/src/pages/admin/product-tags.tsx`:
-
+1. Create a new page component in `apps/client/src/pages/admin/product-tags.tsx`.
 ```typescript
-import { useState } from "react";
+// apps/client/src/pages/admin/product-tags.tsx
+import React from "react";
 
 const ProductTagsPage = () => {
-  const [tags, setTags] = useState([]);
-
-  // ...
-
-  return (
-    <div>
-      <h1>Product Tags</h1>
-      <ul>
-        {tags.map((tag) => (
-          <li key={tag.id}>{tag.name}</li>
-        ))}
-      </ul>
-    </div>
-  );
+  return <div>Product Tags Page</div>;
 };
 
 export default ProductTagsPage;
 ```
 
-**Step 2: Add the page to the router**
-
-Add a new route to `app.tsx`:
-
+2. Add the new page to the router in `app.tsx`.
 ```typescript
 // apps/client/src/app.tsx
-import { Route, Routes } from "react-router-dom";
 import ProductTagsPage from "@/pages/admin/product-tags";
 
 // ...
 
-<Route
-  element={<AuthenticationGuardWithPermission permission="admin:store">
-    <ProductTagsPage />
-  </AuthenticationGuardWithPermission>}
-  path="/admin/product-tags"
-/>
+<AuthenticationGuardWithPermission permission="admin:store">
+  <Route element={<ProductTagsPage />} path="/admin/product-tags" />
+</AuthenticationGuardWithPermission>
 ```
 
-**Step 3: Add a navItem entry**
-
-Add a new entry to `siteConfig().navItems`:
-
+3. Add a navItem entry in `apps/client/src/config/site.ts` with a permissions[] array to control visibility.
 ```typescript
 // apps/client/src/config/site.ts
 export const siteConfig = () => ({
@@ -193,10 +185,10 @@ export const siteConfig = () => ({
     {
       label: "Product Tags",
       href: "/admin/product-tags",
-      permissions: ["admin:store"], // or specify permissions if required
+      permissions: ["admin:store"], // Only visible to users with "admin:store" permission
     },
   ],
 });
 ```
 
-You can now access the product tags admin page at `/admin/product-tags`. The page will only be visible to users with the `admin:store` permission.
+This example demonstrates how to add a new admin page with protected routing and dynamic navbar visibility based on Auth0 permissions.

@@ -263,7 +263,7 @@
   "admin-webhooks-recent-deliveries": "التسليمات الأخيرة",
   "admin-webhooks-rotate": "تدوير السري",
   "admin-webhooks-rotating": "جارٍ التدوير...",
-  "admin-webhooks-secret-note": "استخدم هذا السر للتحقق من توقيعات webhook. \nتتضمن كل عملية تسليم رأس X-Merchant-Signature.",
+  "admin-webhooks-secret-note": "استخدم هذا السر للتحقق من توقيعات webhook. \nتتضمن كل عملية تسليم رأس X-Fufuni-Signature.",
   "admin-webhooks-secret-savehint": "احفظ هذا السر، فلن يظهر مرة أخرى",
   "admin-webhooks-secret-title": "سر الويب هوك",
   "admin-webhooks-subscribed-events": "الأحداث التي تم الاشتراك فيها",

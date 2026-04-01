@@ -3,224 +3,212 @@
   Do not edit manually. Run the script to regenerate.
   model:        moonshotai/kimi-k2-instruct-0905
   tokens_in:    1486
-  tokens_out:   1672
+  tokens_out:   1398
   api_endpoint: https://api.groq.com/openai/v1
 -->
-## Architecture: why Auth0 user_metadata is used for preferences instead of a DB table
+## User Preferences, Wishlist and Saved Carts
 
-Fufuni stores user preferences (wishlist, locale, currency, etc.) inside Auth0's `user_metadata` rather than in the application database.  
-This keeps the SQLite schema small, removes the need for a per-tenant `user_preferences` table, and lets Auth0 ship the data inside the signed JWT.  
-The client can render the UI immediately without an extra fetch; the backend can still mutate the metadata via the Auth0 Management API.
+### Architecture: Why Auth0 user_metadata Instead of SQLite?
+
+Fufuni keeps per-user preferences (wishlist, locale, newsletter opt-in, etc.) inside Auth0's `user_metadata` rather than in the application database.  
+This decision removes an entire class of cross-table joins and keeps the SQLite schema focused on business entities (products, orders, carts).  
+The trade-off is that every mutation must round-trip through Auth0's Management API, but reads are free because the data already travels inside the signed JWT access token.
 
 ```typescript
 // apps/client/src/lib/store-metadata.ts
 export function getStoreMetadata(
   userMetadata: Record<string, unknown> | undefined,
-  storeUrl: string
+  storeUrl: string,
 ): Record<string, unknown> | undefined {
-  if (!userMetadata) return undefined;
-  // create a stable, collision-free key from the store URL
-  const ns = `store_${btoa(storeUrl).replace(/[^a-zA-Z0-9]/g, '').slice(-16)}`;
-  return userMetadata[ns] as Record<string, unknown> | undefined;
+  const key = `fufuni_${btoa(storeUrl).slice(0, 12)}`; // stable short key
+  return userMetadata?.[key] as Record<string, unknown> | undefined;
 }
 ```
 
-## user_metadata namespacing (multi-tenant safety)
+### user_metadata Namespacing for Multi-Tenant Safety
 
-When several Fufuni stores share the same Auth0 tenant, the last 16 characters of the base-64-encoded `STORE_URL` become the namespace key.  
-This guarantees that `store_A` cannot read or overwrite preferences of `store_B`.
+Multiple Fufuni stores can share one Auth0 tenant.  
+To avoid key collisions, the framework prefixes every preference key with a hash of `STORE_URL`.
 
 ```typescript
-// example Auth0 user_metadata stored in the identity provider
+// env
+STORE_URL=https://shoes.fufuni.example
+
+// resulting key inside user_metadata
 {
-  "extra_user_info/user_metadata": {
-    "store_Rm9vYmFyYmF6eWFwcA": {        // STORE_URL derived
-      "wishlist": ["prod_123", "prod_456"],
-      "currency": "EUR"
-    }
+  "fufuni_aHR0cHM6Ly9zaG9lcy5mdWZ1bmkuZXhhbXBsZQ": {
+    "wishlist": ["prod_123", "prod_456"],
+    "locale": "fr-FR",
+    "newsletter": true
   }
 }
 ```
 
-## useWishlist() hook: API, how it reads the JWT client-side, toggle() flow
+### useWishlist() Hook API
 
-The hook is a thin wrapper around `useTokenUserData`.  
-It parses the JWT once per render, derives the wishlist array, and exposes `toggle()` / `isFavorite()`.
+The hook is a thin wrapper around `useTokenUserData` that:
+
+1. Decodes the JWT once per render
+2. Extracts the namespaced wishlist array
+3. Exposes `toggle()` and `isFavorite()`
 
 ```typescript
-// apps/client/src/hooks/use-wishlist.ts
-export function useWishlist(): UseWishlistReturn {
-  const auth = useAuth();
-  const { refreshToken } = useTokenRefresh();
-  const apiBase = getApiBase();
-
-  const {
-    data: wishlist,
-    isLoading,
-    isError,
-    setData: setWishlist,
-  } = useTokenUserData(getWishlistFromToken, WISHLIST_UPDATED_EVENT);
-
-  const toggle = useCallback(
-    async (productId: string) => {
-      if (!auth.isAuthenticated) return;
-
-      const isFav = wishlist.includes(productId);
-
-      // optimistic mutation
-      const res = isFav
-        ? await auth.deleteJson(`${apiBase}/v1/me/wishlist/${productId}`)
-        : await auth.postJson(`${apiBase}/v1/me/wishlist`, { productId });
-
-      // refresh JWT so UI sees updated metadata
-      const newToken = await refreshToken();
-      const newWishlist = getWishlistFromToken(newToken || null);
-      setWishlist(newWishlist);
-      window.dispatchEvent(
-        new CustomEvent(WISHLIST_UPDATED_EVENT, { detail: newWishlist })
-      );
-    },
-    [auth, refreshToken, wishlist, apiBase]
-  );
-
-  const isFavorite = useCallback(
-    (productId: string) => wishlist.includes(productId),
-    [wishlist]
-  );
-
-  return { wishlist, isLoading, isError, toggle, isFavorite };
-}
-```
-
-Usage in a component:
-
-```tsx
-// apps/client/src/components/product-card.tsx
-import { HeartIcon } from "@heroicons/react/24/solid";
 import { useWishlist } from "@/hooks/use-wishlist";
 
-export function ProductCard({ id }: { id: string }) {
-  const { toggle, isFavorite } = useWishlist();
-  const fav = isFavorite(id);
+function Heart({ productId }: { productId: string }) {
+  const { isFavorite, toggle } = useWishlist();
 
   return (
-    <button onClick={() => toggle(id)}>
-      <HeartIcon className={fav ? "text-red-500" : "text-gray-300"} />
+    <button onClick={() => toggle(productId)}>
+      {isFavorite(productId) ? "❤️" : "🤍"}
     </button>
   );
 }
 ```
 
-## WISHLIST_UPDATED_EVENT: how to dispatch and listen, why it triggers a token refresh
+### Toggle Flow and WISHLIST_UPDATED_EVENT
 
-After every wishlist mutation the hook fires a DOM custom event.  
-Any component can listen and react without importing the hook again.
-
-```typescript
-// apps/client/src/components/header-badge.tsx
-import { useEffect, useState } from "react";
-
-export function WishlistBadge() {
-  const [count, setCount] = useState(0);
-
-  useEffect(() => {
-    const handler = (e: CustomEvent<string[]>) => setCount(e.detail.length);
-    window.addEventListener("fufuni:wishlist-updated", handler as EventListener);
-    return () =>
-      window.removeEventListener("fufuni:wishlist-updated", handler as EventListener);
-  }, []);
-
-  return <span>{count}</span>;
-}
-```
-
-The token refresh is required because Auth0 signs the metadata; the only way to get an updated wishlist is to obtain a new JWT.
-
-## Backend: PATCH /v1/me/preferences — payload shape and when to call it
-
-The endpoint updates arbitrary keys under the namespaced metadata object.
+`toggle()` performs an optimistic-free mutation: it always calls the backend, refreshes the token, then broadcasts the new list.
 
 ```typescript
-// apps/api/src/routes/me/preferences.ts
-import { z } from "zod";
+// apps/client/src/hooks/use-wishlist.ts (excerpt)
+const toggle = useCallback(
+  async (productId: string) => {
+    if (!auth.isAuthenticated) return;
 
-const PreferencesBody = z.object({
-  currency: z.enum(["USD", "EUR", "GBP"]).optional(),
-  locale: z.string().optional(),
-  newsletter: z.boolean().optional(),
-});
-```
+    const isFav = wishlist.includes(productId);
 
-Example call from the client:
+    // 1. backend mutation
+    if (isFav) {
+      await auth.deleteJson(`${apiBase}/v1/me/wishlist/${productId}`);
+    } else {
+      await auth.postJson(`${apiBase}/v1/me/wishlist`, { productId });
+    }
 
-```typescript
-await auth.patchJson(`${apiBase}/v1/me/preferences`, {
-  currency: "EUR",
-  newsletter: false,
-});
-```
+    // 2. refresh token -> new JWT contains updated user_metadata
+    const newToken = await refreshToken();
+    const newWishlist = getWishlistFromToken(newToken || null);
 
-Response: `204 No Content`.  
-The backend uses the Auth0 Management-API `patchUsersById` call, so changes are reflected in the next JWT.
-
-## Saved carts: how they differ from wishlist (DB table vs user_metadata)
-
-Wishlist = simple product IDs → lives in `user_metadata`.  
-Saved carts = full cart rows (product, qty, price) → needs referential integrity → lives in the `saved_carts` SQL table.
-
-```sql
-CREATE TABLE saved_carts (
-  id TEXT PRIMARY KEY,
-  user_id TEXT NOT NULL,
-  name TEXT NOT NULL,
-  cart_data TEXT NOT NULL, -- JSON array of rows
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    // 3. local update + broadcast
+    setWishlist(newWishlist);
+    window.dispatchEvent(
+      new CustomEvent(WISHLIST_UPDATED_EVENT, { detail: newWishlist }),
+    );
+  },
+  [auth, refreshToken, wishlist, apiBase],
 );
 ```
 
-Endpoint: `PATCH /v1/me/saved-carts`  
-Body: `{ name: "Birthday list", cartData: CartRow[] }`  
-Because the data is relational, it is NOT stored in Auth0.
-
-## Step-by-step: how to add a new preference field
-
-1. Extend the metadata type (shared package):
+Any component can listen:
 
 ```typescript
-// packages/shared/src/auth-metadata.ts
-export interface StoreMetadata {
-  wishlist?: string[];
-  currency?: "USD" | "EUR" | "GBP";
+useEffect(() => {
+  const handler = (e: Event) => {
+    const { detail } = e as CustomEvent<string[]>;
+    setUiHearts(detail);
+  };
+  window.addEventListener("fufuni:wishlist-updated", handler);
+  return () => window.removeEventListener("fufuni:wishlist-updated", handler);
+}, []);
+```
+
+### Backend: PATCH /v1/me/preferences
+
+Updates arbitrary preference fields inside the same namespaced object.  
+Payload shape:
+
+```typescript
+// apps/client/src/lib/api-client.ts
+interface PreferencesUpdateDto {
+  locale?: string;
   newsletter?: boolean;
-  theme?: "light" | "dark"; // <-- new
+  currency?: "USD" | "EUR" | "JPY";
+  theme?: "light" | "dark";
 }
 ```
 
-2. Update the backend validator:
+Example call:
 
 ```typescript
-const PreferencesBody = z.object({
-  currency: z.enum(["USD", "EUR", "GBP"]).optional(),
-  theme: z.enum(["light", "dark"]).optional(), // <-- new
+await auth.patchJson(`${apiBase}/v1/me/preferences`, {
+  locale: "ja-JP",
+  theme: "dark",
 });
 ```
 
-3. Read it in any hook/component via `decodeJwt()`:
+The backend route (`updateMyPreferences`) merges the payload into Auth0's `user_metadata` and returns the new access token.
 
-```typescript
-const theme = getStoreMetadata(decodeJwt(token), STORE_URL)?.theme ?? "light";
+### Saved Carts: DB Table vs user_metadata
+
+Saved carts reference cart rows by foreign key and therefore live in SQLite, not in Auth0.
+
+```sql
+-- apps/backend/src/db/schema.sql
+CREATE TABLE saved_carts (
+  id TEXT PRIMARY KEY,
+  user_id TEXT NOT NULL,
+  cart_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (cart_id) REFERENCES carts(id) ON DELETE CASCADE
+);
 ```
 
-4. Persist with `patchJson`:
+Client usage:
 
 ```typescript
-await auth.patchJson(`${apiBase}/v1/me/preferences`, { theme: "dark" });
+// save current cart
+await auth.patchJson(`${apiBase}/v1/me/saved-carts`, {
+  cartId: currentCartId,
+  name: "Week-end trip",
+});
+
+// list saved carts
+const { data } = await auth.getJson(`${apiBase}/v1/me/saved-carts`);
 ```
 
-5. Dispatch a custom event so open tabs refresh:
+### Step-by-Step: Adding a New Preference Field
+
+1. Extend the user_metadata type (shared package):
+
+```typescript
+// packages/types/src/user.ts
+export interface FufuniUserMetadata {
+  wishlist?: string[];
+  locale?: string;
+  newsletter?: boolean;
+  theme?: "light" | "dark";
+  birthday?: string; // <-- new field
+}
+```
+
+2. Read it inside any hook via `decodeJwt()`:
+
+```typescript
+const birthday = useMemo(() => {
+  const token = getAccessToken();
+  if (!token) return undefined;
+  const payload = decodeJwt(token) as any;
+  const meta = getStoreMetadata(
+    payload["extra_user_info/user_metadata"],
+    STORE_URL,
+  );
+  return meta?.birthday;
+}, []);
+```
+
+3. Persist with `patchJson`:
+
+```typescript
+await auth.patchJson(`${apiBase}/v1/me/preferences`, {
+  birthday: "1995-06-21",
+});
+```
+
+4. Broadcast a custom event so UI re-renders:
 
 ```typescript
 window.dispatchEvent(new CustomEvent("fufuni:preferences-updated"));
 ```
 
-6. (Optional) Update `useTokenUserData` to listen to the new event if you want the same reactive behavior as the wishlist.
+Any component subscribed to this event can re-decode the token and update its local state without a page reload.

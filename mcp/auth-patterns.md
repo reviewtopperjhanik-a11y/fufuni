@@ -3,150 +3,145 @@
   Do not edit manually. Run the script to regenerate.
   model:        meta-llama/llama-4-scout-17b-16e-instruct
   tokens_in:    7234
-  tokens_out:   1088
+  tokens_out:   1133
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Authentication Patterns
-The Fufuni e-commerce framework supports various authentication patterns to ensure secure and controlled access to its backend and frontend components.
+The Fufuni e-commerce framework employs a robust authentication system, utilizing Auth0 as the sole identity provider. This system manages Role-Based Access Control (RBAC) exclusively through the Auth0 dashboard.
 
 ### Token Types
 The framework accepts three types of tokens:
 
-1. **Auth0 JWT**: A JSON Web Token (JWT) issued by Auth0, which requires the `admin:store` permission for admin access.
-2. **sk_ API key**: A database-stored API key with a `sk_` prefix, used for server-to-server communication.
-3. **OAuth hex token**: A 64-character hexadecimal token used for scoped API access.
+1. **Auth0 JWT**: A three-part JSON Web Token (JWT) issued by Auth0, which must contain the `admin:store` permission (or a configurable permission string) for admin access.
+2. **sk_ API key**: A database-stored API key with an `sk_` prefix, used for server-to-server authentication.
+3. **OAuth hex token**: A 64-character hexadecimal token, used for scoped API access.
 
 ### AuthRole Values
-The `AuthRole` type defines the possible roles assigned to a request:
+The following `AuthRole` values are assigned based on the authentication method:
 
-*   `'public'`: Unauthenticated or public-key request
-*   `'admin'`: Admin API key or Auth0 token with `admin:store` permission
-*   `'oauth'`: OAuth API key with specific scopes
-*   `'authadmin'`: Token with `admin:auth0` permission
-*   `'databaseadmin'`: Token with `admin:database` permission
-*   `'aiadmin'`: Token with AI permission
-*   `'mail'`: Token with `mail:api` permission
-*   `'customer'`: Auth0 token with no specific admin permission
+*   **`public`**: Unauthenticated or public-key request
+*   **`admin`**: Admin API key or Auth0 token with `admin:store` permission
+*   **`oauth`**: OAuth API key with specific scopes
+*   **`authadmin`**: Token with `admin:auth0` permission
+*   **`databaseadmin`**: Token with `admin:database` permission
+*   **`aiadmin`**: Token with AI permission
+*   **`mail`**: Token with `mail:api` permission
+*   **`customer`**: Auth0 token with no specific admin permission
 
 ### Backend RBAC Guards
-The following table summarizes the available RBAC guards, the role they check, and typical use cases:
+The following table outlines the available RBAC guards, the role they check, and typical use cases:
 
-| Guard | Role | Typical Use Case |
-| --- | --- | --- |
-| `adminOnly` | `admin` or roles includes "admin" | Protect admin endpoints |
-| `superAdminOnly` | `authadmin` | Protect super admin endpoints |
-| `databaseAdminOnly` | `databaseadmin` | Protect database admin endpoints |
-| `aiAccessOnly` | `aiadmin` | Protect AI-related endpoints |
-| `mailAccessOnly` | `mail` | Protect mail-related endpoints |
-| `validJwtAuthOnly` | Any valid JWT | Protect public endpoints with Auth0 authentication |
+| Guard                | Role                | Use Case                          |
+| -------------------- | -------------------- | --------------------------------- |
+| `adminOnly`          | `admin` or `roles` includes "admin" | Admin-only routes                |
+| `superAdminOnly`     | `authadmin`          | Superadmin-only routes            |
+| `databaseAdminOnly`  | `databaseadmin`      | Database admin-only routes        |
+| `aiAccessOnly`       | `aiadmin`            | AI admin-only routes              |
+| `mailAccessOnly`      | `mail`               | Mail API access-only routes       |
+| `validJwtAuthOnly`   | Any valid JWT        | Routes requiring valid JWT        |
 
 ### Protecting a Route with authMiddleware + adminOnly
 ```typescript
 import { authMiddleware, adminOnly } from '../middleware/auth';
 
-export const getAdminData = async (c: Context) => {
-  await authMiddleware(c);
-  await adminOnly(c);
-
-  // Only admins can access this endpoint
-  return c.json({ message: 'Hello, admin!' });
-};
+app.get('/admin/dashboard', authMiddleware, adminOnly, async (c) => {
+  // Only admins can access this route
+  return c.json({ message: 'Welcome, admin!' });
+});
 ```
 
 ### superAdminOnly and the /v1/__auth0/token Management API Endpoint
 ```typescript
 import { superAdminOnly } from '../middleware/auth';
 
-export const getManagementApiToken = async (c: Context) => {
-  await superAdminOnly(c);
-
-  // Only super admins can access this endpoint
-  const token = await getCachedManagementApiToken();
-  return c.json({ token });
-};
+app.get('/v1/__auth0/token', superAdminOnly, async (c) => {
+  // Only superadmins can access this endpoint
+  const managementApiToken = await getManagementApiToken();
+  return c.json({ token: managementApiToken });
+});
 ```
 
 ### customerAuthMiddleware for Customer-Scoped Routes
 ```typescript
 import { customerAuthMiddleware } from '../middleware/customer-auth';
 
-export const getCustomerData = async (c: Context) => {
-  await customerAuthMiddleware(c);
-
-  // Only customers can access this endpoint
+app.get('/v1/me/*', customerAuthMiddleware, async (c) => {
+  // Only customers with a valid JWT can access this route
   return c.json({ message: `Hello, ${c.get('auth').email}!` });
-};
+});
 ```
 
 ## Frontend Authentication Guards
-The frontend provides several authentication guards to control access to components and pages:
+The following guards are used on the frontend:
 
 ### AuthenticationGuard
-Use `AuthenticationGuard` to protect a whole page/component, redirecting to the login page if the user is not authenticated.
+Use `AuthenticationGuard` to protect a whole page/component, redirecting to login if not authenticated:
 
 ```typescript
 import { AuthenticationGuard } from '../components/AuthenticationGuard';
 
-export const AdminPage = () => {
+function MyProtectedPage() {
   return (
     <AuthenticationGuard>
-      <h1>Admin Page</h1>
+      <h1>Welcome, authenticated user!</h1>
     </AuthenticationGuard>
   );
-};
+}
 ```
 
 ### AuthenticationGuardWithPermission
-Use `AuthenticationGuardWithPermission` to conditionally show UI based on a specific Auth0 permission.
+Use `AuthenticationGuardWithPermission` to conditionally show UI based on a specific Auth0 permission:
 
 ```typescript
 import { AuthenticationGuardWithPermission } from '../components/AuthenticationGuardWithPermission';
 
-export const PermissionPage = () => {
+function MyComponent() {
   return (
     <AuthenticationGuardWithPermission permission="admin:store">
-      <h1>Permission Page</h1>
+      <button>Manage store</button>
     </AuthenticationGuardWithPermission>
   );
-};
+}
 ```
 
 ### hasPermission() and isAuthenticated
-Use `hasPermission(permission)` to check asynchronously whether the current user's token contains a specific Auth0 permission string.
-
-Use `isAuthenticated` to check synchronously whether the user is logged in.
+Use `hasPermission(permission)` to check asynchronously whether the current user's token contains a specific Auth0 permission string:
 
 ```typescript
 import { useAuth } from '../hooks/useAuth';
 
-export const ExampleComponent = () => {
-  const { isAuthenticated, hasPermission } = useAuth();
+function MyComponent() {
+  const { hasPermission, isAuthenticated } = useAuth();
 
   if (!isAuthenticated) {
-    return <div>Please log in</div>;
+    return <p>Please log in</p>;
   }
 
-  if (hasPermission('admin:store')) {
-    return <div>You have admin permission</div>;
-  } else {
-    return <div>You do not have admin permission</div>;
+  if (await hasPermission('admin:store')) {
+    return <p>Continue to manage store</p>;
   }
-};
+
+  return <p>You do not have the required permission</p>;
+}
 ```
 
-### LoginModal and UsersAndPermissionsPage
-Use `LoginModal` for a local modal with email/passwordless and social login options.
-
-The `UsersAndPermissionsPage` (/admin/users-and-permissions) allows admins to manage Auth0 user permissions from the storefront UI without going to the Auth0 dashboard.
+### LoginModal
+Use `LoginModal` as a local modal alternative to Auth0 redirect:
 
 ```typescript
 import { LoginModal } from '../components/LoginModal';
 
-export const LoginPage = () => {
+function MyComponent() {
   return (
-    <div>
-      <LoginModal />
-    </div>
+    <LoginModal>
+      <button>Login or signup</button>
+    </LoginModal>
   );
-};
+}
 ```
+
+## Users and Permissions Management
+The UsersAndPermissionsPage (`/admin/users-and-permissions`) allows admins to manage Auth0 user permissions from the storefront UI.
+
+### Deploying Tenant Resources
+The deploy-tenant-resources script (`scripts/auth0/deploy-tenant-resources.ts`) provisions required Auth0 resources (application, API, permissions, actions) with minimal effort.

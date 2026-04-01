@@ -91,7 +91,7 @@ import { fileURLToPath } from 'url';
 
 // Conservative limit: keeps input prompt small enough for the 32k-token models
 // on Groq.  8000 chars ≈ 2000 tokens; leaves ≥ 80% of context for the output.
-const MAX_SOURCE_CHARS = 24_000;
+const MAX_SOURCE_CHARS = 14000;
 const MAX_OUTPUT_TOKENS = 6000;
 
 // ── Shared system prompt fragment reused across topics ──────────────────────
@@ -188,6 +188,10 @@ function nextApiKey(): string {
   const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
   const key = keys[keyIndex % keys.length];
   keyIndex++;
+  // Show in log the index of the key being used (1-based for human readability) and the total number of keys.
+  if (verbose) {
+    console.log(`  [ai] Using API key ${keyIndex % keys.length || keys.length}/${keys.length}`);
+  }
   return key;
 }
 
@@ -360,8 +364,8 @@ async function callAI(
   model = nextModel(),
 ): Promise<{ content: string; tokensIn: number; tokensOut: number }> {
   const apiKey = nextApiKey();
-  const url = `${AI_API_URL}/chat/completions`;
   const isAnthropic = AI_API_URL.includes('anthropic.com');
+  const isGemini = AI_API_URL.includes('generativelanguage.googleapis.com') && !AI_API_URL.includes('openai');
 
   if (verbose) {
     console.log(`  [ai] model=${model} endpoint=${AI_API_URL}`);
@@ -385,14 +389,49 @@ async function callAI(
       },
       body: JSON.stringify(body),
     });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AI API error (Anthropic) ${response.status}: ${errorText}`);
+    }
+
     const data = await response.json();
     return {
       content: data.content?.[0]?.text ?? '',
-      tokensIn: data.usage?.input_tokens ?? 0,
+      tokensIn: data.usage?.input_tokens ?? estimateTokens(systemPrompt + userPrompt),
       tokensOut: data.usage?.output_tokens ?? 0,
     };
   }
 
+  if (isGemini) {
+    // Utiliser l'endpoint natif de Gemini
+    const url = `${AI_API_URL}/models/${model}:generateContent?key=${apiKey}`;
+    const body = {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      generationConfig: { maxOutputTokens: maxTokens },
+    };
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`AI API error (Gemini) ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+    return {
+      content: data.candidates?.[0]?.content?.parts?.[0]?.text ?? '',
+      tokensIn: data.usageMetadata?.promptTokenCount ?? estimateTokens(systemPrompt + userPrompt),
+      tokensOut: data.usageMetadata?.candidatesTokenCount ?? 0,
+    };
+  }
+
+  // Fallback (OpenAI, Groq, Together, etc.)
+  const url = `${AI_API_URL}/chat/completions`;
   const body = {
     model,
     max_tokens: maxTokens,
@@ -406,14 +445,14 @@ async function callAI(
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${apiKey}`,
+      'Authorization': `Bearer ${nextApiKey()}`,
     },
     body: JSON.stringify(body),
   });
 
   if (!response.ok) {
     const errorText = await response.text();
-    throw new Error(`AI API error ${response.status}: ${errorText}`);
+    throw new Error(`AI API error (OpenAI/Groq fallback) ${response.status}: ${errorText}`);
   }
 
   const data = await response.json() as {
@@ -572,7 +611,10 @@ Keep it under 600 words. Use Markdown headings level 2 (##) and 3 (###).
   Do not edit manually. Run the script to regenerate.
 -->
 `,
-    buildPrompt: (src) => `
+    manualFacts: [
+      'The Durable Object can execute synchronous SQL queries via `this.sql.exec()` but incoming calls from the Worker are asynchronous (fetch-based).',
+    ],
+    buildPrompt: (src) => appendFacts(`
 Below is the source of the Durable Object class (do.ts).  It contains the SCHEMA
 constant with the full DDL for all SQLite tables, and the ensureInitialized() method
 that applies runtime migrations.
@@ -588,7 +630,7 @@ Include:
 3. An "Entity Relationship" section with a plain-text ERD showing which tables
    reference others via foreign keys.
 Do not include any DDL code — summarise in tables and prose only.
-`,
+`),
   },
 
   // ── 3. How to add a migration ──────────────────────────────────────────────
@@ -778,6 +820,12 @@ Include:
     description: 'react-i18next usage, adding translations in all 6 locales',
     sources: [
       'apps/client/src/i18n.ts',
+      'apps/client/src/locales/base/en-US.json',
+      'apps/client/src/locales/base/fr-FR.json',
+      'apps/client/src/locales/base/es-ES.json',
+      'apps/client/src/locales/base/zh-CN.json',
+      'apps/client/src/locales/base/ar-SA.json',
+      'apps/client/src/locales/base/he-IL.json',
     ],
     systemPrompt: BASE_SYSTEM,
     staticHeader: `<!--
@@ -785,7 +833,15 @@ Include:
   Do not edit manually. Run the script to regenerate.
 -->
 `,
-    buildPrompt: (src) => `
+    manualFacts: [
+      'New languages must be declared in i18n.ts within availableLanguages.',
+      'Add a new object to the availableLanguages array with the following properties: code (The ISO 639-1 language code, e.g., "en-US"), nativeName (The native name of the language, e.g., "English"), and isRTL (Whether the language is right-to-left, e.g., false).',
+      'json files contains the translation keys for each language. Keys use kebab-case. ex: "admin-users-page-title": "Admin Users Page Title"',
+      'rtl styles are automatically applied to the layout when the language is set to a rtl language.',
+      'Master language is en-US.json. All other languages are derived from this file.',
+      'NEVER use t() default value parameter always add at least the en-US translation key as default value.',
+    ],
+    buildPrompt: (src) => appendFacts(`
 Below is the i18n configuration file.
 
 ${src}
@@ -800,7 +856,7 @@ Include:
 3. How to use the hook in a component: useTranslation(), t('key'), t('key', {count}).
 4. How to handle RTL languages (ar-SA, he-IL) in layout.
 5. A worked example: adding a new "product tags" feature with 3 translation keys.
-`,
+`),
   },
 
   // ── 8. API error patterns ─────────────────────────────────────────────────
@@ -913,6 +969,12 @@ Include:
     sources: [
       'apps/merchant/wrangler.jsonc',
       'apps/merchant/worker-configuration.d.ts',
+      '.github/workflows/create-env-artifact.yaml',
+      '.github/workflows/deploy-cloudflare-worker.yaml',
+      '.github/workflows/pages.yaml',
+      'scripts/generate-wrangler-jsonc.py'
+
+
     ],
     systemPrompt: BASE_SYSTEM,
     staticHeader: `<!--
@@ -922,6 +984,7 @@ Include:
 `,
     manualFacts: [
       'Every .env variable has a 1:1 equivalent GitHub secret (same name). When you add a new env variable, also add it to .github/workflows/create-env-artifact.yaml (the CI encrypted artifact builder) so CI can pass it to the Worker build.',
+      'generate-wrangler-jsonc.py generates wrangler.jsonc from .env and base wrangler.jsonc. It also generates secrets.json for wrangler secret bulk command.',
       'create-env-artifact.yaml generates an encrypted .env + wrangler.jsonc artifact consumed by CI deploy jobs. Without adding a new variable there, it will be absent from CI deployments.',
       'Frontend env vars are NOT VITE_ prefixed. They are injected via vite.config.ts define block as import.meta.env.VARIABLE_NAME. To expose a new variable to the browser: add it to the define block in apps/client/vite.config.ts.',
       'import.meta.env.PERMISSIONS is a string[] derived at build time from all *_PERMISSION .env keys (scopesArray in vite.config.ts). This drives navbar permission filtering without hardcoding permission strings.',
@@ -991,6 +1054,400 @@ Include:
 6. isValidImageUrl() security guard: what it accepts, when to call it.
 7. The R2 backend endpoints (upload, delete, cache purge) and their required permission.
 8. How CDN caching interacts with R2 objects and when to purge.
+`),
+  },
+
+  // ── 11c. Checkout and UCP ─────────────────────────────────────────────────
+  {
+    name: 'checkout-and-ucp',
+    description: 'Stripe checkout flow, UCP sessions, guest checkout vs account',
+    sources: [
+      'apps/merchant/src/routes/checkout.ts',
+      'apps/merchant/src/routes/ucp.ts',
+      'apps/merchant/src/schemas.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'The endpoint /ucp/v1/checkout-sessions is the unique entry point for checkout; it creates both a CartSession and a Stripe PaymentIntent.',
+      'checkout.session.completed is the Stripe event that finalizes the order on the backend (/stripe route).',
+      'Guest checkout does not require a JWT — only the order_token is needed to view the order afterwards.',
+      'ucp_checkout_sessions stores the intermediate state between session creation and finalization.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the checkout, UCP routes and schemas.
+
+${src}
+
+Task: Write a "Checkout and UCP Flow" reference.
+Include:
+1. Architecture: How UCP (Universal Checkout Page) sessions relate to Stripe PaymentIntents.
+2. Step-by-step flow from cart to completed order.
+3. Differences between guest checkout and authenticated user checkout.
+4. Handling the Stripe webhook (checkout.session.completed) to finalize the order.
+`),
+  },
+
+  // ── 11d. Orders and Refunds ───────────────────────────────────────────────
+  {
+    name: 'orders-and-refunds',
+    description: 'Order lifecycle, statuses, Stripe refunds',
+    sources: [
+      'apps/merchant/src/routes/orders.ts',
+      'apps/merchant/src/types.ts',
+      'apps/client/src/config/order-status.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Order statuses are defined in apps/client/src/config/order-status.ts on the frontend and in the 001-add-order-statuses.sql migration on the backend.',
+      'A refund goes through Stripe then updates the status in the DB — never modify the DB directly without going through the Stripe API.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the files defining the orders lifecycle.
+
+${src}
+
+Task: Write an "Orders and Refunds" reference.
+Include:
+1. Order lifecycle and available statuses.
+2. The refund process: How backend interacts with Stripe first before returning success.
+3. Example code for triggering a refund.
+`),
+  },
+
+  // ── 11e. Discounts & Pricing ──────────────────────────────────────────────
+  {
+    name: 'discounts-and-pricing',
+    description: 'Promo codes, pricing by region/variant, final calculation',
+    sources: [
+      'apps/merchant/src/routes/discounts.ts',
+      'apps/merchant/src/lib/pricing.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Prices by region are in variant_prices and shipping_rate_prices — never read the price from the variants table directly in a multi-region production context.',
+      'lib/pricing.ts is the single source of truth for final price calculation (variant + region + discount + tax).',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the files defining discounts and pricing logic.
+
+${src}
+
+Task: Write a "Discounts and Pricing" reference.
+Include:
+1. Difference between direct variant price and regional prices.
+2. How promo codes / discounts are applied and calculated.
+3. The role of lib/pricing.ts as the single source of truth.
+`),
+  },
+
+  // ── 11f. Outbound Webhooks ────────────────────────────────────────────────
+  {
+    name: 'webhooks-outbound',
+    description: 'Outbound webhooks, retry logic, HMAC signature, webhook_deliveries',
+    sources: [
+      'apps/merchant/src/routes/webhooks-outbound.ts',
+      'apps/merchant/src/lib/webhooks.ts',
+      'apps/merchant/src/routes/webhooks.ts',
+      'apps/client/src/pages/admin/webhooks.tsx',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Each outbound event triggers a fetch to the webhook URL with X-Fufuni-Signature, X-Fufuni-Timestamp, and X-Fufuni-Delivery-Id headers.',
+      'webhook_deliveries tracks each attempt (HTTP status, timestamp, payload). Retries are managed by a Cloudflare cron.',
+      'The admin UI displays deliveries, statuses, and allows for manual retries and secret rotation.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the outbound webhook files.
+
+${src}
+
+Task: Write an "Outbound Webhooks" reference for developers.
+Include:
+1. How webhook payloads are secured (X-Fufuni-Signature with HMAC-SHA256, X-Fufuni-Timestamp, X-Fufuni-Delivery-Id).
+2. The retry mechanism via Cloudflare cron and webhook_deliveries tracking.
+3. How developers can register new webhook events and view logs in the Admin UI.
+`),
+  },
+
+  // ── 11g. Email Templates ──────────────────────────────────────────────────
+  {
+    name: 'email-templates',
+    description: 'Mailgun email templates, configuration per order, variables',
+    sources: [
+      'apps/merchant/src/lib/email-templates.ts',
+      'apps/merchant/src/lib/order-email.ts',
+      'apps/merchant/src/routes/mails.ts',
+      'apps/merchant/src/routes/order-email-settings.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Templates are stored in the DB in order_email_settings (HTML + text) and editable from /admin/email-templates.',
+      'Variables available in templates ({{order_id}}, {{customer_name}}, etc.) are injected by lib/order-email.ts.',
+      'Missing MAILGUN_API_KEY = sending is silently ignored — always check logs if emails do not send.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the files for the email templating and dispatching system.
+
+${src}
+
+Task: Write an "Email Templates and Dispatch" reference.
+Include:
+1. Where email templates are stored and how they can be edited.
+2. How variables are interpolated using lib/order-email.ts.
+3. Troubleshooting (e.g. absent MAILGUN_API_KEY).
+`),
+  },
+
+  // ── 11h. Inventory & Warehouses ───────────────────────────────────────────
+  {
+    name: 'inventory-and-warehouses',
+    description: 'Multi-warehouse inventory management, reservations, logs',
+    sources: [
+      'apps/merchant/src/lib/inventory.ts',
+      'apps/merchant/src/routes/inventory.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'warehouse_inventory is the actual stock table. warehouse_inventory_logs tracks every movement (in/out, reason).',
+      'Stock reservation happens at order creation, definitive deduction at Stripe finalization.',
+      'ApiError.insufficientInventory() must be thrown by the handler, not directly by lib/inventory.ts.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the files handling inventory and logistics.
+
+${src}
+
+Task: Write an "Inventory and Warehouses" reference.
+Include:
+1. How stock is tracked across multiple warehouses.
+2. The difference between stock reservation and definitive deduction.
+3. Error handling for insufficient inventory.
+`),
+  },
+
+  // ── 11i. Regions, Taxes & Shipping ────────────────────────────────────────
+  {
+    name: 'regions-taxes-shipping',
+    description: 'Regions, countries, inclusive/exclusive taxes, shipping classes',
+    sources: [
+      'apps/merchant/src/routes/regions.ts',
+      'apps/merchant/src/routes/tax-rates.ts',
+      'apps/merchant/src/lib/tax.ts',
+      'apps/merchant/src/lib/shipping.ts',
+      'apps/merchant/src/routes/shipping-rates.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'A region groups countries (region_countries), warehouses (region_warehouses) and shipping rates (region_shipping_rates).',
+      'tax_inclusive on a region means the displayed price already includes VAT — lib/tax.ts adapts the calculation accordingly.',
+      'The tax_code on a shipping rate allows applying specific tax rules to shipping.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below is the logic for Regions, Taxes and Shipping.
+
+${src}
+
+Task: Write a "Regions, Taxes and Shipping" reference.
+Include:
+1. What entities a region groups together.
+2. Behavior of tax_inclusive and how lib/tax.ts handles it.
+3. Applying specific tax_codes to shipping rates.
+`),
+  },
+
+  // ── 11j. Embedded OAuth ───────────────────────────────────────────────────
+  {
+    name: 'oauth-embedded',
+    description: 'Embedded OAuth2 server, third-party clients, authorization flow',
+    sources: [
+      'apps/merchant/src/routes/oauth.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'The embedded OAuth server is distinct from Auth0 — it allows exposing the Fufuni API to third-party apps without sharing sk_ keys.',
+      '.well-known/oauth-authorization-server exposes standard OAuth2 metadata.',
+      'Scopes available for third-party OAuth clients are a subset of Auth0 permissions.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below is the embedded OAuth route.
+
+${src}
+
+Task: Write an "Embedded OAuth Server" reference.
+Include:
+1. Difference between this OAuth server and the main Auth0 instance.
+2. The authorization_code flow for third parties.
+3. How scopes are limited compared to Auth0.
+`),
+  },
+
+  // ── 11k. Admin CRUD Pattern ───────────────────────────────────────────────
+  {
+    name: 'admin-crud-pattern',
+    description: 'Reusable admin CRUD pattern, useAdminCrud hook, components',
+    sources: [
+      'apps/client/src/shared/ui/admin/admin-crud-layout.tsx',
+      'apps/client/src/shared/ui/admin/row-actions.tsx',
+      'apps/client/src/hooks/use-admin-crud.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'AdminCrudLayout + useAdminCrud is the standard pattern for all admin pages. Do not reinvent a custom CRUD pattern.',
+      'useAdminCrud handles: pagination, sorting, search, create/edit/delete, delete confirmation.',
+      'Columns are defined via a ColumnDef array compatible with HeroUI v3 Table.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below is the admin CRUD layout code.
+
+${src}
+
+Task: Write an "Admin CRUD Pattern" reference.
+Include:
+1. How to create a new admin page using AdminCrudLayout.
+2. Example of defining columns and wiring up useAdminCrud.
+3. Avoiding custom implementations in favor of this unified pattern.
+`),
+  },
+
+  // ── 11l. Invoice & PDF ────────────────────────────────────────────────────
+  {
+    name: 'invoice-and-pdf',
+    description: 'Client-side PDF invoice generation, format, currency utilities',
+    sources: [
+      'apps/client/src/lib/invoice-generator.ts',
+      'apps/client/src/utils/invoice-pdf.ts',
+      'apps/client/src/utils/currency.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'PDF generation is 100% client-side (browser) — no server dependency.',
+      'utils/currency.ts formats amounts taking into account the cart\'s locale and currency.',
+      'The PDF is generated in base64 and offered for download via a blob URL.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the files for invoice and PDF generation.
+
+${src}
+
+Task: Write an "Invoice and PDF Generation" reference.
+Include:
+1. The 100% client-side architecture (no backend load).
+2. How currency formatting is handled based on locale.
+3. Delivering the PDF payload using blob URLs.
+`),
+  },
+
+  // ── 11m. Theming & Layouts ────────────────────────────────────────────────
+  {
+    name: 'theming-and-layouts',
+    description: 'Themes (classic/luxury), layouts, CMS content config, theme switching',
+    sources: [
+      'apps/client/src/layouts/default.tsx',
+      'apps/client/src/layouts/luxury.tsx',
+      'apps/client/src/config/cms-content.ts',
+      'apps/client/src/providers/theme-provider.tsx',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'The luxury layout is a complete visual variant — router, header and footer are different.',
+      'cms-content.ts defines editable content blocks (hero banner, carousel, etc.) without an external CMS database.',
+      'Custom themes are stored in store_themes and loaded at startup via the API.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the layouts, CMS config, and theme provider.
+
+${src}
+
+Task: Write a "Theming and Layouts" reference.
+Include:
+1. Differences between the default and luxury layouts.
+2. Custom theme storage in the DB and how they are injected at startup.
+3. Using cms-content.ts for editable CMS blocks.
+`),
+  },
+
+  // ── 11n. Migrations Reference ─────────────────────────────────────────────
+  {
+    name: 'migrations-reference',
+    description: 'Complete reference of migrations: their order, content, what they add',
+    sources: ['apps/merchant/src/do.ts', 'apps/merchant/migrations/*.sql'],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'The highest migration is currently 033. Any new migration must be numbered 034.',
+      'ANY database migration MUST follow a strict 3-step process:',
+      '1 - Add the SQL migration script to ensureInitialized() in apps/merchant/src/do.ts (to evolve existing databases).',
+      '2 - Update the SCHEMA constant in apps/merchant/src/do.ts (so newly created databases have the complete, up-to-date schema).',
+      '3 - Create a new .sql file in apps/merchant/migrations/ (for compatibility, historical tracking, and LLM visibility).',
+    ],
+    buildPrompt: (_src) => appendFacts(`
+Task: Write a "Migrations Reference".
+Include:
+1. A conceptual overview of why we track migrations as they evolved up to 033.
+2. The absolute STRICT necessity of the 3-step migration process:
+   - Modifying ensureInitialized() in apps/merchant/src/do.ts
+   - Modifying SCHEMA in apps/merchant/src/do.ts
+   - Creating a .sql file in apps/merchant/migrations
+3. The mechanism to run these on DO startup automatically.
 `),
   },
   // ── 12. MCP server quick-start ────────────────────────────────────────────
@@ -1163,6 +1620,7 @@ Include:
       'NEVER add a new page to the router without also adding it to apps/client/src/config/site.ts if it needs navbar visibility.',
       'NEVER call a refund by modifying the DB directly — always go through the Stripe API first, then the DB update follows.',
       'NEVER pass jwt tokens manually in API calls — use the useSecuredApi() hook which handles this automatically.',
+      'ALWAYS update scripts/generate-static-mcp-response.ts when adding new files (API routes, UI components, migrations). You MUST add the new file path to the `sources` array of the most relevant topic otherwise the AI knowledge base will desynchronize.',
     ],
     buildPrompt: (_src) => appendFacts(`
 Task: Write a "Conventions & Anti-Patterns" reference for Fufuni developers.
@@ -1180,6 +1638,9 @@ For each anti-pattern, show the WRONG code, then the CORRECT alternative.
 
 // ─── main ─────────────────────────────────────────────────────────────────────
 async function main() {
+  // Display how many keys we have in the pool before starting generation so we can correlate with AI call success/failures.
+
+
   // Discover usable models from the API before printing the summary.
   // Skipped in dry-run and skip-ai modes to avoid unnecessary API calls.
   if (!dryRun && !skipAI) {

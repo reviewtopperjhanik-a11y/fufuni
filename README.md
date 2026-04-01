@@ -1055,7 +1055,7 @@ Admins holding the `AI_PERMISSION` claim (`ai:api` by default) see additional co
 
 **Outbound event types:** `order.created`, `order.updated`, `order.shipped`, `order.refunded`, `inventory.low`, `order.*` (wildcard)
 
-All outbound webhooks are signed with `X-Merchant-Signature` (HMAC-SHA256).
+All outbound webhooks are signed with `X-Fufuni-Signature` (HMAC-SHA256).
 
 ---
 

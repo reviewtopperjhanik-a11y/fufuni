@@ -258,7 +258,7 @@
   "admin-webhooks-recent-deliveries": "最近交货",
   "admin-webhooks-rotate": "旋转秘密",
   "admin-webhooks-rotating": "旋转...",
-  "admin-webhooks-secret-note": "使用此密钥来验证 Webhook 签名。\n每次交付都包含一个 X-Merchant-Signature 标头。",
+  "admin-webhooks-secret-note": "使用此密钥来验证 Webhook 签名。\n每次交付都包含一个 X-Fufuni-Signature 标头。",
   "admin-webhooks-secret-savehint": "保存这个秘密——它不会再被显示",
   "admin-webhooks-secret-title": "Webhook 秘密",
   "admin-webhooks-subscribed-events": "订阅事件",

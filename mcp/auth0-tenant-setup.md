@@ -3,206 +3,191 @@
   Do not edit manually. Run the script to regenerate.
   model:        moonshotai/kimi-k2-instruct-0905
   tokens_in:    3044
-  tokens_out:   1577
+  tokens_out:   1418
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Auth0 Tenant Setup & Permissions
 
-### Running the deploy script
+### Running the Deploy Script
 
-The single script `scripts/auth0/deploy-tenant-resources.ts` creates every Auth0 artefact the store needs: SPA application, API resource server, scopes, social connections and a post-login Action.  
-Run it once per tenant (local, staging, prod) and commit the generated `.env` entries to your secret manager, **never** to Git.
+The single command below creates or updates every Auth0 object the store needs:
 
 ```bash
-npx tsx scripts/auth0/deploy-tenant-resources.ts -- --env-file=.env.local
+npx tsx scripts/auth0/deploy-tenant-resources.ts -- --env-file=.env.auth0
 ```
 
-Required variables (the script will prompt for any that are missing):
+What the script provisions:
+
+| Resource | Name pattern | Notes |
+| --- | --- | --- |
+| SPA application | `{tenant}-app` | Grants `authorization_code` + `refresh_token`, only first-party |
+| API resource server | `{tenant}-api` | Audience = `AUTH0_AUDIENCE`, scopes listed below |
+| Social connections | github, google-oauth2, windowslive, apple | Auto-enabled for the SPA |
+| Post-login Action | `Add Userinfo to jwt` | Injects `user_metadata` into access token |
+| M2M client | Auth0 Management API test app | Re-used to obtain cached management token |
+
+Required `.env.auth0` variables:
 
 ```bash
-AUTH0_DOMAIN=your-tenant.eu.auth0.com
-AUTH0_TENANT=your-tenant
-AUTH0_MANAGEMENT_API_CLIENT_ID=********
-AUTH0_MANAGEMENT_API_CLIENT_SECRET=********
-AUTH0_AUDIENCE=https://api.your-domain.com/
+AUTH0_DOMAIN=<tenant>.eu.auth0.com
+AUTH0_TENANT=<tenant>
+AUTH0_MANAGEMENT_API_CLIENT_ID=***
+AUTH0_MANAGEMENT_API_CLIENT_SECRET=***
+AUTH0_AUDIENCE=https://api.<your-domain>/
 STORE_URL=http://localhost:5173
 ```
 
-After a successful run the script **writes back** the generated IDs so your Worker can read them:
+Run with `--detailed-help` to see the 7-step wizard for creating the management client.
 
-```bash
-AUTH0_CLIENT_ID=********************
-AUTH0_CLIENT_SECRET=****************
-AUTH0_ACTION_USERINFO=****************
-```
+### Auth0 Scopes / Permissions Matrix
 
-Keep the file out of source control and inject it at build time via Wrangler secrets or GitHub environments.
+Each scope is created on the resource server and mapped to a Fufuni permission.
 
----
+| Scope value | Description | Fufuni permission | Typical use-case |
+| --- | --- | --- | --- |
+| `admin:store` | Full admin dashboard | `admin:store` | View orders, coupons, analytics |
+| `auth0:admin:api` | Proxy Auth0 Management API | `auth0:admin:api` | UsersAndPermissionsPage |
+| `ai:api` | Call AI endpoints | `ai:api` | Generate product descriptions |
+| `mail:api` | Send transactional email | `mail:api` | Order confirmation |
+| `database:admin` | Direct Durable Objects queries | `database:admin` | Raw SQL in admin panel |
 
-### Auth0 permission scopes reference
-
-All scopes are attached to the resource server whose audience matches `AUTH0_AUDIENCE`.  
-They are grouped by domain and enforced by the backend RBAC middleware.
-
-| Scope | Description | Used in route guard |
-|-------|-------------|---------------------|
-| `admin:store` | Full admin dashboard access (products, orders, discounts) | `guard("admin:store")` |
-| `auth0:admin:api` | Super-admin: can call Auth0 Management API via the proxy | `guard("auth0:admin:api")` |
-| `ai:api` | Access to AI endpoints (description generation, image alt) | `guard("ai:api")` |
-| `mail:api` | Send transactional e-mail (order confirmation, password reset) | `guard("mail:api")` |
-| `database:admin` | Direct D1 SQL queries (used by internal tooling) | `guard("database:admin")` |
-
-The deploy script registers them in the resource-server section:
+The deploy script declares only the scopes; the backend enforces the mapping via:
 
 ```typescript
-const api = await createOrUpdateResourceServer(auth0Domain, token, {
-  name: `${tenant}-api`,
-  identifier: env("AUTH0_AUDIENCE"),
-  scopes: [
-    { value: "read:messages", description: "Read messages" },
-    { value: "write:messages", description: "Write messages" },
-    { value: "admin:store", description: "Administer store" },
-    { value: "auth0:admin:api", description: "Manage Auth0 tenant" },
-    { value: "ai:api", description: "Use AI features" },
-    { value: "mail:api", description: "Send e-mail" },
-    { value: "database:admin", description: "Direct DB access" },
-  ],
-  signing_alg: "RS256",
-  allow_offline_access: true,
-  token_lifetime: 3600,
-});
+// backend/src/middleware/permissions.ts
+export const requirePermission = (p: string) =>
+  createMiddleware<{ Variables: { user: UserJwt } }>(async (c, next) => {
+    const permissions = c.get("user").permissions ?? [];
+    if (!permissions.includes(p)) throw new HTTPException(403);
+    await next();
+  });
 ```
 
----
+### Post-Login Action – What It Injects
 
-### Post-login Action: what it injects and why
-
-The Action `Add Userinfo to jwt` (configurable via `AUTH0_POST_LOGIN_ACTION_NAME`) runs **after** the user authenticates and **before** the token is issued.  
-It copies `user.user_metadata` (wishlist, newsletter flag, currency, etc.) into a namespaced custom claim so the Worker can read it without an extra lookup.
-
-File: `scripts/auth0/auth0-code/add-userinfo-to-access-jwt.js`
+The Action runs **after every login** and copies selected `user_metadata` fields into namespaced custom claims:
 
 ```javascript
+// scripts/auth0/auth0-code/add-userinfo-to-access-jwt.js
 exports.onExecutePostLogin = async (event, api) => {
-  // Only touch the access token
-  if (event.client.metadata && event.client.metadata.skip_action) return;
-
   const { user } = event;
-
-  // Merge app_metadata and user_metadata
-  const meta = {
-    ...user.app_metadata,
-    ...user.user_metadata,
-  };
-
-  // Persist in the access token
-  api.accessToken.setCustomClaim("https://fufuni.com/userinfo", meta);
+  const namespace = "https://api.fufuni.com"; // must match JWT validator
+  if (user.user_metadata) {
+    api.accessToken.setCustomClaim(`${namespace}/wishlist`, user.user_metadata.wishlist ?? []);
+    api.accessToken.setCustomClaim(`${namespace}/preferences`, user.user_metadata.preferences ?? {});
+  }
 };
 ```
 
-The claim is namespaced to prevent collisions with standard OIDC claims.  
-In the Worker you read it with:
+Resulting JWT payload:
+
+```json
+{
+  "iss": "https://<tenant>.eu.auth0.com/",
+  "aud": "https://api.<domain>/",
+  "https://api.fufuni.com/wishlist": ["sku-123", "sku-456"],
+  "https://api.fufuni.com/preferences": { "currency": "EUR", "language": "en" }
+}
+```
+
+This avoids an extra `GET /user-metadata` call on every request.
+
+### M2M Token Caching
+
+The Management API proxy re-uses the same client-credential token for ~23 hours to stay under Auth0’s **M2M token quota**.
 
 ```typescript
-const userinfo: UserMetadata = payload["https://fufuni.com/userinfo"];
+// backend/src/auth0/management-client.ts
+const CACHE_KEY = "auth0_management_token";
+const CACHE_TTL = 23 * 3600; // seconds
+
+export async function getCachedToken(c: Context) {
+  const cached = await c.env.KV.get(CACHE_KEY);
+  if (cached) return cached;
+  const newToken = await fetchClientCredentialsGrant();
+  await c.env.KV.put(CACHE_KEY, newToken, { expirationTtl: CACHE_TTL });
+  return newToken;
+}
 ```
 
-Because the data is inside the JWT, every subsequent request is stateless and the UI can immediately render the wishlist icon without an extra round-trip.
-
----
-
-### M2M token caching
-
-The Management API is paid per issued token.  
-The script exchanges client-credentials once and caches the signed JWT in **Cloudflare KV** under the key `auth0_management_token` with a TTL of 23 h (leaving 1 h of grace to rotate before expiry).
-
-```typescript
-// auth0-helper.ts
-const cacheKey = "auth0_management_token";
-const cached = await env.KV.get(cacheKey);
-if (cached) return cached;
-
-const token = await fetchMgmtToken();
-await env.KV.put(cacheKey, token, { expirationTtl: 82_800 }); // 23 h
-```
-
-Rotate the key manually if you revoke the secret:
-
-```bash
-wrangler kv:key delete auth0_management_token --namespace-id=<KV_ID>
-```
-
----
+KV namespace: `KV` (bound in `wrangler.toml`).
 
 ### UsersAndPermissionsPage
 
 Route: `/admin/users-and-permissions`  
 Required permission: `auth0:admin:api`
 
-The page uses the backend proxy (`/api/auth0/*`) that forwards to the Management API, so the browser never sees the M2M secret.  
-Admins can:
+Capabilities:
 
-- List / search users
-- Create / block / delete users
-- Assign / remove roles
-- Grant / revoke the custom scopes defined above
-- Trigger password-reset e-mail
+- List / search users (supports `q`, `page`, `per_page`)
+- Create user (email + password)
+- Block / unblock user
+- Reset password (send email)
+- Assign / remove roles (`admin`, `customer`, `warehouse`)
+- View user logs (last 50 entries)
 
-Example guard in the React router:
+The page calls the backend proxy endpoint:
 
 ```typescript
-<Route
-  path="/admin/users-and-permissions"
-  element={
-    <AuthenticationGuardWithPermission requiredPermission="auth0:admin:api">
-      <UsersAndPermissionsPage />
-    </AuthenticationGuardWithPermission>
-  }
-/>
+// backend/src/routes/admin.ts
+.post("/admin/auth0/users", async (c) => {
+  const body = await c.req.json();
+  return auth0AdminRequest(c, "POST", "users", body);
+})
 ```
 
----
+All routes are guarded by:
 
-### Adding a new permission end-to-end
+```typescript
+app.use("/admin/*", requirePermission("auth0:admin:api"));
+```
 
-1. Add the scope to the deploy script  
-   `scripts/auth0/deploy-tenant-resources.ts`
+### Adding a New Permission End-to-End
 
-   ```typescript
-   scopes: [
-     ...previousScopes,
-     { value: "reports:read", description: "Access sales reports" },
-   ],
-   ```
+1. Declare the scope in the deploy script
 
-2. Re-run the deploy script for every tenant
+```typescript
+// scripts/auth0/deploy-tenant-resources.ts
+scopes: [
+  ...existingScopes,
+  { value: "reports:export", description: "Export analytics reports" },
+]
+```
 
-   ```bash
-   npx tsx scripts/auth0/deploy-tenant-resources.ts -- --env-file=.env.staging
-   npx tsx scripts/auth0/deploy-tenant-resources.ts -- --env-file=.env.prod
-   ```
+2. Re-run the deploy script
 
-3. Guard the backend route
+```bash
+npx tsx scripts/auth0/deploy-tenant-resources.ts -- --env-file=.env.auth0
+```
 
-   ```typescript
-   // routes/api/reports.ts
-   import { guard } from "@/middleware/rbac";
+3. Add the backend RBAC guard
 
-   export const GET = guard("reports:read")(async ({ env, payload }) => {
-     const rows = await env.DB.prepare("SELECT * FROM sales").all();
-     return json(rows);
-   });
-   ```
+```typescript
+// backend/src/routes/reports.ts
+app.get("/reports/export", requirePermission("reports:export"), async (c) => {
+  const csv = await generateReport();
+  return c.body(csv, 200, { "Content-Type": "text/csv" });
+});
+```
 
-4. Gate the frontend link / page
+4. Gate the frontend button
 
-   ```typescript
-   <AuthenticationGuardWithPermission requiredPermission="reports:read">
-     <Link to="/admin/reports">Sales Reports</Link>
-   </AuthenticationGuardWithPermission>
-   ```
+```tsx
+// frontend/src/pages/admin/ReportsPage.tsx
+<AuthenticationGuardWithPermission permission="reports:export">
+  <Button color="primary" onPress={handleExport}>
+    Export CSV
+  </Button>
+</AuthenticationGuardWithPermission>
+```
 
-5. (Optional) Assign the new scope to an existing role via the UsersAndPermissionsPage or by API call.
+5. (Optional) Seed the permission to existing admins
 
-That is the entire flow—no manual clicking inside the Auth0 dashboard is necessary because the script is the single source of truth.
+```sql
+-- Durable Objects SQL console
+INSERT INTO user_permissions (user_id, permission)
+SELECT user_id, 'reports:export'
+FROM user_permissions WHERE permission = 'admin:store';
+```
+
+The new permission is now enforced everywhere without restarting the edge worker.

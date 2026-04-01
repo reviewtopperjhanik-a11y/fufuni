@@ -291,7 +291,7 @@
   "admin-webhooks-col-events": "Events",
   "admin-webhooks-secret-title": "Webhook Secret",
   "admin-webhooks-secret-savehint": "Save this secret — it won't be shown again",
-  "admin-webhooks-secret-note": "Use this secret to verify webhook signatures. Each delivery includes an X-Merchant-Signature header.",
+  "admin-webhooks-secret-note": "Use this secret to verify webhook signatures. Each delivery includes an X-Fufuni-Signature header.",
   "admin-webhooks-detail-title": "Webhook Details",
   "admin-webhooks-subscribed-events": "Subscribed Events",
   "admin-webhooks-recent-deliveries": "Recent Deliveries",

@@ -358,7 +358,7 @@ DELETE /v1/webhooks/{id}
 
 **Wildcards:** `order.*` or `*` for all events
 
-Payloads are signed with HMAC-SHA256. Verify with the `X-Merchant-Signature` header.
+Payloads are signed with HMAC-SHA256. Verify with the `X-Fufuni-Signature` header.
 
 ## UCP (Universal Commerce Protocol)
 

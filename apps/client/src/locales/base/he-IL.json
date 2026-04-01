@@ -259,7 +259,7 @@
   "admin-webhooks-recent-deliveries": "משלוחים אחרונים",
   "admin-webhooks-rotate": "סובב סוד",
   "admin-webhooks-rotating": "מסתובב...",
-  "admin-webhooks-secret-note": "השתמש בסוד זה כדי לאמת חתימות webhook. \nכל משלוח כולל כותרת X-Merchant-Signature.",
+  "admin-webhooks-secret-note": "השתמש בסוד זה כדי לאמת חתימות webhook. \nכל משלוח כולל כותרת X-Fufuni-Signature.",
   "admin-webhooks-secret-savehint": "שמור את הסוד הזה - הוא לא יוצג שוב",
   "admin-webhooks-secret-title": "Webhook Secret",
   "admin-webhooks-subscribed-events": "אירועים מנויים",

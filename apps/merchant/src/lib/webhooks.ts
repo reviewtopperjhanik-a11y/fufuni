@@ -168,9 +168,9 @@ async function deliverWebhook(
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Merchant-Signature': signature,
-          'X-Merchant-Timestamp': String(timestamp),
-          'X-Merchant-Delivery-Id': deliveryId,
+          'X-Fufuni-Signature': signature,
+          'X-Fufuni-Timestamp': String(timestamp),
+          'X-Fufuni-Delivery-Id': deliveryId,
           'User-Agent': 'Merchant-Webhook/1.0',
         },
         body: payloadString,

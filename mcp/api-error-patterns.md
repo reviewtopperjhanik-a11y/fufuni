@@ -3,7 +3,7 @@
   Do not edit manually. Run the script to regenerate.
   model:        moonshotai/kimi-k2-instruct-0905
   tokens_in:    2868
-  tokens_out:   1724
+  tokens_out:   2275
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## API Error Handling Reference
@@ -12,22 +12,28 @@
 
 | Method | HTTP Status | Use Case |
 |--------|------------|----------|
-| `ApiError.unauthorized()` | 401 | Missing or invalid authentication |
-| `ApiError.forbidden()` | 403 | Authenticated but lacks required permission |
-| `ApiError.notFound()` | 404 | Resource does not exist |
-| `ApiError.invalidRequest()` | 400 | Validation error in request body or query |
-| `ApiError.conflict()` | 409 | Resource state conflict (duplicate SKU, etc.) |
-| `ApiError.insufficientInventory()` | 409 | Stock too low for requested quantity |
-| `ApiError.stripeError()` | 502 | Stripe API failure |
-| `ApiError.internalServerError()` | 500 | Unexpected server error |
-| `ApiError.badRequest()` | 400 | General malformed request |
+| `unauthorized()` | 401 | Missing or invalid authentication credentials |
+| `forbidden()` | 403 | Authenticated but lacks required permissions |
+| `notFound()` | 404 | Requested resource does not exist |
+| `invalidRequest()` | 400 | Request body or parameters fail validation |
+| `conflict()` | 409 | Resource state conflict (e.g., duplicate SKU) |
+| `insufficientInventory()` | 409 | Order quantity exceeds available stock |
+| `stripeError()` | 502 | Stripe API integration failure |
+| `internalServerError()` | 500 | Unexpected server-side errors |
+| `badRequest()` | 400 | General client errors |
 
 ### Hono Error Conversion
 
-The framework registers a global error handler that converts any thrown `ApiError` into a standardized JSON envelope:
+Hono's global error handler automatically converts thrown `ApiError` instances into standardized JSON responses. The error handler extracts the `code`, `message`, and `details` properties and wraps them in a consistent error envelope.
 
 ```typescript
 // apps/merchant/src/index.ts
+import { Hono } from 'hono';
+import { ApiError } from './types';
+
+const app = new Hono<HonoEnv>();
+
+// Global error handler
 app.onError((err, c) => {
   if (err instanceof ApiError) {
     return c.json(
@@ -41,7 +47,8 @@ app.onError((err, c) => {
       err.statusCode
     );
   }
-  // Non-ApiError exceptions become 500
+  
+  // Handle unexpected errors
   return c.json(
     {
       error: {
@@ -56,231 +63,324 @@ app.onError((err, c) => {
 
 ### Common Error Examples
 
-#### Not Found
+#### Not Found Errors
 ```typescript
 // apps/merchant/src/routes/products.ts
+import { ApiError } from '../types';
+
 app.get('/api/products/:id', async (c) => {
   const { id } = c.req.param();
-  const product = await c.var.db.query<Product>(
+  const product = await c.var.db.query(
     'SELECT * FROM products WHERE id = ?',
     [id]
   );
-  if (!product.length) {
-    throw ApiError.notFound('Product not found');
+  
+  if (product.length === 0) {
+    throw ApiError.notFound(`Product with ID ${id} not found`);
   }
+  
   return c.json(product[0]);
 });
 ```
 
-#### Unauthorized
+#### Unauthorized Access
 ```typescript
 // apps/merchant/src/middleware/auth.ts
-const requireAuth = createMiddleware<HonoEnv>(async (c, next) => {
+import { ApiError } from '../types';
+
+export const requireAuth = async (c: Context<HonoEnv>, next: Next) => {
   const token = c.req.header('Authorization')?.replace('Bearer ', '');
+  
   if (!token) {
-    throw ApiError.unauthorized('Missing bearer token');
+    throw ApiError.unauthorized('Missing authentication token');
   }
-  // ... validate token
+  
+  // Token validation logic...
   await next();
-});
+};
 ```
 
-#### Forbidden
+#### Forbidden Operations
 ```typescript
 // apps/merchant/src/routes/admin.ts
+import { ApiError } from '../types';
+
 app.post('/api/admin/products', async (c) => {
-  const { role } = c.var.auth;
-  if (!Array.isArray(role) ? role !== 'admin' : !role.includes('admin')) {
-    throw ApiError.forbidden('Admin permission required');
+  const auth = c.var.auth;
+  
+  if (!auth.permissions?.includes('admin:store')) {
+    throw ApiError.forbidden('Admin permissions required');
   }
-  // ... proceed with admin action
+  
+  // Admin-only logic...
 });
 ```
 
-#### Conflict
+#### Validation Conflicts
 ```typescript
 // apps/merchant/src/routes/products.ts
+import { ApiError } from '../types';
+
 app.post('/api/products', async (c) => {
-  const { sku } = c.req.valid('json');
+  const body = await c.req.json();
+  const { sku } = body;
+  
+  // Check for duplicate SKU
   const existing = await c.var.db.query(
     'SELECT id FROM products WHERE sku = ?',
     [sku]
   );
-  if (existing.length) {
-    throw ApiError.conflict(`SKU ${sku} already exists`);
+  
+  if (existing.length > 0) {
+    throw ApiError.conflict(`Product with SKU ${sku} already exists`);
   }
-  // ... create product
+  
+  // Create product...
 });
 ```
 
-#### Invalid Request
-```typescript
-// apps/merchant/src/routes/checkout.ts
-app.post('/api/checkout', async (c) => {
-  const body = c.req.valid('json');
-  if (!body.items?.length) {
-    throw ApiError.invalidRequest('items array is required', {
-      field: 'items',
-      received: body.items,
-    });
-  }
-  // ... process checkout
-});
-```
-
-#### Insufficient Inventory
+#### Invalid Request Data
 ```typescript
 // apps/merchant/src/routes/orders.ts
+import { ApiError } from '../types';
+
 app.post('/api/orders', async (c) => {
-  const { items } = c.req.valid('json');
+  const body = await c.req.json();
+  
+  if (!body.items || !Array.isArray(body.items)) {
+    throw ApiError.invalidRequest('items must be an array', {
+      field: 'items',
+      received: typeof body.items,
+    });
+  }
+  
+  if (body.items.length === 0) {
+    throw ApiError.invalidRequest('Order must contain at least one item');
+  }
+  
+  // Process order...
+});
+```
+
+#### Inventory Management
+```typescript
+// apps/merchant/src/routes/orders.ts
+import { ApiError } from '../types';
+
+app.post('/api/orders', async (c) => {
+  const db = c.var.db;
+  const { items } = await c.req.json();
+  
   for (const item of items) {
-    const [stock] = await c.var.db.query<{ quantity: number }>(
+    const inventory = await db.query(
       'SELECT quantity FROM inventory WHERE sku = ?',
       [item.sku]
     );
-    if (!stock || stock.quantity < item.quantity) {
+    
+    if (inventory[0]?.quantity < item.quantity) {
       throw ApiError.insufficientInventory(item.sku);
     }
   }
-  // ... create order
+  
+  // Proceed with order...
 });
 ```
 
-#### Internal Server Error
+#### Server Errors
 ```typescript
-// apps/merchant/src/routes/webhooks.ts
-app.post('/api/webhooks/stripe', async (c) => {
+// apps/merchant/src/routes/stripe.ts
+import { ApiError } from '../types';
+
+app.post('/api/stripe/charge', async (c) => {
   try {
-    const event = await validateStripeWebhook(c);
-    // ... process event
-  } catch (err) {
-    console.error('Webhook processing failed:', err);
-    throw ApiError.internalServerError('Webhook processing failed');
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: 2000,
+      currency: 'usd',
+    });
+    
+    return c.json({ clientSecret: paymentIntent.client_secret });
+  } catch (error) {
+    // Stripe API errors
+    throw ApiError.stripeError('Failed to create payment intent');
   }
 });
 ```
 
 ### Custom Error Messages
 
-Create domain-specific errors by extending the base helpers:
+Create domain-specific errors by extending the base `ApiError` class:
 
 ```typescript
 // apps/merchant/src/lib/errors.ts
-export class ProductErrors {
+import { ApiError } from '../types';
+
+export class ProductError {
   static notFound(id: string) {
     return ApiError.notFound(`Product ${id} not found`);
   }
   
-  static invalidPrice(min: number, max: number) {
-    return ApiError.invalidRequest(
-      `Price must be between ${min} and ${max}`,
-      { min, max }
-    );
-  }
-  
-  static discontinued(sku: string) {
-    return ApiError.conflict(`Product ${sku} has been discontinued`);
+  static invalidCategory(categoryId: string) {
+    return ApiError.invalidRequest('Invalid product category', {
+      categoryId,
+      availableCategories: ['electronics', 'clothing', 'books'],
+    });
   }
 }
 
-// Usage in route
-throw ProductErrors.invalidPrice(0.01, 9999.99);
+export class OrderError {
+  static expired(orderId: string) {
+    return new ApiError('order_expired', 410, `Order ${orderId} has expired`, {
+      orderId,
+      expiredAt: new Date().toISOString(),
+    });
+  }
+  
+  static invalidTransition(from: string, to: string) {
+    return new ApiError('invalid_status_transition', 409, 
+      `Cannot transition order from ${from} to ${to}`,
+      { from, to }
+    );
+  }
+}
+
+// Usage in routes
+import { ProductError, OrderError } from '../lib/errors';
+
+app.get('/api/products/:id', async (c) => {
+  const product = await findProduct(c.req.param('id'));
+  if (!product) throw ProductError.notFound(c.req.param('id'));
+});
 ```
 
 ### Frontend Error Handling
 
-The `useSecuredApi` hook automatically processes ApiError responses:
+The `useSecuredApi` hook provides standardized error handling for API calls:
 
 ```typescript
 // apps/merchant/src/hooks/useSecuredApi.ts
-export function useSecuredApi<T = unknown>() {
-  const { getAccessTokenSilently } = useAuth0();
-  
-  return useCallback(
-    async (endpoint: string, options?: RequestInit): Promise<T> => {
-      const token = await getAccessTokenSilently();
-      const res = await fetch(`${import.meta.env.VITE_API_URL}${endpoint}`, {
-        ...options,
-        headers: {
-          ...options?.headers,
-          Authorization: `Bearer ${token}`,
-        },
-      });
+import { useState, useCallback } from 'react';
+
+interface ApiError {
+  code: string;
+  message: string;
+  details?: Record<string, unknown>;
+}
+
+interface UseSecuredApiResult<T> {
+  data: T | null;
+  loading: boolean;
+  error: ApiError | null;
+  execute: (...args: any[]) => Promise<void>;
+}
+
+export function useSecuredApi<T = any>(
+  apiCall: (...args: any[]) => Promise<Response>
+): UseSecuredApiResult<T> {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<ApiError | null>(null);
+
+  const execute = useCallback(async (...args: any[]) => {
+    setLoading(true);
+    setError(null);
+    
+    try {
+      const response = await apiCall(...args);
+      const result = await response.json();
       
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        if (body?.error) {
-          // Re-throw as ApiError-compatible object
-          throw new Error(body.error.message);
-        }
-        throw new Error('Network error');
+      if (!response.ok) {
+        // Extract error from response
+        const apiError: ApiError = {
+          code: result.error?.code || 'unknown_error',
+          message: result.error?.message || 'An error occurred',
+          details: result.error?.details,
+        };
+        setError(apiError);
+        return;
       }
-      return res.json();
-    },
-    [getAccessTokenSilently]
-  );
+      
+      setData(result);
+    } catch (err) {
+      setError({
+        code: 'network_error',
+        message: 'Failed to connect to server',
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, [apiCall]);
+
+  return { data, loading, error, execute };
 }
 ```
 
-Component usage with error boundaries:
+#### Frontend Usage Examples
 
 ```typescript
 // apps/merchant/src/components/ProductForm.tsx
+import { useSecuredApi } from '../hooks/useSecuredApi';
+
 export function ProductForm({ productId }: { productId: string }) {
-  const api = useSecuredApi();
-  const [error, setError] = useState<string | null>(null);
-  
-  const loadProduct = async () => {
-    try {
-      const product = await api<Product>(`/api/products/${productId}`);
-      // ... handle success
-    } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
+  const { data, loading, error, execute } = useSecuredApi(() =>
+    fetch(`/api/products/${productId}`, {
+      headers: { 'Authorization': `Bearer ${getAuthToken()}` }
+    })
+  );
+
+  useEffect(() => {
+    execute();
+  }, [productId]);
+
+  if (error) {
+    if (error.code === 'not_found') {
+      return <div>Product not found</div>;
+    }
+    if (error.code === 'unauthorized') {
+      return <div>Please log in to view this product</div>;
+    }
+    return <div>Error: {error.message}</div>;
+  }
+
+  if (loading) return <div>Loading...</div>;
+
+  return (
+    <form>
+      {/* Form content */}
+    </form>
+  );
+}
+
+// Handling form submission errors
+export function CreateProductForm() {
+  const { execute, error } = useSecuredApi((data: ProductData) =>
+    fetch('/api/products', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getAuthToken()}`
+      },
+      body: JSON.stringify(data)
+    })
+  );
+
+  const handleSubmit = async (data: ProductData) => {
+    await execute(data);
+    
+    if (error?.code === 'conflict') {
+      // SKU already exists
+      setFieldError('sku', 'This SKU is already in use');
+    } else if (error?.code === 'invalid_request') {
+      // Validation errors
+      if (error.details?.field) {
+        setFieldError(error.details.field as string, error.message);
       }
     }
   };
-  
-  if (error) {
-    return (
-      <Alert color="danger">
-        {error === 'Product not found' ? (
-          <>This product no longer exists. <Link to="/products">Back to list</Link></>
-        ) : (
-          <>Failed to load: {error}</>
-        )}
-      </Alert>
-    );
-  }
-  
-  return <ProductEditor />;
+
+  return (
+    <form onSubmit={handleSubmit}>
+      {/* Form fields with error display */}
+    </form>
+  );
 }
-```
-
-Handle specific error codes for user feedback:
-
-```typescript
-// apps/merchant/src/components/Checkout.tsx
-const handleCheckout = async () => {
-  try {
-    await api('/api/checkout', {
-      method: 'POST',
-      body: JSON.stringify(cart),
-    });
-    navigate('/order-success');
-  } catch (err) {
-    if (err instanceof Error) {
-      switch (err.message) {
-        case 'Insufficient inventory for SKU: SHOE-42':
-          toast.error('Sorry, these shoes just sold out!');
-          break;
-        case 'Payment method declined':
-          toast.error('Your card was declined. Try another?');
-          break;
-        default:
-          toast.error('Checkout failed. Please try again.');
-      }
-    }
-  }
-};
 ```

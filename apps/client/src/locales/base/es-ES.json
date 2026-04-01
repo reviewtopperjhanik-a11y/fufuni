@@ -258,7 +258,7 @@
   "admin-webhooks-recent-deliveries": "Entregas recientes",
   "admin-webhooks-rotate": "Girar secreto",
   "admin-webhooks-rotating": "Giratorio...",
-  "admin-webhooks-secret-note": "Utilice este secreto para verificar las firmas de webhooks. \nCada entrega incluye un encabezado X-Merchant-Signature.",
+  "admin-webhooks-secret-note": "Utilice este secreto para verificar las firmas de webhooks. \nCada entrega incluye un encabezado X-Fufuni-Signature.",
   "admin-webhooks-secret-savehint": "Guarde este secreto; no se volverá a mostrar",
   "admin-webhooks-secret-title": "Secreto del webhook",
   "admin-webhooks-subscribed-events": "Eventos suscritos",

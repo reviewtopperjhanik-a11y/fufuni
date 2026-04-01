@@ -3,206 +3,233 @@
   Do not edit manually. Run the script to regenerate.
   model:        moonshotai/kimi-k2-instruct
   tokens_in:    3951
-  tokens_out:   1457
+  tokens_out:   1812
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Image Storage Patterns
 
-Fufuni’s media layer chooses the fastest, cheapest place for every image while keeping the public URL stable.  
-The decision is automatic, but you can override it when you know better (e.g. force CDN for a hero banner).
-
----
-
-### 1. Three storage methods
-
-| Method | Where | When | URL shape |
-|---|---|---|---|
-| **base64** | SQLite column as WebP data-URI | ≤ 1 MB after conversion | `data:image/webp;base64,UklGRuYAA…` |
-| **r2** | Cloudflare R2 bucket | > 1 MB or `forceR2=true` | `https://cdn.example.com/v1/images/:key` |
-| **url** | External CDN (Cloudinary, etc.) | Manual paste in admin | `https://res.cloudinary.com/…` |
-
----
-
-### 2. Automatic size-based selection
+Fufuni stores product and page images using three mutually-exclusive strategies.  
+The choice is automatic, transparent and reversible: every consumer receives a plain URL that works in `<img src>` regardless of where the bytes live.
 
 ```typescript
 // apps/client/src/utils/image-upload.ts
-const BASE64_SIZE_LIMIT = 1024 * 1024;   // 1 MB
-const FILE_SIZE_LIMIT   = 5 * 1024 * 1024; // 5 MB
+export type ImageStorageMethod = "base64" | "r2" | "url";
+```
 
-function getOptimalStorageMethod(fileSize: number, forceR2 = false): ImageStorageMethod {
-  if (forceR2) return 'r2';
-  return fileSize <= BASE64_SIZE_LIMIT ? 'base64' : 'r2';
+| Method | When it is used | Example URL |
+| --- | --- | --- |
+| `base64` | WebP data-URI ≤ 1 MB, stored in SQLite column | `data:image/webp;base64,UklGRuZ…` |
+| `r2` | WebP file > 1 MB, uploaded to Cloudflare R2 | `https://cdn.example.com/v1/images/abc123` |
+| `url` | External CDN (Cloudinary, Shopify, etc.) | `https://external.com/img.jpg` |
+
+The helper `detectImageMethod(url)` returns the correct enum for any string.  
+The guard `isValidImageUrl(url)` rejects everything except `http(s):` and `data:image/`.
+
+---
+
+### Automatic size-based selection
+
+```typescript
+const BASE64_SIZE_LIMIT = 1024 * 1024; // 1 MB
+const FILE_SIZE_LIMIT = 5 * 1024 * 1024; // 5 MB
+
+function getOptimalStorageMethod(
+  fileSize: number,
+  forceR2 = false,
+): ImageStorageMethod {
+  if (forceR2) return "r2";
+  return fileSize <= BASE64_SIZE_LIMIT ? "base64" : "r2";
 }
 ```
 
-- After WebP conversion the size is checked.  
-- If the user ticks “Always use R2” (`forceR2=true`) the rule is ignored.
+- After WebP conversion the blob size is compared to the limit.  
+- `forceR2` flag bypasses the limit (useful when you need CDN or purge control).  
+- Files > 5 MB are rejected before any conversion.
 
 ---
 
-### 3. WebP conversion pipeline
+### WebP conversion pipeline
 
-Every upload is normalised to WebP (smaller, modern, licence-free).  
-Parameters are hard-coded for consistency:
+Every image is converted to WebP before storage:
 
 ```typescript
-const webpBlob = await convertToWebp(file, 1200, 0.8); // max 1200 px, quality 80
+// inside ImageUploadInput.handleFileUpload
+const webpBlob = await convertToWebp(file, 1200, 0.8); // max 1200 px, 80 % quality
 ```
 
-Thumbnails are generated the same way at 300 px and always stored as base64 so they load instantly in lists.
+- Smaller file size, transparent backgrounds supported, universal browser support.  
+- Thumbnails are generated separately at 300 px and always fit in base64.  
+- The original file name is replaced with `.webp` extension.
 
 ---
 
-### 4. uploadImageFile() – the low-level helper
+### uploadImageFile() – low-level helper
 
 ```typescript
 export async function uploadImageFile(
   file: File,
   apiBaseUrl: string,
-  postForm: PostFormFunction,
+  postForm: (url: string, formData: FormData) => Promise<any>,
   forceR2 = false,
 ): Promise<ImageUploadResult>
 ```
 
-Usage inside a React component that already has `useSecuredApi()`:
+| Param | Purpose |
+| --- | --- |
+| `file` | Raw `File` from `<input type="file">` |
+| `apiBaseUrl` | Prefix for R2 endpoint, e.g. `https://api.example.com` |
+| `postForm` | Secured POST helper that injects `Authorization` header. Obtain via `useSecuredApi().postForm` |
+| `forceR2` | Skip size check and upload to R2 |
 
 ```typescript
-import { uploadImageFile } from '@/utils/image-upload';
-import { useSecuredApi } from '@/authentication';
+import { uploadImageFile } from "@/utils/image-upload";
+import { useSecuredApi } from "@/authentication";
 
-export function ProductMediaUpload({ productId }: { productId: string }) {
+function ProductImageUpload({ onUploaded }: { onUploaded: (url: string) => void }) {
   const { postForm } = useSecuredApi();
 
-  const handleDrop = async (dropped: File) => {
+  const handleChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
     const { url } = await uploadImageFile(
-      dropped,
-      import.meta.env.VITE_API_BASE_URL,
+      file,
+      import.meta.env.VITE_API_URL,
       postForm,
-      false, // let the util decide
     );
-    await saveProductImage(productId, url);
+    onUploaded(url);
   };
+
+  return <input type="file" accept="image/*" onChange={handleChange} />;
 }
 ```
 
-Returned object:
+The function returns:
 
 ```typescript
-{
-  url: string;   // absolute URL you can store in DB
-  method: 'base64' | 'r2' | 'url';
-  key?: string;  // present only for r2
+interface ImageUploadResult {
+  url: string;     // Absolute URL or data-URI ready for <img src>
+  method: "base64" | "r2" | "url";
+  key?: string;    // R2 object key, present only when method === 'r2'
 }
 ```
 
 ---
 
-### 5. ImageUploadInput – the canonical admin widget
+### ImageUploadInput component
 
-Props you must supply:
+Props:
 
-| Prop | Type | Description |
-|---|---|---|
-| value | `string ⎮ null` | Current image URL or data-URI |
-| onChange | `(url: string ⎮ null) => void` | Save the new URL to state |
-| onThumbnailChange | `(url: string ⎮ null) => void` | Optional: receive 300 px WebP thumbnail |
-| apiBaseUrl | `string` | `https://api.example.com` |
-| disabled | `boolean` | Lock the control |
-| forceR2 | `boolean` | Hide the “Always use R2” checkbox and default to true |
-| postForm | `PostFormFunction` | Optional: custom POST with Auth headers; falls back to `useSecuredApi()` |
+| Prop | Type | Default | Description |
+| --- | --- | --- | --- |
+| `value` | `string \| null` | — | Current image URL or data-URI |
+| `onChange` | `(url: string \| null) => void` | — | Called when image is uploaded or removed |
+| `onThumbnailChange` | `(url: string \| null) => void` | — | Optional, receives 300 px WebP base64 thumbnail |
+| `disabled` | `boolean` | `false` | Disable all controls |
+| `apiBaseUrl` | `string` | — | Base URL for R2 upload endpoint |
+| `forceR2` | `boolean` | `false` | Hide toggle and always use R2 |
+| `postForm` | `PostFormFunction` | `useSecuredApi().postForm` | Override POST helper |
 
-Complete example inside a HeroUI form:
+Complete usage inside an admin form:
 
 ```typescript
-import { ImageUploadInput } from '@/components/image-upload-input';
-import { useState } from 'react';
-import { useSecuredApi } from '@/authentication';
+import { ImageUploadInput } from "@/components/image-upload-input";
+import { useForm } from "react-hook-form";
 
-export function CategoryEditForm({ category }: { category: Category }) {
-  const [imageUrl, setImageUrl] = useState<string | null>(category.imageUrl);
-  const [thumb, setThumb] = useState<string | null>(category.thumbnailUrl);
-  const { postForm } = useSecuredApi();
+interface FormData {
+  name: string;
+  image: string | null;
+}
+
+export default function ProductEditor() {
+  const { register, handleSubmit, setValue, watch } = useForm<FormData>({
+    defaultValues: { name: "", image: null },
+  });
+
+  const imageUrl = watch("image");
+
+  const onSubmit = (data: FormData) => {
+    fetch("/api/products", {
+      method: "POST",
+      body: JSON.stringify(data),
+      headers: { "Content-Type": "application/json" },
+    });
+  };
 
   return (
-    <form>
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+      <input {...register("name")} placeholder="Product name" className="w-full" />
+
       <ImageUploadInput
         value={imageUrl}
-        onChange={setImageUrl}
-        onThumbnailChange={setThumb}
-        apiBaseUrl={import.meta.env.VITE_API_BASE_URL}
-        postForm={postForm}
+        onChange={(url) => setValue("image", url)}
+        apiBaseUrl={import.meta.env.VITE_API_URL}
         forceR2={false}
       />
 
-      <Button
-        onPress={() => updateCategory({ ...category, imageUrl, thumbnailUrl: thumb })}
-      >
-        Save
-      </Button>
+      <button type="submit" className="px-4 py-2 bg-primary text-white rounded">
+        Save product
+      </button>
     </form>
   );
 }
 ```
 
+The component:
+- Converts selected file to WebP (1200 px).  
+- Generates optional thumbnail (300 px).  
+- Displays storage badge (“Local 234KB”, “R2 Cloud”, “External URL”).  
+- Provides manual URL mode for external images.  
+- Guards against malicious URLs via `isValidImageUrl`.
+
 ---
 
-### 6. Security guard – isValidImageUrl()
-
-Only two protocol families are trusted:
+### Security guard: isValidImageUrl
 
 ```typescript
 export function isValidImageUrl(url: string): boolean {
   try {
-    const u = new URL(url);
-    return u.protocol === 'http:' || u.protocol === 'https:';
+    const urlObj = new URL(url);
+    return (
+      urlObj.protocol === "http:" ||
+      urlObj.protocol === "https:" ||
+      url.startsWith("data:image/")
+    );
   } catch {
-    return url.startsWith('data:image/');
+    return url.startsWith("data:image/");
   }
 }
 ```
 
-Always wrap user-supplied URLs before rendering:
-
-```typescript
-const safeSrc = isValidImageUrl(rawUrl) ? rawUrl : undefined;
-<img src={safeSrc} />
-```
+- Rejects `javascript:`, `file:`, `blob:` and other exotic schemes.  
+- Always call it before rendering user-supplied image URLs.  
+- Used internally by `ImageUploadInput` when the admin pastes a URL.
 
 ---
 
-### 7. R2 backend endpoints
+### R2 backend endpoints
 
-| Method | Route | Permission | Purpose |
-|---|---|---|---|
-| POST | `/v1/images` | `admin:store` | Upload file → `{ url, key }` |
-| DELETE | `/v1/images/:key` | `admin:store` | Remove object + purge CDN |
-| GET | `/v1/images/:key` | public | Serve object through CDN |
+All routes live under `/v1/images` and require the `admin:store` permission.
+
+| Method | Endpoint | Purpose | Response |
+| --- | --- | --- | --- |
+| `POST` | `/v1/images` | Upload file | `{ url, key }` |
+| `DELETE` | `/v1/images/:key` | Delete object + purge CDN | `{ success: true }` |
 
 Example cURL:
 
 ```bash
 curl -X POST https://api.example.com/v1/images \
   -H "Authorization: Bearer $TOKEN" \
-  -F "file=@hero.webp"
+  -F "file=@product.webp"
 ```
 
-Response:
-
-```json
-{ "url": "https://cdn.example.com/v1/images/abc123", "key": "abc123" }
-```
+The returned `url` is already CDN-cached; the `key` is used for deletion.
 
 ---
 
-### 8. CDN caching & purge strategy
+### CDN caching & purge strategy
 
-- R2 objects are cached by Cloudflare KV for 1 year with surrogate-key `image-<key>`.  
-- When you `DELETE /v1/images/:key` the worker purges both the R2 object and the cache entry instantly.  
-- If you overwrite an image (same key), call purge manually:
-
-```typescript
-await postForm(`${apiBaseUrl}/v1/images/purge`, { key });
-```
-
-This guarantees visitors never see stale thumbnails after an update.
+- R2 objects are served through Cloudflare KV CDN with standard cache headers (`public, max-age=31536000, immutable`).  
+- When an object is overwritten (same key) or deleted, the worker issues a cache purge for the corresponding URL.  
+- There is no versioning in the key; if you need cache-busting, change the key or append a query parameter client-side.

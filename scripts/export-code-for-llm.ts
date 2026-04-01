@@ -22,12 +22,23 @@ import path from "node:path";
 
 // ─── CLI flags ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
-const outFile      = args.find((a) => !a.startsWith("--")) ?? "llms.md";
-const slim         = args.includes("--slim");
-const maxTokensArg = args.find((a) => a.startsWith("--max-tokens="));
-const maxTokens    = maxTokensArg ? parseInt(maxTokensArg.split("=")[1]) : Infinity;
-const withIndex    = !args.includes("--no-index");
-const verbose      = args.includes("--verbose");
+const outFile       = args.find((a) => !a.startsWith("--")) ?? "llms.md";
+const slim          = args.includes("--slim");
+const maxTokensArg  = args.find((a) => a.startsWith("--max-tokens="));
+const maxTokens     = maxTokensArg ? parseInt(maxTokensArg.split("=")[1]) : Infinity;
+const withIndex     = !args.includes("--no-index");
+const verbose       = args.includes("--verbose");
+const openApiUrlArg = args.find((a) => a.startsWith("--openapi-url="));
+const openApiBearerArg = args.find((a) => a.startsWith("--openapi-bearer="));
+const openApiUrl    =
+    openApiUrlArg?.split("=")[1] ||
+    process.env.OPENAPI_URL ||
+    "http://127.0.0.1:8787/openapi.json";
+const openApiBearer =
+    openApiBearerArg?.split("=")[1] ||
+    process.env.OPENAPI_BEARER ||
+    process.env.MERCHANT_SK ||
+    undefined;
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 function languageForExt(ext: string): string {
@@ -72,6 +83,17 @@ function extractRoutes(src: string): string[] {
     return [...new Set(found)];
 }
 
+/** Extract API routes from OpenAPI json content */
+function extractOpenApiRoutes(src: string): string[] {
+    try {
+        const json = JSON.parse(src);
+        if (!json.paths || typeof json.paths !== "object") return [];
+        return Object.keys(json.paths).sort();
+    } catch {
+        return [];
+    }
+}
+
 /** Extract D1/SQL table names referenced in the source */
 function extractTables(src: string): string[] {
     const re = /(?:FROM|INTO|UPDATE|JOIN)\s+([\w]+)/gi;
@@ -92,8 +114,60 @@ function extractStripeEvents(src: string): string[] {
 }
 
 /**
+ * Extract CREATE TABLE names from SQL in any file.
+ */
+function extractCreateTableNames(src: string): string[] {
+    const tables: string[] = [];
+    const re = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"'\[]?([\w]+)[`"'\]]?/gi;
+    let match: RegExpExecArray | null;
+    while ((match = re.exec(src)) !== null) {
+        tables.push(match[1].toLowerCase());
+    }
+    return [...new Set(tables)];
+}
+
+/**
  * Summarise a SQL migration: extract CREATE TABLE names + column names.
  */
+async function verifyBackendConnection(url: string, bearer?: string): Promise<void> {
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    let res: Response;
+    try {
+        res = await fetch(url, { method: "GET", headers });
+    } catch (err) {
+        throw new Error(`Impossible de contacter le backend à ${url} : ${err}`);
+    }
+    if (!res.ok) {
+        throw new Error(`Backend non disponible à ${url} : HTTP ${res.status} ${res.statusText}`);
+    }
+    const contentType = res.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+        throw new Error(`Backend réponse inattendue à ${url} : content-type=${contentType}`);
+    }
+}
+
+async function fetchOpenApiRoutesFromUrl(url: string, bearer?: string): Promise<string[]> {
+    try {
+        const headers: Record<string, string> = { Accept: "application/json" };
+        if (bearer) headers.Authorization = `Bearer ${bearer}`;
+        const res = await fetch(url, { method: "GET", headers });
+        if (!res.ok) {
+            console.error(`OpenAPI fetch failed (${res.status}): ${res.statusText}`);
+            return [];
+        }
+        const json = await res.json();
+        if (!json.paths || typeof json.paths !== "object") {
+            console.error("OpenAPI JSON has no paths object");
+            return [];
+        }
+        return Object.keys(json.paths).sort();
+    } catch (err) {
+        console.error("OpenAPI fetch exception:", err);
+        return [];
+    }
+}
+
 function summariseSql(src: string): string {
     const tables: string[] = [];
     const re =
@@ -194,6 +268,7 @@ async function main() {
         "apps/client/src/**/*.{ts,tsx,js,jsx,json}",
         "apps/merchant/src/**/*.{ts,tsx,js,jsx,json}",
         "apps/merchant/migrations/*.sql",
+        "apps/merchant/*.sql",
     ];
     const ignore = [
         "**/node_modules/**", "**/dist/**", "**/.next/**", "**/*.d.ts",
@@ -346,8 +421,12 @@ async function main() {
         `Exported ${allPaths.length} files → ${outFile}  (~${totalTokens.toLocaleString()} tokens${slim ? ", slim mode" : ""})`
     );
 
-    // Companion llms.txt — ultra-compact index for Haiku / fast models
     if (withIndex) {
+        if (!openApiUrl) {
+            throw new Error("openApiUrl is required pour générer llms.txt avec API routes.");
+        }
+        await verifyBackendConnection(openApiUrl, openApiBearer);
+
         const indexFile = path.join(path.dirname(outFile), "llms.txt");
         let idx = `Fufuni e-commerce framework — source index (${now})\n`;
         idx += `Stack: React 19 + Vite (client) · Hono on Cloudflare Workers (API) · Durable Objects (SQLite) · Stripe · Auth0\n\n`;
@@ -357,14 +436,8 @@ async function main() {
         idx += `\nDB TABLES\n`;
         const allTables = [
             ...new Set([
-                ...codeFiles.flatMap((f) => f.tables),
-                ...sqlFiles.flatMap((f) => {
-                    const m =
-                        f.content.match(
-                            /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?[`"']?([\w]+)/gi
-                        ) ?? [];
-                    return m.map((s) => s.split(/\s+/).pop()!.toLowerCase());
-                }),
+                ...sqlFiles.flatMap((f) => extractCreateTableNames(f.content)),
+                ...codeFiles.flatMap((f) => extractCreateTableNames(f.content)),
             ]),
         ].sort();
         for (const t of allTables) idx += `  ${t}\n`;
@@ -374,8 +447,17 @@ async function main() {
         for (const e of allEvents) idx += `  ${e}\n`;
 
         idx += `\nAPI ROUTES\n`;
-        const allRoutes = [...new Set(codeFiles.flatMap((f) => f.routes))].sort();
-        for (const r of allRoutes) idx += `  ${r}\n`;
+        let apiRoutes = [...new Set(codeFiles.flatMap((f) => f.routes))].sort();
+        if (openApiUrl) {
+            const openApiRoutes = await fetchOpenApiRoutesFromUrl(openApiUrl, openApiBearer);
+            if (openApiRoutes.length) {
+                apiRoutes = openApiRoutes;
+                if (verbose) console.log(`Using ${openApiUrl} for API route list (x${apiRoutes.length}).`);
+            } else {
+                console.warn("OpenAPI URL provided but route extraction failed; using code route fallback.");
+            }
+        }
+        for (const r of apiRoutes) idx += `  ${r}\n`;
 
         await fs.writeFile(indexFile, idx, "utf8");
         console.log(`Index written → ${indexFile}`);
