@@ -162,7 +162,7 @@ app.route('/v1/__auth0', adminAuth0);
 app.doc31('/openapi.json', {
   openapi: '3.1.0',
   info: {
-    title: 'Merchant API',
+    title: 'Fufuni API',
     version: '1.0.0',
     description: 'The open-source commerce backend for Cloudflare + Stripe + Auth0',
   },

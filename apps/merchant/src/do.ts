@@ -23,7 +23,7 @@
  * SOFTWARE.
  */
 
-import { DurableObject } from 'cloudflare:workers';
+import type { DurableObject } from 'cloudflare:workers';
 
 export interface MerchantEnv {
   MERCHANT: DurableObjectNamespace<MerchantDO>;

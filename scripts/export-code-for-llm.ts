@@ -19,15 +19,34 @@
 import fg from "fast-glob";
 import fs from "node:fs/promises";
 import path from "node:path";
+import { parse as parseDotenv } from "dotenv";
 
 // ─── CLI flags ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
+if (args.includes("--help") || args.includes("-h")) {
+    console.log(`USAGE: npx tsx scripts/export-code-for-llm.ts [options] [output-file]
+
+Options:
+  --help, -h              Show this help message
+  --no-index              Skip llms.txt index generation
+  --slim                  Shrink output by stripping comments and blank lines
+  --max-tokens=<n>        Stop exporting when token budget is reached
+  --openapi-url=<url>     Use this OpenAPI JSON URL for route extraction
+  --openapi-bearer=<tok>  Bearer token used to fetch openapi.json
+  --openapi-inline        Use local worker app to generate openapi.json (no backend)
+  --no-backend            Alias for --openapi-inline
+  --export-swagger        Save openapi.json file alongside llms.md + llms.txt
+`);
+    process.exit(0);
+}
 const outFile       = args.find((a) => !a.startsWith("--")) ?? "llms.md";
 const slim          = args.includes("--slim");
 const maxTokensArg  = args.find((a) => a.startsWith("--max-tokens="));
 const maxTokens     = maxTokensArg ? parseInt(maxTokensArg.split("=")[1]) : Infinity;
 const withIndex     = !args.includes("--no-index");
 const verbose       = args.includes("--verbose");
+const openApiInline = args.includes("--openapi-inline") || args.includes("--no-backend");
+const exportSwagger = args.includes("--export-swagger");
 const openApiUrlArg = args.find((a) => a.startsWith("--openapi-url="));
 const openApiBearerArg = args.find((a) => a.startsWith("--openapi-bearer="));
 const openApiUrl    =
@@ -126,6 +145,158 @@ function extractCreateTableNames(src: string): string[] {
     return [...new Set(tables)];
 }
 
+async function loadDotEnv(): Promise<Record<string, string>> {
+    const envPath = path.join(process.cwd(), ".env");
+    try {
+        const content = await fs.readFile(envPath, "utf8");
+        const parsed = parseDotenv(content);
+        for (const [key, value] of Object.entries(parsed)) {
+            if (typeof value === "string") {
+                process.env[key] = value;
+            }
+        }
+        return parsed;
+    } catch (err) {
+        if (verbose) console.warn(`.env introuvable ou erreur de lecture: ${err}`);
+        return {};
+    }
+}
+
+function makeMerchantStub(): unknown {
+    return {
+        idFromName: (name: string) => name,
+        get: (_id: string) => ({ cleanupExpiredCarts: async () => 0 }),
+    };
+}
+
+async function fetchOpenApiRoutesFromWorkerApp(bearer?: string): Promise<string[]> {
+    const dotEnv = await loadDotEnv();
+
+    if (!('caches' in globalThis)) {
+        (globalThis as any).caches = {
+            open: async () => ({
+                match: async () => undefined,
+                put: async () => undefined,
+                delete: async () => false,
+                keys: async () => [],
+            }),
+            has: async () => false,
+            delete: async () => false,
+            keys: async () => [],
+        };
+    }
+
+    if (!('DurableObject' in globalThis)) {
+        (globalThis as any).DurableObject = class {
+            constructor(ctx: any, env: any) {
+                return {} as any;
+            }
+        };
+    }
+
+    const merchantAppModule = await import("../apps/merchant/src/index.ts");
+    const workerApp = (merchantAppModule.default ?? merchantAppModule) as { fetch: (req: Request, env: any) => Promise<Response> };
+
+    if (!workerApp || typeof workerApp.fetch !== "function") {
+        console.error("Erreur: impossible d'obtenir workerApp.fetch depuis apps/merchant/src/index.ts");
+        return [];
+    }
+
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+
+    const env = {
+        ...dotEnv,
+        ...process.env,
+        MERCHANT: makeMerchantStub(),
+    };
+
+    let res: Response;
+    try {
+        res = await workerApp.fetch(new Request("http://localhost/openapi.json", { method: "GET", headers }), env);
+    } catch (err) {
+        console.error("Exception fetch openapi depuis worker inline:", err);
+        return [];
+    }
+
+    if (!res.ok) {
+        console.error(`OpenAPI inline worker failed: HTTP ${res.status} ${res.statusText}`);
+        return [];
+    }
+
+    const json = await res.json();
+    if (!json.paths || typeof json.paths !== "object") {
+        console.error("OpenAPI inline worker réponse non conforme (paths absent)");
+        return [];
+    }
+
+    return Object.keys(json.paths).sort();
+}
+
+async function fetchOpenApiJsonFromWorkerApp(bearer?: string): Promise<Record<string, any> | null> {
+    const dotEnv = await loadDotEnv();
+
+    if (!('caches' in globalThis)) {
+        (globalThis as any).caches = {
+            open: async () => ({
+                match: async () => undefined,
+                put: async () => undefined,
+                delete: async () => false,
+                keys: async () => [],
+            }),
+            has: async () => false,
+            delete: async () => false,
+            keys: async () => [],
+        };
+    }
+
+    if (!('DurableObject' in globalThis)) {
+        (globalThis as any).DurableObject = class {
+            constructor(ctx: any, env: any) {
+                return {} as any;
+            }
+        };
+    }
+
+    const merchantAppModule = await import("../apps/merchant/src/index.ts");
+    const workerApp = (merchantAppModule.default ?? merchantAppModule) as { fetch: (req: Request, env: any) => Promise<Response> };
+
+    if (!workerApp || typeof workerApp.fetch !== "function") {
+        console.error("Erreur: impossible d'obtenir workerApp.fetch depuis apps/merchant/src/index.ts");
+        return null;
+    }
+
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+
+    const env = {
+        ...dotEnv,
+        ...process.env,
+        MERCHANT: makeMerchantStub(),
+    };
+
+    let res: Response;
+    try {
+        res = await workerApp.fetch(new Request("http://localhost/openapi.json", { method: "GET", headers }), env);
+    } catch (err) {
+        console.error("Exception fetch openapi depuis worker inline:", err);
+        return null;
+    }
+
+    if (!res.ok) {
+        console.error(`OpenAPI inline worker failed: HTTP ${res.status} ${res.statusText}`);
+        return null;
+    }
+
+    const json = await res.json();
+    if (!json || typeof json !== "object") {
+        console.error("OpenAPI inline worker réponse non conforme (JSON attendu)");
+        return null;
+    }
+
+    return json;
+}
+
 /**
  * Summarise a SQL migration: extract CREATE TABLE names + column names.
  */
@@ -168,6 +339,27 @@ async function fetchOpenApiRoutesFromUrl(url: string, bearer?: string): Promise<
     }
 }
 
+async function fetchOpenApiJsonFromUrl(url: string, bearer?: string): Promise<any | null> {
+    try {
+        const headers: Record<string, string> = { Accept: "application/json" };
+        if (bearer) headers.Authorization = `Bearer ${bearer}`;
+        const res = await fetch(url, { method: "GET", headers });
+        if (!res.ok) {
+            console.error(`OpenAPI fetch failed (${res.status}): ${res.statusText}`);
+            return null;
+        }
+        const json = await res.json();
+        if (!json || typeof json !== "object") {
+            console.error("OpenAPI JSON not valid");
+            return null;
+        }
+        return json;
+    } catch (err) {
+        console.error("OpenAPI fetch exception:", err);
+        return null;
+    }
+}
+
 function summariseSql(src: string): string {
     const tables: string[] = [];
     const re =
@@ -197,7 +389,12 @@ function buildTree(paths: string[]): string[] {
         let node = root;
         for (const part of parts) {
             if (!node.has(part)) node.set(part, new Map());
-            node = node.get(part);
+            const next = node.get(part);
+            if (next instanceof Map) {
+                node = next;
+            } else {
+                break;
+            }
         }
     }
     const lines: string[] = [];
@@ -422,10 +619,12 @@ async function main() {
     );
 
     if (withIndex) {
-        if (!openApiUrl) {
-            throw new Error("openApiUrl is required pour générer llms.txt avec API routes.");
+        if (!openApiInline && !openApiUrl) {
+            throw new Error("openApiUrl est requis pour générer llms.txt avec API routes (si --openapi-inline / --no-backend n'est pas activé). ");
         }
-        await verifyBackendConnection(openApiUrl, openApiBearer);
+        if (!openApiInline) {
+            await verifyBackendConnection(openApiUrl, openApiBearer);
+        }
 
         const indexFile = path.join(path.dirname(outFile), "llms.txt");
         let idx = `Fufuni e-commerce framework — source index (${now})\n`;
@@ -448,7 +647,16 @@ async function main() {
 
         idx += `\nAPI ROUTES\n`;
         let apiRoutes = [...new Set(codeFiles.flatMap((f) => f.routes))].sort();
-        if (openApiUrl) {
+
+        if (openApiInline) {
+            const openApiRoutes = await fetchOpenApiRoutesFromWorkerApp(openApiBearer);
+            if (openApiRoutes.length) {
+                apiRoutes = openApiRoutes;
+                if (verbose) console.log(`Using inline worker openapi for API route list (x${apiRoutes.length}).`);
+            } else {
+                console.warn("OpenAPI inline extraction failed; using code route fallback.");
+            }
+        } else if (openApiUrl) {
             const openApiRoutes = await fetchOpenApiRoutesFromUrl(openApiUrl, openApiBearer);
             if (openApiRoutes.length) {
                 apiRoutes = openApiRoutes;
@@ -457,10 +665,28 @@ async function main() {
                 console.warn("OpenAPI URL provided but route extraction failed; using code route fallback.");
             }
         }
+
         for (const r of apiRoutes) idx += `  ${r}\n`;
 
         await fs.writeFile(indexFile, idx, "utf8");
         console.log(`Index written → ${indexFile}`);
+    }
+
+    if (exportSwagger) {
+        let openApiJson: Record<string, any> | null = null;
+        if (openApiInline) {
+            openApiJson = await fetchOpenApiJsonFromWorkerApp(openApiBearer);
+        } else if (openApiUrl) {
+            openApiJson = await fetchOpenApiJsonFromUrl(openApiUrl, openApiBearer);
+        }
+
+        if (openApiJson) {
+            const swaggerFile = path.join(path.dirname(outFile), "openapi.json");
+            await fs.writeFile(swaggerFile, JSON.stringify(openApiJson, null, 2), "utf8");
+            console.log(`Swagger OpenAPI JSON written → ${swaggerFile}`);
+        } else {
+            console.warn("--export-swagger demandé mais impossible de récupérer openapi.json");
+        }
     }
 
     if (verbose) {
