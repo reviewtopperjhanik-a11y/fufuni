@@ -108,7 +108,7 @@ const PROMPT_OVERHEAD_TOKENS = 2_000;
 const MAX_OUTPUT_TOKENS_CAP = 8_000;
 
 // Keep legacy names as aliases so references elsewhere in the file still compile.
-const MAX_SOURCE_CHARS  = DEFAULT_MAX_SOURCE_CHARS;
+const MAX_SOURCE_CHARS = DEFAULT_MAX_SOURCE_CHARS;
 const MAX_OUTPUT_TOKENS = DEFAULT_MAX_OUTPUT_TOKENS;
 
 // ── Shared system prompt fragment reused across topics ──────────────────────
@@ -135,7 +135,11 @@ WRITING RULES:
 - Target length: 800 to 1500 words per topic
 - When “## Verified facts” are provided, they have PRIORITY over the source code — treat them as absolute truth
 - NEVER start with a generic introductory sentence — jump straight into the topic
-- NEVER add a final note such as “I hope this documentation is helpful”`
+- NEVER add a final note such as “I hope this documentation is helpful”
+
+REQUIRED FIRST LINE: Before any Markdown heading, output exactly one HTML comment:
+<!--mcp-description: <one sentence ≤ 200 chars answering “when should an AI call this tool?”>-->
+Example: <!--mcp-description: Call this when adding a Hono route, middleware, or sub-router to the Fufuni backend.-->`
 
 // ─── resolve project root ────────────────────────────────────────────────────
 // __dirname is not available in ESM; we derive it from import.meta.url.
@@ -337,6 +341,48 @@ interface ModelBudget {
   maxSourceCharsTotal: number;
 }
 
+type ModelSpec = {
+  context_window: number;
+  max_completion_tokens: number;
+};
+/**
+ * Static specs for well-known models that won't appear in the Groq /models
+ * discovery endpoint (e.g. Anthropic Claude, OpenAI, Gemini).
+ * Used as a fallback in getModelBudget() when modelMeta is empty (pinned model
+ * or non-Groq endpoint without /models support).
+ */
+const KNOWN_MODEL_SPECS: Record<string, ModelSpec> = {
+  // ── Anthropic Claude ────────────────────────────────────────────────────────
+    // Anthropic Claude API Docs — Models overview
+  // https://platform.claude.com/docs/en/about-claude/models/overview
+  'claude-opus-4-6': { context_window: 1_000_000, max_completion_tokens: 128_000 },
+  'claude-sonnet-4-6': { context_window: 1_000_000, max_completion_tokens: 64_000 },
+  'claude-haiku-4-5-20251001': { context_window: 200_000, max_completion_tokens: 64_000 },
+  'claude-haiku-4-5': { context_window: 200_000, max_completion_tokens: 64_000 },
+  'claude-sonnet-4-5': { context_window: 200_000, max_completion_tokens: 8_096 },
+  'claude-opus-4-5': { context_window: 200_000, max_completion_tokens: 8_096 },
+  'claude-3-5-haiku-20241022': { context_window: 200_000, max_completion_tokens: 8_096 },
+  'claude-3-5-sonnet-20241022': { context_window: 200_000, max_completion_tokens: 8_096 },
+  'claude-3-opus-20240229': { context_window: 200_000, max_completion_tokens: 4_096 },
+  // ── OpenAI ──────────────────────────────────────────────────────────────────
+  'gpt-4o': { context_window: 128_000, max_completion_tokens: 16_384 },
+  'gpt-4o-mini': { context_window: 128_000, max_completion_tokens: 16_384 },
+  'gpt-4-turbo': { context_window: 128_000, max_completion_tokens: 4_096 },
+// OpenAI API — official model IDs confirmed by “All models”
+  // https://developers.openai.com/api/docs/models/all
+  // https://developers.openai.com/api/docs/models/gpt-5.4
+  'gpt-5.4': { context_window: 1_000_000, max_completion_tokens: 128_000 },
+  // ── Google Gemini ────────────────────────────────────────────────────────────
+  'gemini-1.5-pro': { context_window: 1_000_000, max_completion_tokens: 8_192 },
+  'gemini-1.5-flash': { context_window: 1_000_000, max_completion_tokens: 8_192 },
+  'gemini-2.0-flash': { context_window: 1_048_576, max_completion_tokens: 8_192 },
+  'gemini-3-flash': { context_window: 1_048_576, max_completion_tokens: 65_536 },
+  // Google Vertex AI — Gemini 3.1 Pro (non-preview)
+  // https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-pro
+  // Historical note: older Gemini API docs also exposed a preview-suffixed variant.
+  'gemini-3.1-pro': { context_window: 1_048_576, max_completion_tokens: 65_536 },
+};
+
 /**
  * Compute optimal generation limits for a given model ID.
  *
@@ -354,8 +400,14 @@ interface ModelBudget {
  *   fallback        —                          → maxOut=6 000  src= 56 k chars
  */
 function getModelBudget(modelId: string): ModelBudget {
-  const m = modelMeta.find(p => p.id === modelId);
-  if (!m) {
+  // Priority: live pool metadata > static table > defaults.
+  const poolEntry = modelMeta.find(p => p.id === modelId);
+  const knownSpec = KNOWN_MODEL_SPECS[modelId];
+  const spec = poolEntry ?? (knownSpec
+    ? { context_window: knownSpec.context_window, max_completion_tokens: knownSpec.max_completion_tokens }
+    : null);
+
+  if (!spec) {
     return {
       maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
       // Assume up to 4 source files at the default per-file limit.
@@ -363,13 +415,13 @@ function getModelBudget(modelId: string): ModelBudget {
     };
   }
   const maxOutputTokens = Math.min(
-    m.max_completion_tokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+    spec.max_completion_tokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
     MAX_OUTPUT_TOKENS_CAP,
   );
   // Start with the model's full context window.
   let inputBudgetTokens = Math.max(
     1_000,
-    m.context_window - maxOutputTokens - PROMPT_OVERHEAD_TOKENS,
+    spec.context_window - maxOutputTokens - PROMPT_OVERHEAD_TOKENS,
   );
 
   // Apply the per-request cap when known (Groq free: TPM = per-request limit).
@@ -636,7 +688,7 @@ if (!dryRun) {
  * When AI metadata is provided the comment includes model, token counts and
  * the API endpoint so readers can trace exactly how the file was produced.
  */
-function buildHeader(meta?: {
+function buildHeader(description: string, meta?: {
   model: string;
   tokensIn: number;
   tokensOut: number;
@@ -645,12 +697,14 @@ function buildHeader(meta?: {
     return `<!--
   AUTO-GENERATED by scripts/generate-static-mcp-response.ts
   Do not edit manually. Run the script to regenerate.
+  description:  ${description}
 -->
 `;
   }
   return `<!--
   AUTO-GENERATED by scripts/generate-static-mcp-response.ts
   Do not edit manually. Run the script to regenerate.
+  description:  ${description}
   model:        ${meta.model}
   tokens_in:    ${meta.tokensIn}
   tokens_out:   ${meta.tokensOut}
@@ -742,7 +796,7 @@ const TOPICS: Topic[] = [
       'Auth0 is the sole identity provider. RBAC is managed via Auth0 permissions on the access token, not in the database.',
       'The frontend navbar items and their visibility are driven by siteConfig() in apps/client/src/config/site.ts — each navItem has a permissions[] array. Add a new page by adding an entry there.',
       'Fufuni is designed to run 100% free: Cloudflare Workers free tier (100k req/day), Durable Object SQLite (included), R2 free tier (10 GB/month), KV free tier (100k reads/day), Auth0 free tenant (7500 MAU), GitHub Pages for the frontend, and Mailgun 3000 emails/month. No credit card required.',
-      'Three GitHub Actions workflows automate the full deployment: (1) deploy-cloudflare-worker.yaml (push to main → Worker deploy, needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID secrets); (2) pages.yaml (push to main → GitHub Pages frontend deploy); (3) reset-demo.yaml (manual/scheduled → resets and re-seeds the live demo).', ,
+      'Three GitHub Actions workflows automate the full deployment: (1) deploy-cloudflare-worker.yaml (push to main → Worker deploy, needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID secrets); (2) pages.yaml (push to main → GitHub Pages frontend deploy); (3) reset-demo.yaml (manual/scheduled → resets and re-seeds the live demo).',
     ],
     buildPrompt: (src) => appendFacts(`
 Below is the root README and the Hono application entry point of the Fufuni framework.
@@ -1773,6 +1827,320 @@ Include:
 `),
   },
 
+  // ── 17. Product catalog & multilingual content ───────────────────────────────
+  {
+    name: 'product-catalog-and-localization',
+    description: 'Product/variant CRUD, multilingual JSON fields, handle generation, catalog search',
+    sources: [
+      'apps/merchant/src/routes/catalog.ts',
+      'apps/merchant/src/schemas.ts',
+    ],
+    maxSourceChars: 4000,
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Multilingual text fields (title, description, vendor, tags) are stored as JSON objects keyed by locale code: {"en-US": "T-shirt", "fr-FR": "T-shirt"}. NEVER store a plain string in these columns.',
+      'The handle is a URL-safe slug auto-generated from the en-US title. It must match /^[a-z0-9-]+$/ and be unique. Use the handle as the public URL identifier, never the id.',
+      'Variant prices are in the variants table only for display; the source of truth for multi-region pricing is the variant_prices table. Read variant_prices for any checkout or order logic.',
+      'Dimensions are stored as dims_cm JSON: {"l": 30, "w": 20, "h": 10} (length/width/height in cm). Weight is a separate weight_g integer column.',
+      'Product search uses full-text LIKE queries across title_json, vendor_json, tags_json, and handle. The /v1/products/search endpoint accepts q= and category_id= query params.',
+      'Status values for products and variants: "active" | "draft" | "archived". Only "active" products appear in public catalog.',
+      'publicCatalog exports publicProducts (no auth); adminCatalog exports adminProducts (requires adminOnly). Both are registered in index.ts.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the catalog route and the shared Zod schemas.
+
+${src}
+
+Task: Write a "Product Catalog & Multilingual Content" reference.
+Include:
+1. Product data model: key fields, multilingual JSON pattern, handle convention.
+2. Variant model: SKU, pricing columns, weight/dimensions JSON.
+3. How to read and write multilingual fields (correct pattern and wrong pattern side-by-side).
+4. Product search: endpoint, supported params, limitations.
+5. Status lifecycle: draft → active → archived.
+6. A worked example: adding a new "color" localized field to products (migration + route + frontend read).
+`),
+  },
+
+  // ── 18. Customer-facing account portal ───────────────────────────────────────
+  {
+    name: 'customer-account-patterns',
+    description: 'Customer portal: profile, order history, addresses, preferences — /v1/me/* routes',
+    sources: [
+      'apps/merchant/src/routes/me.ts',
+      'apps/merchant/src/middleware/customer-auth.ts',
+    ],
+    maxSourceChars: 4000,
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'All /v1/me/* routes use customerAuthMiddleware (not authMiddleware). It accepts only Auth0 JWTs, sets role="customer", and does NOT require admin:store permission.',
+      'On first login, the backend auto-creates a customer row from the JWT sub claim. If a customer already exists with the same email, the Auth0 sub is linked to that row (no duplicate).',
+      'When Auth0 does not provide an email (some social providers), the backend generates a placeholder: <sub_hash>@auth0.local. Never display this to the user.',
+      'Customer preferences are split: locale, theme, and marketing_consent are persisted in both the customers table and Auth0 user_metadata via PATCH /v1/me/preferences.',
+      'Address management uses a default address flag. When the default address is deleted, the most recently created remaining address becomes the new default automatically.',
+      'GET /v1/me/orders/:number returns the full order with items and tax breakdown (stored as taxes_json). Use the order number (e.g. "ORD-1234"), not the UUID id, in customer-facing URLs.',
+      'customerAuthMiddleware extracts user_metadata from the JWT claim extra_user_info/user_metadata (Auth0 post-login Action namespace).',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the /v1/me/* route handlers and customerAuthMiddleware.
+
+${src}
+
+Task: Write a "Customer Account Portal Patterns" reference.
+Include:
+1. customerAuthMiddleware: what it validates, how it differs from authMiddleware.
+2. Auto-customer creation on first login: sub lookup, email fallback, placeholder email.
+3. /v1/me/profile: readable fields, updatable fields.
+4. /v1/me/orders: order list, single order with items and tax breakdown.
+5. /v1/me/addresses: add/delete/default address logic.
+6. /v1/me/preferences: which fields go to DB vs Auth0 user_metadata.
+7. A worked example: building a "preferences" page that updates locale and theme.
+`),
+  },
+
+  // ── 19. Product reviews & moderation ─────────────────────────────────────────
+  {
+    name: 'product-reviews',
+    description: 'Review submission, purchase verification, moderation, AI sentiment analysis',
+    sources: [
+      'apps/merchant/src/routes/reviews.ts',
+      'apps/client/src/pages/admin/reviews.tsx',
+    ],
+    maxSourceChars: 4000,
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Only customers with a delivered order containing the reviewed product can submit a review (verified purchase check). The eligibility endpoint GET /v1/products/:id/reviews/eligibility returns { eligible: boolean, reason? }.',
+      'Submitted reviews have status "pending" and are NOT shown publicly until an admin approves them (status = "approved"). Use the admin reviews page to moderate.',
+      'Duplicate review prevention: one review per customer per product. A second submission returns 409 conflict.',
+      'Reviews use cursor-based pagination by created_at ISO string, not by ID. Pass cursor= query param for next page.',
+      'The admin reviews page uses analyzeReviewWithAi() or analyzeReviewsBatchWithAi() to get an AI recommendation (approve/reject + reason) before the admin decides. Requires ai:api Auth0 permission.',
+      'reviews.ts uses inline JWT extraction (manual token decode) because Hono sub-app middleware does not propagate the prefix correctly in this context. Do NOT add authMiddleware to the sub-router.',
+      'The helpful_count on a review is incremented by POST /v1/products/:id/reviews/:reviewId/helpful (no auth required, browser fingerprint via IP).',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the reviews route and the admin reviews page.
+
+${src}
+
+Task: Write a "Product Reviews & Moderation" reference.
+Include:
+1. Review submission flow: eligibility check → submit → pending → approved.
+2. Verified purchase requirement and how to check eligibility.
+3. Admin moderation: approve/reject, AI recommendation integration.
+4. Cursor-based pagination pattern (created_at, not ID).
+5. The inline JWT extraction pattern and why it is necessary here.
+6. A worked example: adding a "reply from merchant" field to reviews (migration + route + admin UI).
+`),
+  },
+
+  // ── 20. JWT user_metadata patterns ───────────────────────────────────────────
+  {
+    name: 'jwt-user-metadata-patterns',
+    description: 'Auth0 user_metadata in JWT: multi-store scoping, CustomEvent sync, use-token-user-data',
+    sources: [
+      'apps/client/src/hooks/use-token-user-data.ts',
+      'apps/client/src/lib/store-metadata.ts',
+      'apps/merchant/src/lib/store-metadata.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Auth0 user_metadata is injected into the JWT access token by a post-login Action under the namespace "extra_user_info/user_metadata". Read it client-side with decodeJwt() from jose — no extra API call.',
+      'All per-user store data (wishlist, theme, saved carts) is namespaced under a store-scoped key to support multiple Fufuni instances sharing one Auth0 tenant. The key is derived from STORE_URL via normalizeStoreUrl().',
+      'normalizeStoreUrl(url) replaces characters not allowed in Auth0 metadata keys (., :, /) with underscores. Example: "https://shop.example.com" → "https___shop_example_com". Both frontend and backend must use the same normalization.',
+      'useTokenUserData<T>(selector, event) is the generic hook for reading any user_metadata field and reacting to cross-component changes. Wishlist, saved carts, and theme all use it.',
+      'Cross-component sync uses window.dispatchEvent(new CustomEvent(EVENT_NAME, { detail: newValue })). Components listen on window and call getAccessTokenSilently() + decodeJwt() to refresh their view of user_metadata.',
+      'To persist a change to user_metadata, call PATCH /v1/me/preferences (or /v1/me/wishlist). The Auth0 post-login Action will include the new value in the NEXT token refresh.',
+      'To add a new user_metadata field: (1) update the type in use-token-user-data.ts; (2) read it via useTokenUserData with a new selector; (3) persist via PATCH /v1/me/preferences; (4) dispatch a CustomEvent to sync other components.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the useTokenUserData hook, and both frontend and backend store-metadata helpers.
+
+${src}
+
+Task: Write a "JWT User Metadata Patterns" reference.
+Include:
+1. How Auth0 user_metadata is embedded in the JWT (post-login Action, claim namespace).
+2. Reading user_metadata client-side with decodeJwt() — no API call needed.
+3. Multi-store scoping: normalizeStoreUrl(), getStoreMetadata() — why and how.
+4. useTokenUserData<T>: generic pattern, selector function, CustomEvent sync.
+5. Cross-component reactivity: dispatch → listen → token refresh cycle.
+6. How to add a new per-user preference field end-to-end (step-by-step with code).
+`),
+  },
+
+  // ── 21. Order view tokens ─────────────────────────────────────────────────────
+  {
+    name: 'order-view-tokens',
+    description: 'Signed order tokens for guest order access — generation, verification, email links',
+    sources: [
+      'apps/merchant/src/lib/order-token.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Order view tokens (OVT) allow guests to view their order without an Auth0 account. They are signed HS256 JWTs with a 30-day TTL, generated by generateOrderViewToken(orderId, secret).',
+      'The raw token is included in the order confirmation email as a query parameter (?token=…). On the frontend, the order page reads this token from the URL and passes it to GET /v1/orders/:id?token=….',
+      'The ORDER_VIEW_TOKEN_SECRET env var is the signing secret. It must be set in wrangler secrets and in .env.',
+      'Tokens are deterministic: calling generateOrderViewToken() with the same orderId and secret always produces the same token. This allows re-sending confirmation emails without storing the token.',
+      'hashOrderToken(token) returns a SHA-256 hash for database storage (order_view_token column). Never store the raw token — only the hash.',
+      'verifyOrderViewToken(token, orderId, secret) validates signature, expiry, AND cross-checks the orderId claim to prevent token reuse across orders.',
+      'Guest order tracking URL pattern: /order/:orderNumber?token=<raw_token>. The frontend reads the token, sends it to the backend which verifies it before returning order details.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below is the order-token.ts library.
+
+${src}
+
+Task: Write an "Order View Tokens" reference.
+Include:
+1. Architecture: what OVTs solve (guest access without account).
+2. generateOrderViewToken(): signature, deterministic property, TTL.
+3. hashOrderToken(): why we hash before DB storage.
+4. verifyOrderViewToken(): what it checks (signature + expiry + orderId cross-check).
+5. Full flow: order created → token generated → included in email → guest visits URL → backend verifies.
+6. The ORDER_VIEW_TOKEN_SECRET env var — how to set it.
+`),
+  },
+
+  // ── 22. Localized content editing ────────────────────────────────────────────
+  {
+    name: 'localized-content-patterns',
+    description: 'Multilingual content: JSON storage in DB, description.ts migration, useLocalizedTextInput hook',
+    sources: [
+      'apps/client/src/utils/description.ts',
+      'apps/client/src/hooks/use-localized-text-input.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'Localized text fields in the DB are JSON strings: {"en-US": "My product", "fr-FR": "Mon produit"}. The helper getLocalizedText(value, locale, fallback) parses this JSON and returns the best match.',
+      'Legacy rows may contain plain HTML strings (not JSON). isLocalizedJson(value) detects the format. migrateToLocalizedJson(plainText) wraps a plain string into {"en-US": plainText} for backward compatibility.',
+      'useLocalizedTextInput(fieldName, initialValue, options) manages a multilingual text field in an admin form: tracks current locale, provides onChange handlers, integrates AI auto-translation, detects RTL.',
+      'The hook exposes: value (current locale string), allValues (full JSON object), handleChange(locale, text), translateAll(aiParams) → fills all locales via translateWithAi().',
+      'AI translation is opt-in. The "Translate" button in admin forms calls translateAll() which loops over all 6 locales and calls translateWithAi() for each missing translation.',
+      'RTL detection: the hook checks availableLanguages[locale].isRTL and sets dir="rtl" on the input element automatically for ar-SA and he-IL.',
+      'When saving a localized field to the backend, always serialize allValues as JSON.stringify(allValues). Never pass the current-locale string alone.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the description.ts utility and the useLocalizedTextInput hook.
+
+${src}
+
+Task: Write a "Localized Content Patterns" reference.
+Include:
+1. The JSON storage format: {"en-US": "...", "fr-FR": "..."} — reading and writing.
+2. getLocalizedText(), isLocalizedJson(), migrateToLocalizedJson() — when to use each.
+3. useLocalizedTextInput(): props, return values, AI translation integration.
+4. RTL handling in the input hook.
+5. How to add a localized field to an admin form (complete example with the hook).
+6. Common pitfall: saving only the current-locale string instead of the full JSON object.
+`),
+  },
+
+  // ── 23. Analytics & dashboard ─────────────────────────────────────────────────
+  {
+    name: 'analytics-dashboard',
+    description: 'Admin analytics: revenue, orders, stock alerts, KV cache metrics',
+    sources: [
+      'apps/merchant/src/routes/analytics.ts',
+      'apps/client/src/pages/admin/analytics.tsx',
+    ],
+    maxSourceChars: 4000,
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'GET /v1/analytics/dashboard accepts period= query param: "7d" | "30d" | "90d" | "all". Period filtering uses SQLite date expressions — no external time library.',
+      'The dashboard response includes: total_revenue_cents, order_count, avg_order_value_cents, new_customers_count, top_products (top 5 by revenue), orders_by_status (breakdown), low_stock_items (available ≤ LOW_INVENTORY_THRESHOLD).',
+      'GET /v1/analytics/cache-stats returns KV cache hit/miss counts stored in KV keys analytics:cache:hits and analytics:cache:misses. Cache stats are incremented by the kvCacheMiddleware.',
+      'Both endpoints require adminOnly middleware (admin:store permission).',
+      'The frontend analytics page uses React Query for data fetching with a period selector state. Charts are rendered using HeroUI primitives (no external chart library by default).',
+      'Revenue aggregations use SUM(oi.unit_price_cents * oi.quantity) across order_items joined with orders. Only orders with status NOT IN ("canceled", "refunded") are counted.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below are the analytics route and the admin analytics page.
+
+${src}
+
+Task: Write an "Analytics & Dashboard" reference.
+Include:
+1. Dashboard endpoint: available metrics, period param values, response shape.
+2. How revenue is calculated (which statuses are excluded).
+3. Low stock alerting: threshold, included fields.
+4. Cache stats: what is tracked, KV key names, how to reset.
+5. Frontend page: period selector, data fetching pattern with React Query.
+6. How to add a new metric (backend aggregation + frontend display).
+`),
+  },
+
+  // ── 24. Setup & database management ──────────────────────────────────────────
+  {
+    name: 'setup-and-initialization',
+    description: 'Store setup: API key init, Stripe config, database reset, migration management via API',
+    sources: [
+      'apps/merchant/src/routes/setup.ts',
+    ],
+    systemPrompt: BASE_SYSTEM,
+    staticHeader: `<!--
+  AUTO-GENERATED by scripts/generate-static-mcp-response.ts
+  Do not edit manually. Run the script to regenerate.
+-->
+`,
+    manualFacts: [
+      'POST /v1/setup/init is the one-time store initialization endpoint. It creates the first pk_/sk_ API key pair. It is idempotent — if api_keys already exist, it returns 409. Requires no auth (used before any key exists).',
+      'POST /v1/setup/stripe validates the provided Stripe secret key via an API call before storing it in config. Always validate before saving.',
+      'POST /v1/setup/reset wipes ALL data (cascade delete) and re-runs SCHEMA initialization. Requires databaseAdminOnly (admin:database Auth0 permission). NEVER expose this in production without IP restriction.',
+      'GET /v1/setup/migrations/list returns all rows from the migrations table (name, applied_at). POST /v1/setup/migrations/run re-executes ensureInitialized() to apply any pending migrations.',
+      'Config values are stored in the config table as key-value pairs. GET /v1/setup/config returns all config entries. Sensitive values (Stripe keys) are masked in the response.',
+      'The setup routes are public (no authMiddleware) because they are used before any admin account exists. Secure them at the network level (Cloudflare Access or IP allowlist) in production.',
+    ],
+    buildPrompt: (src) => appendFacts(`
+Below is the setup route.
+
+${src}
+
+Task: Write a "Setup & Initialization" reference.
+Include:
+1. First-time store setup flow: POST /setup/init → POST /setup/stripe → seed data.
+2. Config table: what is stored, how to read/update, masking of sensitive values.
+3. Migration management via API: list, run pending, clean history.
+4. Database reset: when to use it (demo/testing only), required permissions, cascade behavior.
+5. Security warning: why setup routes must be protected at the network level in production.
+6. How to add a new configurable setting (config table pattern).
+`),
+  },
+
   // ── 16. Conventions & Anti-Patterns ─────────────────────────────────
   {
     name: 'conventions-and-anti-patterns',
@@ -1923,7 +2291,7 @@ async function main() {
             console.log(`  → calling AI [${chosenModel}]${sizeNote}${retryNote}…`);
             try {
               const { maxOutputTokens } = getModelBudget(chosenModel);
-            const result = await callAI(topic.systemPrompt, userPrompt, maxOutputTokens, chosenModel);
+              const result = await callAI(topic.systemPrompt, userPrompt, maxOutputTokens, chosenModel);
               aiContent = result.content;
               aiMeta = { model: chosenModel, tokensIn: result.tokensIn, tokensOut: result.tokensOut };
               console.log(`  → received ${result.tokensOut} tokens out (${result.tokensIn} in)`);
@@ -1980,9 +2348,14 @@ async function main() {
       }
     }
 
+    // Extract AI-generated mcp-description (if present) then strip it from content.
+    const mcpDescMatch = aiContent.match(/^<!--mcp-description:\s*(.+?)-->\n?/);
+    const mcpDescription = mcpDescMatch?.[1]?.trim() ?? topic.description;
+    if (mcpDescMatch) aiContent = aiContent.slice(mcpDescMatch[0].length);
+
     // Build the file: dynamic header (with AI metadata when available) +
     // AI content + optional static appendix.
-    const header = buildHeader(aiMeta);
+    const header = buildHeader(mcpDescription, aiMeta);
     const fileContent = header + aiContent +
       (topic.staticAppend ? '\n\n' + topic.staticAppend : '');
 
