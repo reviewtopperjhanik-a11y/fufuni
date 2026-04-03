@@ -1,4 +1,5 @@
 #!/usr/bin/env npx tsx
+/// <reference types="node" />
 /**
  * Copyright (c) 2024-2026 Ronan LE MEILLAT
  * License: AGPL-3.0-or-later
@@ -161,12 +162,40 @@ function loadDotenv(envPath: string): Record<string, string> {
 
 const dotenv = loadDotenv(join(ROOT, '.env'));
 
-// Merge .env values into process.env so the rest of the script can use them.
+// Merge .env values into process.env — only when the key is NOT already present.
+// Using `in` (not falsiness) so that an explicit empty-string override on the
+// command line (e.g. AI_API_KEY=${UNSET_VAR}) is still respected and not
+// silently replaced by the .env value.
 for (const [k, v] of Object.entries(dotenv)) {
-  if (!process.env[k]) process.env[k] = v;
+  if (!(k in process.env)) process.env[k] = v;
 }
 
 // ─── AI configuration ────────────────────────────────────────────────────────
+
+/** Maximum number of automatic retries on HTTP 429 rate-limit responses. */
+const MAX_429_RETRIES = 5;
+
+/**
+ * Compute how many milliseconds to wait before retrying after a 429.
+ *
+ * Priority order:
+ *  1. Groq / OpenAI inline message:  "Please try again in 18.96s."
+ *  2. Standard retry-after HTTP header (value in seconds).
+ *  3. Exponential back-off: 5 s × 2^attempt, capped at 60 s.
+ *
+ * A 500 ms safety buffer is added on top of the provider-reported delay
+ * to account for clock skew and network latency.
+ */
+function parseRetryAfterMs(
+  errorBody: string,
+  retryAfterHeader: string | null,
+  attempt: number,
+): number {
+  const match = errorBody.match(/try again in ([\d.]+)s/i);
+  if (match) return Math.ceil(parseFloat(match[1]) * 1_000) + 500;
+  if (retryAfterHeader) return (parseInt(retryAfterHeader, 10) + 1) * 1_000;
+  return Math.min(5_000 * Math.pow(2, attempt), 60_000);
+}
 
 // ─── round-robin state ───────────────────────────────────────────────────────
 
@@ -350,12 +379,16 @@ function estimateTokens(text: string): number {
  * Call the AI API with a system + user prompt.
  * Returns the assistant's response text.
  *
- * The function picks a fresh API key for each call so that if you are
- * regenerating multiple topics in a row, you automatically rotate keys.
+ * A fresh API key is picked on every attempt (round-robin) so that
+ * retrying after a 429 automatically rotates to the next key in the pool.
+ * On HTTP 429 the function waits for the provider-reported delay (parsed
+ * from the Groq/OpenAI error body or the retry-after header) then retries
+ * up to MAX_429_RETRIES times before throwing.
  *
  * @param systemPrompt  High-level instructions to the model (role, output format).
  * @param userPrompt    The actual question / source context to summarise.
- * @param maxTokens     Maximum output size (defaults to 6000).
+ * @param maxTokens     Maximum output size (defaults to MAX_OUTPUT_TOKENS).
+ * @param model         Model ID (defaults to next model in the round-robin pool).
  */
 async function callAI(
   systemPrompt: string,
@@ -363,7 +396,6 @@ async function callAI(
   maxTokens = MAX_OUTPUT_TOKENS,
   model = nextModel(),
 ): Promise<{ content: string; tokensIn: number; tokensOut: number }> {
-  const apiKey = nextApiKey();
   const isAnthropic = AI_API_URL.includes('anthropic.com');
   const isGemini = AI_API_URL.includes('generativelanguage.googleapis.com') && !AI_API_URL.includes('openai');
 
@@ -372,102 +404,108 @@ async function callAI(
     console.log(`  [ai] input tokens ≈ ${estimateTokens(systemPrompt + userPrompt)}`);
   }
 
-  if (isAnthropic) {
-    // Utiliser l'endpoint /messages d'Anthropic
-    const body = {
-      model,
-      max_tokens: maxTokens,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    };
-    const response = await fetch(`${AI_API_URL}/messages`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': nextApiKey(),
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify(body),
-    });
+  for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
+    // Fresh key on every attempt — rotates through the pool automatically.
+    const apiKey = nextApiKey();
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`AI API error (Anthropic) ${response.status}: ${errorText}`);
+    let response: Response;
+
+    if (isAnthropic) {
+      response = await fetch(`${AI_API_URL}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userPrompt }],
+        }),
+      });
+    } else if (isGemini) {
+      response = await fetch(`${AI_API_URL}/models/${model}:generateContent?key=${apiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: systemPrompt }] },
+          contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+          generationConfig: { maxOutputTokens: maxTokens },
+        }),
+      });
+    } else {
+      // OpenAI / Groq / Together / any OAI-compatible endpoint
+      response = await fetch(`${AI_API_URL}/chat/completions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userPrompt },
+          ],
+        }),
+      });
     }
 
-    const data = await response.json();
-    return {
-      content: data.content?.[0]?.text ?? '',
-      tokensIn: data.usage?.input_tokens ?? estimateTokens(systemPrompt + userPrompt),
-      tokensOut: data.usage?.output_tokens ?? 0,
-    };
-  }
-
-  if (isGemini) {
-    // Utiliser l'endpoint natif de Gemini
-    const url = `${AI_API_URL}/models/${model}:generateContent?key=${apiKey}`;
-    const body = {
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      generationConfig: { maxOutputTokens: maxTokens },
-    };
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    });
-
-    if (!response.ok) {
+    // ── 429 handling: wait then retry ────────────────────────────────────────
+    if (response.status === 429 && attempt < MAX_429_RETRIES) {
       const errorText = await response.text();
-      throw new Error(`AI API error (Gemini) ${response.status}: ${errorText}`);
+      const waitMs = parseRetryAfterMs(errorText, response.headers.get('retry-after'), attempt);
+      console.log(
+        `  [retry] 429 rate-limit (attempt ${attempt + 1}/${MAX_429_RETRIES}). ` +
+        `Waiting ${(waitMs / 1_000).toFixed(1)} s before next attempt…`,
+      );
+      await new Promise(r => setTimeout(r, waitMs));
+      continue;
     }
 
-    const data = await response.json();
-    return {
-      content: data.candidates?.[0]?.content?.parts?.[0]?.text ?? '',
-      tokensIn: data.usageMetadata?.promptTokenCount ?? estimateTokens(systemPrompt + userPrompt),
-      tokensOut: data.usageMetadata?.candidatesTokenCount ?? 0,
+    // ── other HTTP errors ─────────────────────────────────────────────────────
+    if (!response.ok) {
+      const errorText = await response.text();
+      const label = isAnthropic ? 'Anthropic' : isGemini ? 'Gemini' : 'OpenAI/Groq';
+      throw new Error(`AI API error (${label}) ${response.status}: ${errorText}`);
+    }
+
+    // ── parse successful response ─────────────────────────────────────────────
+    if (isAnthropic) {
+      const data = await response.json();
+      return {
+        content: data.content?.[0]?.text ?? '',
+        tokensIn: data.usage?.input_tokens ?? estimateTokens(systemPrompt + userPrompt),
+        tokensOut: data.usage?.output_tokens ?? 0,
+      };
+    }
+
+    if (isGemini) {
+      const data = await response.json();
+      return {
+        content: data.candidates?.[0]?.content?.parts?.[0]?.text ?? '',
+        tokensIn: data.usageMetadata?.promptTokenCount ?? estimateTokens(systemPrompt + userPrompt),
+        tokensOut: data.usageMetadata?.candidatesTokenCount ?? 0,
+      };
+    }
+
+    // OAI-compatible response
+    const data = await response.json() as {
+      choices: Array<{ message: { content: string } }>;
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
     };
+    const content = data.choices?.[0]?.message?.content ?? '';
+    const tokensIn = data.usage?.prompt_tokens ?? estimateTokens(systemPrompt + userPrompt);
+    const tokensOut = data.usage?.completion_tokens ?? estimateTokens(content);
+    if (verbose) console.log(`  [ai] output tokens ≈ ${tokensOut}`);
+    return { content, tokensIn, tokensOut };
   }
 
-  // Fallback (OpenAI, Groq, Together, etc.)
-  const url = `${AI_API_URL}/chat/completions`;
-  const body = {
-    model,
-    max_tokens: maxTokens,
-    messages: [
-      { role: 'system', content: systemPrompt },
-      { role: 'user', content: userPrompt },
-    ],
-  };
-
-  const response = await fetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${nextApiKey()}`,
-    },
-    body: JSON.stringify(body),
-  });
-
-  if (!response.ok) {
-    const errorText = await response.text();
-    throw new Error(`AI API error (OpenAI/Groq fallback) ${response.status}: ${errorText}`);
-  }
-
-  const data = await response.json() as {
-    choices: Array<{ message: { content: string } }>;
-    usage?: { prompt_tokens?: number; completion_tokens?: number };
-  };
-
-  const content = data.choices?.[0]?.message?.content ?? '';
-  const tokensIn = data.usage?.prompt_tokens ?? estimateTokens(systemPrompt + userPrompt);
-  const tokensOut = data.usage?.completion_tokens ?? estimateTokens(content);
-
-  if (verbose) {
-    console.log(`  [ai] output tokens ≈ ${tokensOut}`);
-  }
-  return { content, tokensIn, tokensOut };
+  // Unreachable — the loop always returns or throws before exhausting retries.
+  throw new Error(`AI call failed after ${MAX_429_RETRIES} retries.`);
 }
 
 // ─── output directory ─────────────────────────────────────────────────────────
@@ -541,6 +579,13 @@ type Topic = {
   manualFacts?: string[];
   /** Verbatim Markdown appended after the AI section (never reformulated). */
   staticAppend?: string;
+  /**
+   * Override the per-file character budget for source truncation.
+   * Useful when a topic has many large files and would otherwise exceed
+   * the model's per-request token limit (HTTP 413).
+   * Defaults to MAX_SOURCE_CHARS when omitted.
+   */
+  maxSourceChars?: number;
 };
 
 /**
@@ -572,7 +617,7 @@ const TOPICS: Topic[] = [
 `,
     manualFacts: [
       'The monorepo has three main workspaces: apps/client (React SPA), apps/merchant (Hono Worker + Durable Object), apps/mcp (MCP server).',
-      'The monorepo uses **Turborepo** for task orchestration. The `npm run ddev:env` inject the .env and launches the full stack locally with hot-reloading for both frontend, backend, mcp and stripe.',
+      'The monorepo uses **Turborepo** for task orchestration. The `npm run dev:env` inject the .env and launches the full stack locally with hot-reloading for both frontend, backend, mcp and stripe.',
       'The entire backend runs inside a single Durable Object (MerchantDO) so that all SQL is executed in one JS isolate — no connection pools, no latency.',
       'Public API keys are prefixed pk_; admin/secret keys are prefixed sk_. Never expose sk_ keys to the frontend.',
       'Secret sk_ key is kept only for legacy compatibility, RBAC auth via Auth0 permissions on access tokens is the source of truth.',
@@ -739,13 +784,13 @@ Show full TypeScript code.
 `,
     manualFacts: [
       'Auth0 is the sole identity provider. RBAC (roles/permissions) is managed exclusively in the Auth0 dashboard — not in the database.',
-      'Token types accepted by authMiddleware: (1) Auth0 JWT (3-part, requires admin:store permission); (2) sk_ database API key; (3) 64-char hex OAuth token.',
-      'Available RBAC guards (all in apps/merchant/src/middleware/auth.ts): adminOnly (requires role=admin or roles includes "admin"), superAdminOnly (requires authadmin / Auth0 admin), databaseAdminOnly (databaseadmin), aiAccessOnly (aiadmin), mailAccessOnly (mail), validJwtAuthOnly (any valid JWT, no permission required).',
+      'Token types accepted by authMiddleware: (1) Auth0 JWT (3-part Bearer, must include the permission set in ADMIN_STORE_PERMISSION env var, default "admin:store"); (2) sk_ database API key (hashed lookup in api_keys table); (3) 64-char lowercase hex OAuth token (lookup in oauth_tokens table).',
+      'AuthRole values (TypeScript type): "public" | "admin" | "oauth" | "authadmin" | "databaseadmin" | "aiadmin" | "mail" | "customer". Role is stored in c.var.auth.role after middleware runs.',
+      'Available RBAC guards (all in apps/merchant/src/middleware/auth.ts): adminOnly (role="admin", Auth0 permission "admin:store"), superAdminOnly (role="authadmin", Auth0 permission "auth0:admin:api"), databaseAdminOnly (role="databaseadmin", Auth0 permission "admin:database"), aiAccessOnly (role="aiadmin", Auth0 permission "ai:api"), mailAccessOnly (role="mail", Auth0 permission "mail:api"), validJwtAuthOnly (any valid Auth0 JWT, no specific permission required). Also: requireScope(...scopes) for OAuth token scope checks.',
       'superAdminOnly is required to reach GET /v1/__auth0/token, which returns a cached Auth0 Management API token. The cache avoids hitting Auth0\'s M2M token quota.',
-      'customerAuthMiddleware is for customer-facing endpoints (/v1/me/*). It validates the JWT but does NOT require admin:store — any authenticated user is allowed.',
-      'On the frontend, use AuthenticationGuard to protect a whole page/component (redirects to login if not authenticated). Use AuthenticationGuardWithPermission to conditionally show UI based on a specific Auth0 permission.',
-      'On the frontend, LoginModal provides a local (no Auth0 redirect) modal with email/passwordless and social login options.',
-      'hasPermission(permission) from useAuth() checks asynchronously whether the current user\'s token contains a specific Auth0 permission string.',
+      'customerAuthMiddleware is for customer-facing endpoints (/v1/me/*). It validates Auth0 JWTs only (rejects sk_/pk_ keys), sets role="customer", and does NOT require any specific permission. It extracts sub, email, permissions[], and user_metadata from the JWT.',
+      'On the frontend, use AuthenticationGuard (prop: component={MyComponent}) to protect a whole page (redirects to login if not authenticated). Use AuthenticationGuardWithPermission (props: permission="admin:store", children, fallback?) to conditionally show UI based on a specific Auth0 permission.',
+      'hasPermission(permission) is exposed by useSecuredApi() — NOT by useAuth() directly. It checks asynchronously whether the current user\'s access token contains a specific Auth0 permission string.',
       'isAuthenticated from useAuth() is a synchronous boolean indicating whether the user is logged in.',
       'The UsersAndPermissionsPage (/admin/users-and-permissions) allows admins to manage Auth0 user permissions from the storefront UI without going to the Auth0 dashboard.',
       'The deploy-tenant-resources script (scripts/auth0/deploy-tenant-resources.ts) provisions all required Auth0 resources (application, API, permissions, actions) with minimal effort.',
@@ -763,9 +808,10 @@ Include:
 4. Backend: code example — protecting a route with authMiddleware + adminOnly.
 5. Backend: code example — superAdminOnly and the /v1/__auth0/token Management API endpoint.
 6. Backend: customerAuthMiddleware for customer-scoped routes.
-7. Frontend: AuthenticationGuard, AuthenticationGuardWithPermission, hasPermission(), isAuthenticated — when to use each.
-8. Frontend: LoginModal — when to use it instead of redirecting to Auth0.
+7. Frontend: AuthenticationGuard (prop: component), AuthenticationGuardWithPermission (props: permission, children, fallback?), hasPermission() from useSecuredApi(), isAuthenticated from useAuth() — when to use each.
+8. Frontend: LoginLogoutLink / LoginButton — when to use them instead of redirecting to Auth0.
 9. Frontend: UsersAndPermissionsPage — how admins manage permissions without the Auth0 dashboard.
+10. requireScope(...scopes) factory for OAuth-scoped routes.
 `),
   },
 
@@ -793,7 +839,7 @@ Include:
       'Use postForm(url, formData) for authenticated multipart/form-data POST (e.g. image upload).',
       'Use hasPermission(permissionString) to async-check whether the current user has a specific Auth0 permission before showing/calling admin features.',
       'For unauthenticated public endpoints (e.g. product listing), use plain fetch() or a custom hook with useQuery — do NOT use useSecuredApi() for public routes.',
-      'useSecuredApi() also exposes Auth0 Management API helpers: getAuth0ManagementToken(), listAuth0Users(), getUserPermissions(), addPermissionToUser(), removePermissionFromUser(). These require the authadmin role.',
+      'useSecuredApi() also exposes Auth0 Management API helpers (all require the authadmin role / auth0:admin:api permission): getAuth0ManagementToken(), listAuth0Users(), getUserPermissions(), addPermissionToUser(), removePermissionFromUser(), deleteAuth0User(), getResourceServers(), updateResourceServerScopes(), getResourceServerScopes(), checkResourceServerScopes().',
       'The AI-assisted features (review moderation, auto-translation) use getJson on GET /v1/ai/parameters to obtain { apiKey, model, url } then call ai-client.ts helpers directly from the browser — no backend inference call.',
     ],
     buildPrompt: (src) => appendFacts(`
@@ -835,7 +881,7 @@ Include:
 `,
     manualFacts: [
       'New languages must be declared in i18n.ts within availableLanguages.',
-      'Add a new object to the availableLanguages array with the following properties: code (The ISO 639-1 language code, e.g., "en-US"), nativeName (The native name of the language, e.g., "English"), and isRTL (Whether the language is right-to-left, e.g., false).',
+      'Add a new object to the availableLanguages array with the following properties: code (e.g. "en-US"), nativeName (e.g. "English"), isRTL (boolean, true for ar-SA and he-IL). Optionally set isDefault: true to make it the fallback language (only one entry should have isDefault: true, currently en-US).',
       'json files contains the translation keys for each language. Keys use kebab-case. ex: "admin-users-page-title": "Admin Users Page Title"',
       'rtl styles are automatically applied to the layout when the language is set to a rtl language.',
       'Master language is en-US.json. All other languages are derived from this file.',
@@ -906,14 +952,15 @@ Include:
 `,
     manualFacts: [
       'The UI uses HeroUI v3 (not v2). Import from "@heroui/react". Use compound component syntax: <Dropdown.Trigger>, <Card.Header>, etc.',
-      'Adding a new page requires two steps: (1) create the page component in apps/client/src/pages/; (2) add it to the router in app.tsx; (3) optionally add a navItem entry in apps/client/src/config/site.ts with a permissions[] array to control visibility.',
-      'The navbar (apps/client/src/components/navbar.tsx) reads siteConfig().navItems and shows/hides items using AuthenticationGuardWithPermission based on the permissions[] array on each item.',
+      'Adding a new page requires three steps: (1) create the page component in apps/client/src/pages/; (2) add it to the router in app.tsx (wrap with AuthenticationGuard or AuthenticationGuardWithPermission if protected); (3) optionally add a navItem entry in apps/client/src/config/site.ts with a permissions[] array to control navbar visibility.',
+      'The navbar (apps/client/src/components/navbar.tsx) reads siteConfig().navItems: public items (permissions: []) are always shown; the admin dropdown is wrapped with <AuthenticationGuardWithPermission permission="admin:store"> and only shows items whose permissions[] includes "admin:store".',
       'The ThemeSwitch component (apps/client/src/shared/ui/navigation/theme-switch.tsx) is already included in the navbar. Users can switch between light/dark and custom themes. Theme config is stored in the store_themes DB table.',
       'Feature folder structure: apps/client/src/features/<feature-name>/components/, hooks/, index.ts. Export public API from index.ts only.',
       'New React hooks go in apps/client/src/hooks/ if they are page-agnostic, or in the feature folder if feature-specific.',
       'The LoginModal component handles both email/passwordless and social login. Show it instead of redirecting when you want the user to stay on the current page after login.',
       'Reusable display components (apps/client/src/components/): ProductCard (compact list card), ProductCardFull (detail view with variant selector, tax info), ProductImage (square image with fallback and variant-count badge), ProductReviews (review list + gated write form), CategoryBentoGrid (category landing 5-tile bento layout), ProductCarousel (horizontal snap-scroll product strip).',
       'ImageUploadInput (apps/client/src/components/image-upload-input.tsx) handles the full image upload flow: file picker, WebP conversion, auto-select base64 vs R2 based on size, preview, manual URL input, thumbnail generation. Use it for any admin image field.',
+      'apps/client/src/provider.tsx wraps the app with exactly three providers in order: StoreThemeProvider (custom theme) > Toast.Provider (HeroUI toasts) > CartProvider (cart context). Auth0Provider is NOT in provider.tsx — authentication is initialised in the auth feature module.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are the React application entry files, site config, and navbar.
@@ -1108,7 +1155,7 @@ Include:
 -->
 `,
     manualFacts: [
-      'Order statuses are defined in apps/client/src/config/order-status.ts on the frontend and in the 001-add-order-statuses.sql migration on the backend.',
+      'Order statuses are defined in apps/client/src/config/order-status.ts on the frontend and in the 001-add-order-statuses.sql migration on the backend. The 7 statuses are: "pending" (warning), "paid" (success), "processing" (accent), "shipped" (accent), "delivered" (success), "refunded" (danger), "canceled" (danger). The colour is used by the status badge component.',
       'A refund goes through Stripe then updates the status in the DB — never modify the DB directly without going through the Stripe API.',
     ],
     buildPrompt: (src) => appendFacts(`
@@ -1172,9 +1219,12 @@ Include:
 -->
 `,
     manualFacts: [
-      'Each outbound event triggers a fetch to the webhook URL with X-Fufuni-Signature, X-Fufuni-Timestamp, and X-Fufuni-Delivery-Id headers.',
-      'webhook_deliveries tracks each attempt (HTTP status, timestamp, payload). Retries are managed by a Cloudflare cron.',
-      'The admin UI displays deliveries, statuses, and allows for manual retries and secret rotation.',
+      'Each outbound event triggers a fetch with headers: X-Fufuni-Signature (HMAC-SHA256 hex of payload), X-Fufuni-Timestamp (Unix seconds), X-Fufuni-Delivery-Id (delivery UUID), User-Agent: Merchant-Webhook/1.0.',
+      'MAX_ATTEMPTS = 3 with exponential backoff: 2^attempt × 1000 ms. Retries on network errors, 5xx, and 429. No retry on other 4xx.',
+      'webhook_deliveries columns: id, webhook_id, event_type, payload (JSON), status (pending/success/failed), attempts, response_code, response_body, created_at, last_attempt_at.',
+      'generateWebhookSecret() produces a whsec_ prefixed 64-char lowercase hex string (32 random bytes). Store this secret server-side and share it with the third-party for signature verification.',
+      'Built-in event types: order.created, order.updated, order.shipped, order.refunded, inventory.low. LOW_INVENTORY_THRESHOLD = 5 — inventory.low fires when available stock ≤ 5.',
+      'The admin UI (/admin/webhooks) displays deliveries, statuses, allows manual retries and secret rotation.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are the outbound webhook files.
@@ -1264,8 +1314,10 @@ Include:
       'apps/merchant/src/routes/tax-rates.ts',
       'apps/merchant/src/lib/tax.ts',
       'apps/merchant/src/lib/shipping.ts',
-      'apps/merchant/src/routes/shipping-rates.ts',
     ],
+    // regions.ts is very large; 4 files × 3000 chars ≈ 3 000 tokens of source,
+    // well within the Groq free-tier 12 000 TPM per-request limit.
+    maxSourceChars: 3000,
     systemPrompt: BASE_SYSTEM,
     staticHeader: `<!--
   AUTO-GENERATED by scripts/generate-static-mcp-response.ts
@@ -1338,8 +1390,9 @@ Include:
 `,
     manualFacts: [
       'AdminCrudLayout + useAdminCrud is the standard pattern for all admin pages. Do not reinvent a custom CRUD pattern.',
-      'useAdminCrud handles: pagination, sorting, search, create/edit/delete, delete confirmation.',
-      'Columns are defined via a ColumnDef array compatible with HeroUI v3 Table.',
+      'useAdminCrud handles: global text search (globalFilter/setGlobalFilter), status filter (statusFilter/setStatusFilter, values: ""/"active"/"inactive"), and modal state for create/edit (openCreate(), openEdit(item), closeModal(), isModalOpen, isEditMode, editingItem). It does NOT handle pagination or column sorting — implement those separately if needed.',
+      'useAdminCrud<T extends HasIdAndStatus> returns: items, setItems, displayedItems (filtered), globalFilter, setGlobalFilter, statusFilter, setStatusFilter, isModalOpen, setIsModalOpen, isEditMode, editingItem, openCreate, openEdit, closeModal.',
+      'AdminCrudLayout accepts: title, subtitle?, icon?, addLabel, onAdd, globalFilter, onGlobalFilterChange, filterPlaceholder?, statusFilter, onStatusFilterChange, statusLabel?, headerExtra?, children. Pass the HeroUI Table as children.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below is the admin CRUD layout code.
@@ -1370,9 +1423,10 @@ Include:
 -->
 `,
     manualFacts: [
-      'PDF generation is 100% client-side (browser) — no server dependency.',
-      'utils/currency.ts formats amounts taking into account the cart\'s locale and currency.',
-      'The PDF is generated in base64 and offered for download via a blob URL.',
+      'PDF generation is 100% client-side (browser) using jsPDF + jspdf-autotable — no server dependency.',
+      'lib/invoice-generator.ts exposes generateInvoice(data: InvoiceData): void — generates an A4 PDF and downloads it as invoice-{orderNumber}.pdf.',
+      'utils/invoice-pdf.ts exposes two public functions: downloadInvoicePdf(order, storeName?, locale?) triggers browser download; openInvoicePdf(order, storeName?, locale?) opens the PDF in a new browser tab via window.open(blobUri). Both accept an OrderForPdf object.',
+      'utils/currency.ts formats cent amounts into locale-aware currency strings. Supported currencies: USD, EUR, GBP, CAD, CHF, AUD, JPY, CNY.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are the files for invoice and PDF generation.
@@ -1404,9 +1458,11 @@ Include:
 -->
 `,
     manualFacts: [
-      'The luxury layout is a complete visual variant — router, header and footer are different.',
+      'The luxury layout is a complete visual variant: full-bleed main (no container padding), dedicated <Footer> component, min-h-screen instead of h-screen flex.',
       'cms-content.ts defines editable content blocks (hero banner, carousel, etc.) without an external CMS database.',
-      'Custom themes are stored in store_themes and loaded at startup via the API.',
+      'Per-user theme preference is stored in Auth0 user_metadata (not in the DB directly). StoreThemeProvider reads it from the JWT payload via decodeJwt() (jose library) and applies it as a data-theme attribute on <html>. Unauthenticated users have their theme in localStorage key "ui-theme".',
+      'Theme changes are propagated across components via a custom DOM event THEME_UPDATED_EVENT = "fufuni:theme-updated". Dispatch this event after a theme mutation to sync all providers without a page reload.',
+      'To persist a theme preference, call PATCH /v1/me/preferences — this updates Auth0 user_metadata via the Management API.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are the layouts, CMS config, and theme provider.
@@ -1539,11 +1595,11 @@ Include:
 `,
     manualFacts: [
       'ALL AI inference runs in the browser — there is no server-side inference. The browser fetches credentials then calls the AI provider directly.',
-      'Backend GET /v1/ai/parameters requires Auth0 permission ai:api (enforced by aiAccessOnly middleware). Returns { apiKey, model, url }. apiKey is randomly chosen from a comma-separated pool to distribute rate limits.',
+      'Backend GET /v1/ai/parameters requires Auth0 permission ai:api (enforced by aiAccessOnly middleware). Returns { apiKey: string, model: string, url: string }. apiKey is randomly chosen from the AI_API_KEY comma-separated pool. Returns 503 if any of AI_API_KEY, AI_MODEL, or AI_API_URL is missing.',
       'apps/client/src/utils/ai-client.ts is the single AI utility module. Follow DRY — add new AI helpers here, never create a parallel AI client.',
-      'ai-client.ts supports OpenAI, Groq (OpenAI-compatible), and Anthropic. Provider is auto-detected from the url field.',
-      'Current AI use cases: (1) analyzeReviewWithAi() — moderate product reviews (approve/reject + reason); (2) translateWithAi() — auto-translate content into the 6 supported locales.',
-      'Gate AI UI with AuthenticationGuardWithPermission permission="ai:api" or hasPermission("ai:api") before showing AI controls.',
+      'AiParams interface: { apiKey: string, model: string, url: string, provider?: "openai" | "groq" | "anthropic" | "auto" }. Provider is auto-detected from the url field: url containing "anthropic" → Anthropic Messages API; "groq" → Groq (OAI-compatible); default → OpenAI.',
+      'Current AI functions: analyzeReviewWithAi(review: ReviewInput, params: AiParams): Promise<ReviewAnalysisResult> — returns { success, recommendation: "approve"|"reject", reason?, error? }. analyzeReviewsBatchWithAi(reviews[], params, onProgress?) — processes up to 5 reviews in parallel. translateWithAi(content, targetLanguage, params, isHtml?, options?) — returns { success, content?, error? }.',
+      'Gate AI UI with AuthenticationGuardWithPermission permission="ai:api" or hasPermission("ai:api") (from useSecuredApi()) before showing AI controls.',
       'To add a new AI feature: add a typed helper function to ai-client.ts following the AiParams interface, then fetch credentials from GET /v1/ai/parameters and pass them to your helper.',
     ],
     buildPrompt: (src) => appendFacts(`
@@ -1578,7 +1634,7 @@ Include:
 `,
     manualFacts: [
       'scripts/auth0/deploy-tenant-resources.ts provisions all Auth0 resources in one command: SPA app, API resource server, permission scopes, post-login Action (injects user_metadata into JWT), and M2M client for Management API.',
-      'Auth0 permissions used by Fufuni: admin:store (general admin), auth0:admin:api (Management API proxy — superAdmin), ai:api (AI features), mail:api (email sending), database:admin (direct DB access).',
+      'Auth0 permissions used by Fufuni: admin:store (general admin → role "admin"), auth0:admin:api (Management API proxy → role "authadmin"), ai:api (AI features → role "aiadmin"), mail:api (email sending → role "mail"), admin:database (direct DB access → role "databaseadmin").',
       'The post-login Action injects user_metadata into the access token as a custom claim. This makes wishlist and preferences available in the JWT without extra API calls.',
       'The M2M token for the Management API is cached in KV (key: auth0_management_token) for ~23 hours to avoid exhausting the monthly M2M token quota.',
       'UsersAndPermissionsPage (/admin/users-and-permissions) requires auth0:admin:api permission. It uses the backend proxy then calls Auth0 Management API directly from the browser.',
@@ -1687,20 +1743,25 @@ async function main() {
       console.log(`  → regenerating (previous AI generation failed)`);
     }
 
-    // Collect source file contents
-    let combinedSources = '';
-    for (const srcPath of topic.sources) {
-      const content = readSrc(srcPath);
-      if (!content) continue;
-      const snippet = truncate(content);
-      combinedSources += `\n\n### Source: ${srcPath}\n\`\`\`\n${snippet}\n\`\`\`\n`;
+    /**
+     * Build combinedSources + userPrompt for a given per-file char budget.
+     * Called once at the start, then again (with a halved budget) if the AI
+     * returns HTTP 413 (request too large).
+     */
+    function buildContent(maxChars: number): { combinedSources: string; userPrompt: string } {
+      let combined = '';
+      for (const srcPath of topic.sources) {
+        const content = readSrc(srcPath);
+        if (!content) continue;
+        const snippet = truncate(content, maxChars);
+        combined += `\n\n### Source: ${srcPath}\n\`\`\`\n${snippet}\n\`\`\`\n`;
+      }
+      const rawPrompt = topic.buildPrompt(combined);
+      return { combinedSources: combined, userPrompt: appendFacts(rawPrompt, topic.manualFacts) };
     }
 
-    // Inject manualFacts into the prompt if the topic defines them.
-    // appendFacts() appends them under a "## Verified facts" heading so the
-    // AI treats them as ground truth and incorporates them into the document.
-    const rawPrompt = topic.buildPrompt(combinedSources);
-    const userPrompt = appendFacts(rawPrompt, topic.manualFacts);
+    let charsPerSource = topic.maxSourceChars ?? MAX_SOURCE_CHARS;
+    let { combinedSources, userPrompt } = buildContent(charsPerSource);
 
     if (verbose) {
       console.log('  User prompt preview:');
@@ -1723,34 +1784,60 @@ async function main() {
       aiContent = `# ${topic.description}\n\n> Auto-generated from source (no AI call).\n\n${combinedSources}`;
     } else {
       try {
-        // Try each model in pool order; on 413 (prompt too large / TPM exceeded)
-        // move to the next one rather than failing immediately.
+        // Strategy: try each model in pool order.
+        // On HTTP 413 (single request too large), halve charsPerSource, rebuild
+        // the prompt, then restart the model loop — up to MAX_SIZE_HALVINGS times.
+        const MAX_SIZE_HALVINGS = 3; // 14000 → 7000 → 3500 → 1750
         const modelsToTry = modelPool.length > 0 ? [...modelPool] : [nextModel()];
         let succeeded = false;
-        for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
-          const chosenModel = modelsToTry[attempt];
-          const retry = attempt > 0 ? ` (fallback ${attempt}/${modelsToTry.length - 1})` : '';
-          console.log(`  → calling AI [${chosenModel}]${retry}…`);
-          try {
-            const result = await callAI(topic.systemPrompt, userPrompt, 4096, chosenModel);
-            aiContent = result.content;
-            aiMeta = { model: chosenModel, tokensIn: result.tokensIn, tokensOut: result.tokensOut };
-            console.log(`  → received ${result.tokensOut} tokens out (${result.tokensIn} in)`);
-            succeeded = true;
-            break;
-          } catch (innerErr) {
-            const msg = (innerErr as Error).message;
-            const is413 = msg.includes('413') || msg.includes('Request too large') || msg.includes('rate_limit_exceeded');
-            if (is413 && attempt < modelsToTry.length - 1) {
-              console.warn(`  [warn] ${chosenModel} rejected (too large/TPM), trying next model…`);
-              continue;
+        let halvings = 0;
+
+        modelLoop: while (halvings <= MAX_SIZE_HALVINGS) {
+          for (let attempt = 0; attempt < modelsToTry.length; attempt++) {
+            const chosenModel = modelsToTry[attempt];
+            const sizeNote = halvings > 0 ? ` [src budget ${charsPerSource} chars]` : '';
+            const retryNote = attempt > 0 ? ` (model fallback ${attempt}/${modelsToTry.length - 1})` : '';
+            console.log(`  → calling AI [${chosenModel}]${sizeNote}${retryNote}…`);
+            try {
+              const result = await callAI(topic.systemPrompt, userPrompt, 4096, chosenModel);
+              aiContent = result.content;
+              aiMeta = { model: chosenModel, tokensIn: result.tokensIn, tokensOut: result.tokensOut };
+              console.log(`  → received ${result.tokensOut} tokens out (${result.tokensIn} in)`);
+              succeeded = true;
+              break modelLoop;
+            } catch (innerErr) {
+              const msg = (innerErr as Error).message;
+              const is413 = msg.includes('413') || msg.includes('Request too large') || msg.includes('rate_limit_exceeded');
+              if (is413) {
+                if (halvings < MAX_SIZE_HALVINGS) {
+                  // Reduce prompt size and restart the model loop
+                  halvings++;
+                  charsPerSource = Math.floor(charsPerSource / 2);
+                  console.warn(
+                    `  [warn] 413 — prompt too large. Halving source budget to ${charsPerSource} chars/file (halving ${halvings}/${MAX_SIZE_HALVINGS})…`,
+                  );
+                  ({ combinedSources, userPrompt } = buildContent(charsPerSource));
+                  continue modelLoop;
+                }
+                // Max halvings reached: fall through to next model
+                if (attempt < modelsToTry.length - 1) {
+                  console.warn(`  [warn] ${chosenModel} still too large after max halvings, trying next model…`);
+                  continue;
+                }
+              } else if (attempt < modelsToTry.length - 1) {
+                // Non-413 transient error: try next model
+                console.warn(`  [warn] ${chosenModel} failed (${msg.slice(0, 80)}), trying next model…`);
+                continue;
+              }
+              // All models exhausted or non-retryable: propagate
+              throw innerErr;
             }
-            // Non-413 error or last model: propagate to outer catch
-            throw innerErr;
           }
+          break; // models loop finished without 413 → exit while
         }
+
         if (!succeeded) {
-          throw new Error('All models in pool rejected the prompt (too large / TPM limit on all keys)');
+          throw new Error('All models rejected the prompt (too large or all keys exhausted)');
         }
       } catch (err) {
         console.error(`  [error] AI call failed: ${(err as Error).message}`);
