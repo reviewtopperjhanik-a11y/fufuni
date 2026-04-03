@@ -104,8 +104,17 @@ jobs:
       - name: Build llms export
         run: |
           source .env
-          npm run export:llms
-          npm run export:llms:slim
+
+          # Ensure do.ts uses type-only import for DurableObject during local Node/OpenAPI export.
+          sed -i.bak "s|import { DurableObject } from 'cloudflare:workers';|import type { DurableObject } from 'cloudflare:workers';|" apps/merchant/src/do.ts
+
+          # run export logic in no-backend mode
+          npm run export:llms -- --no-backend --export-swagger
+          npm run export:llms:slim -- --no-backend
+
+          # restore file for worker deploy step
+          mv apps/merchant/src/do.ts.bak apps/merchant/src/do.ts
+
           cp -v llm* apps/client/dist/
           ls -lR apps/client/dist/
 

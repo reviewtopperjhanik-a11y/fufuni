@@ -72,7 +72,7 @@ const sendMail = createRoute({
 adminApp.openapi(sendMail, async (c) => {
   const body = c.req.valid('json');
   const to = body.to ?? c.env.MAILGUN_USER;
-  const subject = body.subject ?? 'Test email from Merchant API';
+  const subject = body.subject ?? 'Test email from Fufuni API';
   const text =
     body.text ??
     'This is a test email sent via Mailgun. If you received this message, the Mailgun integration is working.';
