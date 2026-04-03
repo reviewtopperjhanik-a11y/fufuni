@@ -3,87 +3,96 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    3865
-  tokens_out:   1022
+  tokens_out:   921
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Image Storage Patterns
-The Fufuni e-commerce framework employs three image storage methods: base64, R2, and external URL. Each method is suited for specific use cases, and the choice of method is determined by the size of the image and other factors.
+The Fufuni e-commerce framework utilizes three distinct image storage methods: base64, R2, and external URL. Each method is employed in specific scenarios to optimize storage and performance.
 
 ### Storage Methods
-The three storage methods are:
-1. **base64**: Small images (< 1 MB) are stored directly in the SQLite database as WebP data URIs. This method is suitable for small images, such as icons or thumbnails.
-2. **R2**: Larger images are uploaded to a Cloudflare R2 bucket via the `POST /v1/images` endpoint. The uploaded image is stored as a URL, which can be retrieved later.
-3. **External URL**: Images can also be stored as external URLs, which are stored as-is in the database. This method is useful when images are already hosted on a CDN or another external service.
+1. **Base64**: Small images (< 1 MB) are stored as WebP data URIs directly in the SQLite column. This method is suitable for thumbnails or small product images.
+2. **R2**: Larger images are uploaded to Cloudflare R2 buckets via the `POST /v1/images` endpoint. The resulting URL is stored in the database. This method is ideal for larger product images or images that require caching.
+3. **External URL**: External URLs are stored as-is, allowing for images to be hosted on third-party services like Cloudinary.
 
 ### Automatic Size-Based Selection Logic
-The `uploadImageFile()` function automatically selects the storage method based on the size of the image. If the image is smaller than 1 MB (after WebP conversion), it is stored as a base64 data URI. Otherwise, it is uploaded to R2. The `forceR2` flag can be used to always upload images to R2, regardless of size.
+The `uploadImageFile()` function automatically selects the storage method based on the image size after WebP conversion. The thresholds are defined as follows:
+* `BASE64_SIZE_LIMIT`: 1 MB (1024 * 1024 bytes)
+* `FILE_SIZE_LIMIT`: 5 MB (5 * 1024 * 1024 bytes)
+
+If the image size is less than `BASE64_SIZE_LIMIT`, it is stored as base64. Otherwise, it is uploaded to R2. The `forceR2` flag can be set to `true` to always use R2, regardless of the image size.
 
 ### WebP Conversion
-All uploaded images are converted to WebP format with a maximum size of 1200 px and a quality of 0.8. This conversion is applied to reduce the file size of the image, making it more efficient to store and transmit. Thumbnails are generated separately at a size of 300 px.
+All uploaded images are converted to WebP with the following parameters:
+* Maximum width: 1200 px
+* Quality: 0.8
+* Thumbnails are generated separately at 300 px
 
-### uploadImageFile() Signature and Usage Example
-The `uploadImageFile()` function has the following signature:
+WebP conversion is applied to reduce the file size and improve compression.
+
+### Upload Image File Function
 ```typescript
-async function uploadImageFile(
+export async function uploadImageFile(
   file: File,
   apiBaseUrl: string,
   postForm: PostFormFunction,
   forceR2 = false,
 ): Promise<ImageUploadResult>
 ```
-Here's an example usage of `uploadImageFile()` with `useSecuredApi().postForm`:
+Example usage:
 ```typescript
 import { useSecuredApi } from '@/authentication';
-import { uploadImageFile } from '@/utils/image-upload';
 
 const { postForm } = useSecuredApi();
-const file = new File(['image data'], 'image.jpg', { type: 'image/jpeg' });
+const file = new File(['image-data'], 'image.jpg', { type: 'image/jpeg' });
 const apiBaseUrl = 'https://example.com/api';
 
-uploadImageFile(file, apiBaseUrl, postForm).then((result) => {
-  console.log(result.url);
-});
+uploadImageFile(file, apiBaseUrl, postForm)
+  .then((result) => console.log(result.url))
+  .catch((error) => console.error(error));
 ```
-
 ### ImageUploadInput Component
-The `ImageUploadInput` component is a reusable UI component for managing image uploads. It has the following props:
+#### Props Table
+
 | Prop | Type | Description |
 | --- | --- | --- |
-| `value` | `string | null` | The current URL or data URI of the image |
-| `onChange` | `(url: string | null) => void` | Callback function when the image changes |
-| `onThumbnailChange` | `(url: string | null) => void` | Callback function when the thumbnail changes |
-| `disabled` | `boolean` | Whether the input is disabled |
-| `apiBaseUrl` | `string` | The base URL of the API |
-| `forceR2` | `boolean` | Whether to always upload images to R2 |
-| `postForm` | `PostFormFunction` | The POST form function to use for uploading images |
+| value | `string \| null` | Current URL or data URI |
+| onChange | `(url: string \| null) => void` | Callback for URL changes |
+| onThumbnailChange | `(url: string \| null) => void` | Callback for thumbnail changes |
+| apiBaseUrl | `string` | API base URL |
+| disabled | `boolean` | Disabled state |
+| forceR2 | `boolean` | Force R2 storage |
+| postForm | `(url: string, formData: FormData) => Promise<any>` | Custom postForm function |
 
-Here's an example usage of the `ImageUploadInput` component:
+#### Usage Example
 ```tsx
-import ImageUploadInput from '@/components/image-upload-input';
+import { ImageUploadInput } from '@/components/image-upload-input';
 
-const MyAdminForm = () => {
-  const [imageUrl, setImageUrl] = useState(null);
-  const apiBaseUrl = 'https://example.com/api';
+const ExampleForm = () => {
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
+
+  const handleImageChange = (url: string | null) => {
+    setImageUrl(url);
+  };
 
   return (
     <div>
       <ImageUploadInput
         value={imageUrl}
-        onChange={(url) => setImageUrl(url)}
-        apiBaseUrl={apiBaseUrl}
+        onChange={handleImageChange}
+        apiBaseUrl="https://example.com/api"
       />
     </div>
   );
 };
 ```
-
-### isValidImageUrl() Security Guard
-The `isValidImageUrl()` function checks whether a given URL is a valid image URL. It only allows `http(s):` and `data:image/` protocols. This function should be used to guard any URL that comes from user input before passing it to an `<img src>` tag.
+### isValidImageUrl Security Guard
+The `isValidImageUrl()` function only allows `http(s):` and `data:image/` protocols. It should be used to guard any URL that comes from user input before passing it to an `<img src>` attribute.
 
 ### R2 Backend Endpoints
-The R2 backend endpoints are:
-* `POST /v1/images`: Uploads an image to R2. Requires `admin:store` permission. Returns `{ url, key }`.
-* `DELETE /v1/images/:key`: Deletes an image from R2 and purges the CDN cache entry. Requires `admin:store` permission.
+The R2 upload endpoint `POST /v1/images` requires `admin:store` permission and returns `{ url, key }`.
+
+* `POST /v1/images`: Upload image to R2
+* `DELETE /v1/images/:key`: Delete image from R2 and purge CDN cache entry
 
 ### CDN Caching
-Images served from R2 go through the KV CDN cache layer. When an image is updated or deleted, the CDN cache entry should be purged to ensure that the latest version of the image is served. The `DELETE /v1/images/:key` endpoint can be used to purge the CDN cache entry.
+Images served from R2 go through the KV CDN cache layer. The `DELETE /v1/images/:key` endpoint purges both the R2 object and the CDN cache entry. This ensures that updated images are propagated to the edge cache.

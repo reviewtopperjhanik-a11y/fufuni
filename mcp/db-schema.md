@@ -3,14 +3,13 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    3604
-  tokens_out:   4096
+  tokens_out:   4159
   api_endpoint: https://api.groq.com/openai/v1
 -->
-## Introduction to Durable Object Pattern
-The Durable Object pattern is a design approach used in Cloudflare Workers to store and manage data in a scalable and reliable way. It involves creating a Durable Object class that contains the database schema and an `ensureInitialized` method. The `ensureInitialized` method applies runtime migrations to the database schema, ensuring that the database is up-to-date with the latest schema changes. The database schema is defined in the `SCHEMA` constant and consists of multiple tables that store various types of data.
+## Overview of Durable Object Pattern
+The Durable Object pattern used in this framework combines a predefined schema (SCHEMA) with a method to ensure the schema is initialized and up-to-date (ensureInitialized). This pattern allows for the creation and management of a SQLite database within a Cloudflare Worker, utilizing Durable Objects for persistence and concurrency control. The `ensureInitialized` method applies any necessary migrations to the schema when the Durable Object is initialized, ensuring that the database is always in a consistent state.
 
-## Database Schema Reference
-
+## Table References
 ### migrations
 | Column Name | Type | Notes |
 | --- | --- | --- |
@@ -20,19 +19,19 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### api_keys
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the API key |
+| id | TEXT | Primary key for the API key |
 | key_hash | TEXT | Hash of the API key |
-| key_prefix | TEXT | Prefix of the API key |
-| role | TEXT | Role of the API key (public or admin) |
+| key_prefix | TEXT | Prefix for the API key |
+| role | TEXT | Role associated with the API key (public or admin) |
 | created_at | TEXT | Timestamp when the API key was created |
 
 ### currencies
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the currency |
-| code | TEXT | Code of the currency (e.g., USD) |
-| display_name | TEXT | Display name of the currency |
-| symbol | TEXT | Symbol of the currency (e.g., $) |
+| id | TEXT | Primary key for the currency |
+| code | TEXT | Unique code for the currency |
+| display_name | TEXT | Display name for the currency |
+| symbol | TEXT | Symbol for the currency |
 | decimal_places | INTEGER | Number of decimal places for the currency |
 | status | TEXT | Status of the currency (active or inactive) |
 | created_at | TEXT | Timestamp when the currency was created |
@@ -41,11 +40,11 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### countries
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the country |
-| code | TEXT | Code of the country (e.g., US) |
-| display_name | TEXT | Display name of the country |
+| id | TEXT | Primary key for the country |
+| code | TEXT | Unique code for the country |
+| display_name | TEXT | Display name for the country |
 | country_name | TEXT | Name of the country |
-| language_code | TEXT | Language code of the country (e.g., en) |
+| language_code | TEXT | Language code for the country |
 | status | TEXT | Status of the country (active or inactive) |
 | created_at | TEXT | Timestamp when the country was created |
 | updated_at | TEXT | Timestamp when the country was updated |
@@ -53,11 +52,11 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### tax_rates
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the tax rate |
-| display_name | TEXT | Display name of the tax rate |
-| country_code | TEXT | Code of the country for the tax rate |
-| tax_code | TEXT | Code of the tax rate |
-| rate_percentage | REAL | Tax rate as a percentage |
+| id | TEXT | Primary key for the tax rate |
+| display_name | TEXT | Display name for the tax rate |
+| country_code | TEXT | Country code associated with the tax rate |
+| tax_code | TEXT | Tax code associated with the tax rate |
+| rate_percentage | REAL | Tax rate percentage |
 | status | TEXT | Status of the tax rate (active or inactive) |
 | created_at | TEXT | Timestamp when the tax rate was created |
 | updated_at | TEXT | Timestamp when the tax rate was updated |
@@ -65,15 +64,15 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### warehouses
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the warehouse |
-| display_name | TEXT | Display name of the warehouse |
-| address_line1 | TEXT | Address line 1 of the warehouse |
-| address_line2 | TEXT | Address line 2 of the warehouse |
-| city | TEXT | City of the warehouse |
-| state | TEXT | State of the warehouse |
-| postal_code | TEXT | Postal code of the warehouse |
-| country_code | TEXT | Code of the country for the warehouse |
-| priority | INTEGER | Priority of the warehouse |
+| id | TEXT | Primary key for the warehouse |
+| display_name | TEXT | Display name for the warehouse |
+| address_line1 | TEXT | Address line 1 for the warehouse |
+| address_line2 | TEXT | Address line 2 for the warehouse |
+| city | TEXT | City for the warehouse |
+| state | TEXT | State for the warehouse |
+| postal_code | TEXT | Postal code for the warehouse |
+| country_code | TEXT | Country code for the warehouse |
+| priority | INTEGER | Priority for the warehouse |
 | status | TEXT | Status of the warehouse (active or inactive) |
 | created_at | TEXT | Timestamp when the warehouse was created |
 | updated_at | TEXT | Timestamp when the warehouse was updated |
@@ -81,11 +80,11 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### shipping_classes
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the shipping class |
-| code | TEXT | Code of the shipping class |
-| display_name | TEXT | Display name of the shipping class |
-| description | TEXT | Description of the shipping class |
-| resolution | TEXT | Resolution of the shipping class (exclusive or additive) |
+| id | TEXT | Primary key for the shipping class |
+| code | TEXT | Unique code for the shipping class |
+| display_name | TEXT | Display name for the shipping class |
+| description | TEXT | Description for the shipping class |
+| resolution | TEXT | Resolution for the shipping class (exclusive or additive) |
 | status | TEXT | Status of the shipping class (active or inactive) |
 | created_at | TEXT | Timestamp when the shipping class was created |
 | updated_at | TEXT | Timestamp when the shipping class was updated |
@@ -93,15 +92,15 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### shipping_rates
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the shipping rate |
-| display_name | TEXT | Display name of the shipping rate |
-| description | TEXT | Description of the shipping rate |
+| id | TEXT | Primary key for the shipping rate |
+| display_name | TEXT | Display name for the shipping rate |
+| description | TEXT | Description for the shipping rate |
 | max_weight_g | INTEGER | Maximum weight for the shipping rate |
 | min_delivery_days | INTEGER | Minimum delivery days for the shipping rate |
 | max_delivery_days | INTEGER | Maximum delivery days for the shipping rate |
-| tax_code | TEXT | Tax code for the shipping rate |
-| tax_inclusive | INTEGER | Tax inclusive for the shipping rate |
-| shipping_class_id | TEXT | Foreign key referencing the shipping_classes table |
+| tax_code | TEXT | Tax code associated with the shipping rate |
+| tax_inclusive | INTEGER | Tax inclusive flag for the shipping rate |
+| shipping_class_id | TEXT | Shipping class ID associated with the shipping rate |
 | status | TEXT | Status of the shipping rate (active or inactive) |
 | created_at | TEXT | Timestamp when the shipping rate was created |
 | updated_at | TEXT | Timestamp when the shipping rate was updated |
@@ -109,20 +108,20 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### shipping_rate_prices
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the shipping rate price |
-| shipping_rate_id | TEXT | Foreign key referencing the shipping_rates table |
-| currency_id | TEXT | Foreign key referencing the currencies table |
-| amount_cents | INTEGER | Amount of the shipping rate price in cents |
-| created_at | TEXT | Timestamp when the shipping rate price was created |
+| id | TEXT | Primary key for the shipping rate price |
+| shipping_rate_id | TEXT | Shipping rate ID associated with the price |
+| currency_id | TEXT | Currency ID associated with the price |
+| amount_cents | INTEGER | Price amount in cents |
+| created_at | TEXT | Timestamp when the price was created |
 
 ### regions
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the region |
-| display_name | TEXT | Display name of the region |
-| currency_id | TEXT | Foreign key referencing the currencies table |
-| tax_inclusive | INTEGER | Tax inclusive for the region |
-| is_default | INTEGER | Whether the region is the default region |
+| id | TEXT | Primary key for the region |
+| display_name | TEXT | Display name for the region |
+| currency_id | TEXT | Currency ID associated with the region |
+| tax_inclusive | INTEGER | Tax inclusive flag for the region |
+| is_default | INTEGER | Default region flag |
 | status | TEXT | Status of the region (active or inactive) |
 | created_at | TEXT | Timestamp when the region was created |
 | updated_at | TEXT | Timestamp when the region was updated |
@@ -130,130 +129,130 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### region_countries
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| region_id | TEXT | Foreign key referencing the regions table |
-| country_id | TEXT | Foreign key referencing the countries table |
+| region_id | TEXT | Region ID associated with the country |
+| country_id | TEXT | Country ID associated with the region |
 
 ### region_warehouses
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| region_id | TEXT | Foreign key referencing the regions table |
-| warehouse_id | TEXT | Foreign key referencing the warehouses table |
+| region_id | TEXT | Region ID associated with the warehouse |
+| warehouse_id | TEXT | Warehouse ID associated with the region |
 
 ### region_shipping_rates
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| region_id | TEXT | Foreign key referencing the regions table |
-| shipping_rate_id | TEXT | Foreign key referencing the shipping_rates table |
+| region_id | TEXT | Region ID associated with the shipping rate |
+| shipping_rate_id | TEXT | Shipping rate ID associated with the region |
 
 ### warehouse_inventory
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the warehouse inventory |
-| sku | TEXT | SKU of the product |
-| warehouse_id | TEXT | Foreign key referencing the warehouses table |
-| on_hand | INTEGER | Quantity of the product on hand |
-| reserved | INTEGER | Quantity of the product reserved |
-| updated_at | TEXT | Timestamp when the warehouse inventory was updated |
+| id | TEXT | Primary key for the warehouse inventory |
+| sku | TEXT | SKU associated with the inventory |
+| warehouse_id | TEXT | Warehouse ID associated with the inventory |
+| on_hand | INTEGER | Current inventory level |
+| reserved | INTEGER | Reserved quantity |
+| updated_at | TEXT | Timestamp when the inventory was updated |
 
 ### warehouse_inventory_logs
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the warehouse inventory log |
-| sku | TEXT | SKU of the product |
-| warehouse_id | TEXT | Foreign key referencing the warehouses table |
-| delta | INTEGER | Change in the quantity of the product |
-| reason | TEXT | Reason for the change (restock, correction, damaged, return, sale, or release) |
-| created_at | TEXT | Timestamp when the warehouse inventory log was created |
+| id | TEXT | Primary key for the warehouse inventory log |
+| sku | TEXT | SKU associated with the log |
+| warehouse_id | TEXT | Warehouse ID associated with the log |
+| delta | INTEGER | Change in inventory level |
+| reason | TEXT | Reason for the inventory change |
+| created_at | TEXT | Timestamp when the log was created |
 
 ### products
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the product |
+| id | TEXT | Primary key for the product |
 | title | TEXT | Title of the product |
 | description | TEXT | Description of the product |
 | image_url | TEXT | URL of the product image |
-| shipping_class_id | TEXT | Foreign key referencing the shipping_classes table |
+| shipping_class_id | TEXT | Shipping class ID associated with the product |
 | vendor | TEXT | Vendor of the product |
-| tags | TEXT | Tags for the product |
-| handle | TEXT | Handle of the product |
+| tags | TEXT | Tags associated with the product |
+| handle | TEXT | Unique handle for the product |
 | status | TEXT | Status of the product (active or draft) |
 | review_count | INTEGER | Number of reviews for the product |
-| average_rating | REAL | Average rating of the product |
+| average_rating | REAL | Average rating for the product |
 | created_at | TEXT | Timestamp when the product was created |
 
 ### variants
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the variant |
-| product_id | TEXT | Foreign key referencing the products table |
-| sku | TEXT | SKU of the variant |
+| id | TEXT | Primary key for the variant |
+| product_id | TEXT | Product ID associated with the variant |
+| sku | TEXT | Unique SKU for the variant |
 | title | TEXT | Title of the variant |
 | price_cents | INTEGER | Price of the variant in cents |
-| currency | TEXT | Currency of the variant |
+| currency | TEXT | Currency associated with the variant |
 | weight_g | INTEGER | Weight of the variant in grams |
 | dims_cm | TEXT | Dimensions of the variant in centimeters |
-| requires_shipping | INTEGER | Whether the variant requires shipping |
-| barcode | TEXT | Barcode of the variant |
-| compare_at_price_cents | INTEGER | Compare at price of the variant in cents |
-| tax_code | TEXT | Tax code of the variant |
+| requires_shipping | INTEGER | Flag indicating if shipping is required |
+| barcode | TEXT | Barcode associated with the variant |
+| compare_at_price_cents | INTEGER | Compare at price for the variant |
+| tax_code | TEXT | Tax code associated with the variant |
 | image_url | TEXT | URL of the variant image |
 | thumbnail_url | TEXT | URL of the variant thumbnail |
-| shipping_class_id | TEXT | Foreign key referencing the shipping_classes table |
+| shipping_class_id | TEXT | Shipping class ID associated with the variant |
 | status | TEXT | Status of the variant (active or draft) |
 | created_at | TEXT | Timestamp when the variant was created |
 
 ### variant_prices
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the variant price |
-| variant_id | TEXT | Foreign key referencing the variants table |
-| currency_id | TEXT | Foreign key referencing the currencies table |
+| id | TEXT | Primary key for the variant price |
+| variant_id | TEXT | Variant ID associated with the price |
+| currency_id | TEXT | Currency ID associated with the price |
 | price_cents | INTEGER | Price of the variant in cents |
-| created_at | TEXT | Timestamp when the variant price was created |
-| updated_at | TEXT | Timestamp when the variant price was updated |
+| created_at | TEXT | Timestamp when the price was created |
+| updated_at | TEXT | Timestamp when the price was updated |
 
 ### inventory
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the inventory |
-| sku | TEXT | SKU of the product |
-| on_hand | INTEGER | Quantity of the product on hand |
-| reserved | INTEGER | Quantity of the product reserved |
+| id | TEXT | Primary key for the inventory |
+| sku | TEXT | Unique SKU for the inventory |
+| on_hand | INTEGER | Current inventory level |
+| reserved | INTEGER | Reserved quantity |
 | updated_at | TEXT | Timestamp when the inventory was updated |
 
 ### inventory_logs
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the inventory log |
-| sku | TEXT | SKU of the product |
-| delta | INTEGER | Change in the quantity of the product |
-| reason | TEXT | Reason for the change (restock, correction, damaged, return, sale, or release) |
-| created_at | TEXT | Timestamp when the inventory log was created |
+| id | TEXT | Primary key for the inventory log |
+| sku | TEXT | SKU associated with the log |
+| delta | INTEGER | Change in inventory level |
+| reason | TEXT | Reason for the inventory change |
+| created_at | TEXT | Timestamp when the log was created |
 
 ### carts
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the cart |
-| status | TEXT | Status of the cart (open, checked_out, or expired) |
-| customer_email | TEXT | Email of the customer |
-| currency | TEXT | Currency of the cart |
-| region_id | TEXT | Foreign key referencing the regions table |
-| stripe_checkout_session_id | TEXT | ID of the Stripe checkout session |
-| discount_code | TEXT | Discount code for the cart |
-| discount_id | TEXT | ID of the discount |
-| discount_amount_cents | INTEGER | Amount of the discount in cents |
-| shipping_rate_id | TEXT | Foreign key referencing the shipping_rates table |
-| shipping_cents | INTEGER | Shipping cost of the cart in cents |
-| locale | TEXT | Locale of the cart |
-| shipping_name | TEXT | Name of the shipping address |
-| shipping_line1 | TEXT | Line 1 of the shipping address |
-| shipping_line2 | TEXT | Line 2 of the shipping address |
-| shipping_city | TEXT | City of the shipping address |
-| shipping_state | TEXT | State of the shipping address |
-| shipping_postal_code | TEXT | Postal code of the shipping address |
-| shipping_country | TEXT | Country of the shipping address |
-| billing_same_as_shipping | INTEGER | Whether the billing address is the same as the shipping address |
-| taxes_json | TEXT | Taxes for the cart in JSON format |
+| id | TEXT | Primary key for the cart |
+| status | TEXT | Status of the cart (open, checked out, or expired) |
+| customer_email | TEXT | Email of the customer associated with the cart |
+| currency | TEXT | Currency associated with the cart |
+| region_id | TEXT | Region ID associated with the cart |
+| stripe_checkout_session_id | TEXT | Stripe checkout session ID associated with the cart |
+| discount_code | TEXT | Discount code associated with the cart |
+| discount_id | TEXT | Discount ID associated with the cart |
+| discount_amount_cents | INTEGER | Discount amount in cents |
+| shipping_rate_id | TEXT | Shipping rate ID associated with the cart |
+| shipping_cents | INTEGER | Shipping cost in cents |
+| locale | TEXT | Locale associated with the cart |
+| shipping_name | TEXT | Shipping name associated with the cart |
+| shipping_line1 | TEXT | Shipping address line 1 |
+| shipping_line2 | TEXT | Shipping address line 2 |
+| shipping_city | TEXT | Shipping city |
+| shipping_state | TEXT | Shipping state |
+| shipping_postal_code | TEXT | Shipping postal code |
+| shipping_country | TEXT | Shipping country |
+| billing_same_as_shipping | INTEGER | Flag indicating if billing is the same as shipping |
+| taxes_json | TEXT | Taxes associated with the cart in JSON format |
 | expires_at | TEXT | Timestamp when the cart expires |
 | created_at | TEXT | Timestamp when the cart was created |
 | updated_at | TEXT | Timestamp when the cart was updated |
@@ -261,86 +260,86 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### cart_items
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the cart item |
-| cart_id | TEXT | Foreign key referencing the carts table |
-| sku | TEXT | SKU of the product |
-| title | TEXT | Title of the product |
-| qty | INTEGER | Quantity of the product |
-| unit_price_cents | INTEGER | Unit price of the product in cents |
-| currency | TEXT | Currency of the cart item |
+| id | TEXT | Primary key for the cart item |
+| cart_id | TEXT | Cart ID associated with the item |
+| sku | TEXT | SKU associated with the item |
+| title | TEXT | Title of the item |
+| qty | INTEGER | Quantity of the item |
+| unit_price_cents | INTEGER | Unit price of the item in cents |
+| currency | TEXT | Currency associated with the item |
 
 ### orders
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the order |
-| customer_id | TEXT | Foreign key referencing the customers table |
-| number | TEXT | Number of the order |
+| id | TEXT | Primary key for the order |
+| customer_id | TEXT | Customer ID associated with the order |
+| number | TEXT | Unique order number |
 | status | TEXT | Status of the order (pending, paid, processing, shipped, delivered, refunded, or canceled) |
-| customer_email | TEXT | Email of the customer |
-| region_id | TEXT | Foreign key referencing the regions table |
-| warehouse_id | TEXT | Foreign key referencing the warehouses table |
-| shipping_name | TEXT | Name of the shipping address |
-| shipping_phone | TEXT | Phone number of the shipping address |
-| ship_to | TEXT | Shipping address |
+| customer_email | TEXT | Email of the customer associated with the order |
+| region_id | TEXT | Region ID associated with the order |
+| warehouse_id | TEXT | Warehouse ID associated with the order |
+| shipping_name | TEXT | Shipping name associated with the order |
+| shipping_phone | TEXT | Shipping phone number associated with the order |
+| ship_to | TEXT | Ship to address associated with the order |
 | subtotal_cents | INTEGER | Subtotal of the order in cents |
-| tax_cents | INTEGER | Tax for the order in cents |
-| shipping_cents | INTEGER | Shipping cost of the order in cents |
-| shipping_rate_id | TEXT | Foreign key referencing the shipping_rates table |
-| total_cents | INTEGER | Total of the order in cents |
-| currency | TEXT | Currency of the order |
-| discount_code | TEXT | Discount code for the order |
-| discount_id | TEXT | ID of the discount |
-| discount_amount_cents | INTEGER | Amount of the discount in cents |
-| tracking_number | TEXT | Tracking number of the order |
-| tracking_url | TEXT | Tracking URL of the order |
+| tax_cents | INTEGER | Tax amount for the order in cents |
+| shipping_cents | INTEGER | Shipping cost for the order in cents |
+| shipping_rate_id | TEXT | Shipping rate ID associated with the order |
+| total_cents | INTEGER | Total cost of the order in cents |
+| currency | TEXT | Currency associated with the order |
+| discount_code | TEXT | Discount code associated with the order |
+| discount_id | TEXT | Discount ID associated with the order |
+| discount_amount_cents | INTEGER | Discount amount in cents |
+| tracking_number | TEXT | Tracking number associated with the order |
+| tracking_url | TEXT | Tracking URL associated with the order |
 | shipped_at | TEXT | Timestamp when the order was shipped |
-| stripe_checkout_session_id | TEXT | ID of the Stripe checkout session |
-| stripe_payment_intent_id | TEXT | ID of the Stripe payment intent |
-| taxes_json | TEXT | Taxes for the order in JSON format |
-| viewtoken | TEXT | View token for the order |
+| stripe_checkout_session_id | TEXT | Stripe checkout session ID associated with the order |
+| stripe_payment_intent_id | TEXT | Stripe payment intent ID associated with the order |
+| taxes_json | TEXT | Taxes associated with the order in JSON format |
+| viewtoken | TEXT | View token associated with the order |
 | viewtoken_issued_at | TEXT | Timestamp when the view token was issued |
 | confirmationemailsentat | TEXT | Timestamp when the confirmation email was sent |
-| confirmationemaillasterror | TEXT | Last error of the confirmation email |
+| confirmationemaillasterror | TEXT | Last error associated with the confirmation email |
 | confirmationemailupdatedat | TEXT | Timestamp when the confirmation email was updated |
-| locale | TEXT | Locale of the order |
+| locale | TEXT | Locale associated with the order |
 | created_at | TEXT | Timestamp when the order was created |
 
 ### discounts
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the discount |
-| code | TEXT | Code of the discount |
-| type | TEXT | Type of the discount (percentage or fixed_amount) |
+| id | TEXT | Primary key for the discount |
+| code | TEXT | Unique code for the discount |
+| type | TEXT | Type of discount (percentage or fixed amount) |
 | value | INTEGER | Value of the discount |
 | status | TEXT | Status of the discount (active or inactive) |
-| min_purchase_cents | INTEGER | Minimum purchase required for the discount |
-| max_discount_cents | INTEGER | Maximum discount allowed |
+| min_purchase_cents | INTEGER | Minimum purchase amount required for the discount |
+| max_discount_cents | INTEGER | Maximum discount amount |
 | starts_at | TEXT | Timestamp when the discount starts |
 | expires_at | TEXT | Timestamp when the discount expires |
 | usage_limit | INTEGER | Limit on the number of times the discount can be used |
 | usage_limit_per_customer | INTEGER | Limit on the number of times the discount can be used per customer |
 | usage_count | INTEGER | Number of times the discount has been used |
-| stripe_coupon_id | TEXT | ID of the Stripe coupon |
-| stripe_promotion_code_id | TEXT | ID of the Stripe promotion code |
+| stripe_coupon_id | TEXT | Stripe coupon ID associated with the discount |
+| stripe_promotion_code_id | TEXT | Stripe promotion code ID associated with the discount |
 | created_at | TEXT | Timestamp when the discount was created |
 | updated_at | TEXT | Timestamp when the discount was updated |
 
 ### order_items
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the order item |
-| order_id | TEXT | Foreign key referencing the orders table |
-| sku | TEXT | SKU of the product |
-| title | TEXT | Title of the product |
-| qty | INTEGER | Quantity of the product |
-| unit_price_cents | INTEGER | Unit price of the product in cents |
+| id | TEXT | Primary key for the order item |
+| order_id | TEXT | Order ID associated with the item |
+| sku | TEXT | SKU associated with the item |
+| title | TEXT | Title of the item |
+| qty | INTEGER | Quantity of the item |
+| unit_price_cents | INTEGER | Unit price of the item in cents |
 
 ### refunds
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the refund |
-| order_id | TEXT | Foreign key referencing the orders table |
-| stripe_refund_id | TEXT | ID of the Stripe refund |
+| id | TEXT | Primary key for the refund |
+| order_id | TEXT | Order ID associated with the refund |
+| stripe_refund_id | TEXT | Stripe refund ID associated with the refund |
 | amount_cents | INTEGER | Amount of the refund in cents |
 | status | TEXT | Status of the refund |
 | created_at | TEXT | Timestamp when the refund was created |
@@ -348,55 +347,55 @@ The Durable Object pattern is a design approach used in Cloudflare Workers to st
 ### discount_usage
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the discount usage |
-| discount_id | TEXT | Foreign key referencing the discounts table |
-| order_id | TEXT | Foreign key referencing the orders table |
-| customer_email | TEXT | Email of the customer |
-| discount_amount_cents | INTEGER | Amount of the discount used |
-| created_at | TEXT | Timestamp when the discount usage was created |
+| id | TEXT | Primary key for the discount usage |
+| discount_id | TEXT | Discount ID associated with the usage |
+| order_id | TEXT | Order ID associated with the usage |
+| customer_email | TEXT | Email of the customer associated with the usage |
+| discount_amount_cents | INTEGER | Discount amount in cents |
+| created_at | TEXT | Timestamp when the usage was created |
 
 ### customers
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the customer |
+| id | TEXT | Primary key for the customer |
 | email | TEXT | Email of the customer |
 | name | TEXT | Name of the customer |
 | phone | TEXT | Phone number of the customer |
-| password_hash | TEXT | Hash of the customer's password |
+| password_hash | TEXT | Password hash of the customer |
 | email_verified_at | TEXT | Timestamp when the customer's email was verified |
-| auth_provider | TEXT | Authentication provider of the customer |
-| auth_provider_id | TEXT | ID of the authentication provider |
-| accepts_marketing | INTEGER | Whether the customer accepts marketing |
-| locale | TEXT | Locale of the customer |
-| metadata | TEXT | Metadata of the customer |
-| order_count | INTEGER | Number of orders the customer has made |
-| total_spent_cents | INTEGER | Total amount the customer has spent |
+| auth_provider | TEXT | Authentication provider associated with the customer |
+| auth_provider_id | TEXT | Authentication provider ID associated with the customer |
+| accepts_marketing | INTEGER | Flag indicating if the customer accepts marketing |
+| locale | TEXT | Locale associated with the customer |
+| metadata | TEXT | Metadata associated with the customer |
+| order_count | INTEGER | Number of orders associated with the customer |
+| total_spent_cents | INTEGER | Total amount spent by the customer in cents |
 | created_at | TEXT | Timestamp when the customer was created |
 | updated_at | TEXT | Timestamp when the customer was updated |
-| last_order_at | TEXT | Timestamp when the customer's last order was made |
+| last_order_at | TEXT | Timestamp when the customer's last order was placed |
 
 ### customer_addresses
 | Column Name | Type | Notes |
 | --- | --- | --- |
-| id | TEXT | Unique identifier for the customer address |
-| customer_id | TEXT | Foreign key referencing the customers table |
 | ... | ... | ... |
 
 ## Entity Relationship
-The following entity relationship diagram (ERD) shows the relationships between the tables:
-```
-carts
-  -> cart_items (one-to-many)
-  -> orders (one-to-one)
-
-orders
-  -> order_items (one-to-many)
-  -> refunds (one-to-many)
-  -> discount_usage (one-to-many)
-  -> customers (many-to-one)
-
-customers
-  -> orders (one-to-many)
-  -> customer_addresses (one-to-many)
-
-discounts
+The following is a plain-text representation of the entity relationship diagram:
+- A `product` has multiple `variants`.
+- A `variant` belongs to one `product`.
+- A `cart` has multiple `cart_items`.
+- A `cart_item` belongs to one `cart`.
+- An `order` has multiple `order_items`.
+- An `order_item` belongs to one `order`.
+- A `customer` has multiple `orders`.
+- An `order` belongs to one `customer`.
+- A `discount` can be used by multiple `orders`.
+- An `order` can have one `discount`.
+- A `warehouse` has multiple `warehouse_inventory`.
+- A `warehouse_inventory` belongs to one `warehouse`.
+- A `region` has multiple `region_warehouses`.
+- A `region_warehouse` belongs to one `region`.
+- A `shipping_rate` can be used by multiple `orders`.
+- An `order` can have one `shipping_rate`.
+- A `tax_rate` can be used by multiple `orders`.
+- An `order` can have one `tax_rate`.

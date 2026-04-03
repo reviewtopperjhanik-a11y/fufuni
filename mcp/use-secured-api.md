@@ -3,145 +3,169 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    4169
-  tokens_out:   1119
+  tokens_out:   1288
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Introduction to useSecuredApi() Hook
-The `useSecuredApi()` hook is a custom hook designed for frontend developers to handle secured API operations with ease. It automatically attaches the Auth0 Bearer token to every request, eliminating the need for manual token management.
+The `useSecuredApi()` hook is a powerful tool for frontend developers to perform authenticated API requests. It automatically attaches the Auth0 Bearer token to every request, eliminating the need to manually set Authorization headers.
 
-## Import Path
+### Import Path
 To use the `useSecuredApi()` hook, import it from the following path:
 ```typescript
 import { useSecuredApi } from "@/features/auth/components/auth-components";
 ```
 
-## Return Values
-The `useSecuredApi()` hook returns an object with various methods for secured API operations. The following table lists the available methods, their signatures, and when to use them:
+### Return Values Table
+The `useSecuredApi()` hook returns an object with several methods for performing authenticated API requests. The following table describes each method, its signature, and when to use it:
 
 | Method | Signature | When to Use |
 | --- | --- | --- |
-| `getJson` | `(url: string) => Promise<any>` | Authenticated GET requests that return JSON |
-| `postJson` | `(url: string, body: any) => Promise<any>` | Authenticated POST requests with a JSON body |
-| `putJson` | `(url: string, body: any) => Promise<any>` | Authenticated PUT (full replace) requests |
-| `patchJson` | `(url: string, body: any) => Promise<any>` | Authenticated PATCH (partial update) requests |
-| `deleteJson` | `(url: string) => Promise<any>` | Authenticated DELETE requests |
-| `postForm` | `(url: string, formData: FormData) => Promise<any>` | Authenticated multipart/form-data POST requests (e.g., image upload) |
-| `hasPermission` | `(permissionString: string) => Promise<boolean>` | Async-check if the current user has a specific Auth0 permission |
+| `getJson` | `getJson(url: string): Promise<any>` | Use for authenticated GET requests that return JSON. |
+| `postJson` | `postJson(url: string, body: any): Promise<any>` | Use for authenticated POST requests with a JSON body. |
+| `putJson` | `putJson(url: string, body: any): Promise<any>` | Use for authenticated PUT (full replace) requests. |
+| `patchJson` | `patchJson(url: string, body: any): Promise<any>` | Use for authenticated PATCH (partial update) requests. |
+| `deleteJson` | `deleteJson(url: string): Promise<any>` | Use for authenticated DELETE requests. |
+| `postForm` | `postForm(url: string, formData: FormData): Promise<any>` | Use for authenticated multipart/form-data POST requests (e.g., image upload). |
+| `hasPermission` | `hasPermission(permissionString: string): Promise<boolean>` | Use to async-check whether the current user has a specific Auth0 permission. |
 
-## Automatic Token Injection
-The `useSecuredApi()` hook automatically attaches the Auth0 Bearer token to every request, so you never need to set the `Authorization` headers manually.
+### Automatic JWT Bearer Token Injection
+The `useSecuredApi()` hook automatically attaches the Auth0 Bearer token to every request. You never need to set Authorization headers manually.
 
-## Usage Examples
+### Usage Examples
 Here are three complete usage examples in React components:
-
-### GET Request
+#### GET Request Example
 ```typescript
 import React from 'react';
 import { useSecuredApi } from "@/features/auth/components/auth-components";
 
-const userData = () => {
+const UserData = () => {
   const { getJson } = useSecuredApi();
+  const [userData, setUserData] = React.useState(null);
 
-  const fetchUserData = async () => {
-    try {
-      const response = await getJson('/api/user/data');
-      console.log(response);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return (
-    <button onClick={fetchUserData}>Fetch User Data</button>
-  );
-};
-```
-
-### POST Request
-```typescript
-import React from 'react';
-import { useSecuredApi } from "@/features/auth/components/auth-components";
-
-const createUser = () => {
-  const { postJson } = useSecuredApi();
-
-  const handleCreateUser = async () => {
-    try {
-      const response = await postJson('/api/user/create', {
-        name: 'John Doe',
-        email: 'johndoe@example.com',
-      });
-      console.log(response);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return (
-    <button onClick={handleCreateUser}>Create User</button>
-  );
-};
-```
-
-### DELETE Request
-```typescript
-import React from 'react';
-import { useSecuredApi } from "@/features/auth/components/auth-components";
-
-const deleteUser = () => {
-  const { deleteJson } = useSecuredApi();
-
-  const handleDeleteUser = async () => {
-    try {
-      const response = await deleteJson('/api/user/delete/123');
-      console.log(response);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  return (
-    <button onClick={handleDeleteUser}>Delete User</button>
-  );
-};
-```
-
-## hasPermission() Example
-To guard an admin UI element, use the `hasPermission()` method to check if the current user has a specific Auth0 permission:
-```typescript
-import React from 'react';
-import { useSecuredApi } from "@/features/auth/components/auth-components";
-
-const adminUI = () => {
-  const { hasPermission } = useSecuredApi();
-
-  const checkAdminPermission = async () => {
-    try {
-      const hasAdminPermission = await hasPermission('admin:access');
-      if (hasAdminPermission) {
-        // Render admin UI
-      } else {
-        // Render non-admin UI
-      }
-    } catch (error) {
-      console.error(error);
-    }
-  };
+  React.useEffect(() => {
+    const fetchUserData = async () => {
+      const response = await getJson('/api/v1/user/data');
+      setUserData(response);
+    };
+    fetchUserData();
+  }, []);
 
   return (
     <div>
-      {checkAdminPermission()}
+      {userData ? (
+        <p>Welcome, {userData.name}!</p>
+      ) : (
+        <p>Loading...</p>
+      )}
     </div>
   );
 };
 ```
 
-## When Not to Use
+#### POST Request Example
+```typescript
+import React from 'react';
+import { useSecuredApi } from "@/features/auth/components/auth-components";
+
+const CreateUser = () => {
+  const { postJson } = useSecuredApi();
+  const [username, setUsername] = React.useState('');
+  const [email, setEmail] = React.useState('');
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const response = await postJson('/api/v1/user/create', {
+      username,
+      email,
+    });
+    console.log(response);
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        value={username}
+        onChange={(event) => setUsername(event.target.value)}
+        placeholder="Username"
+      />
+      <input
+        type="email"
+        value={email}
+        onChange={(event) => setEmail(event.target.value)}
+        placeholder="Email"
+      />
+      <button type="submit">Create User</button>
+    </form>
+  );
+};
+```
+
+#### DELETE Request Example
+```typescript
+import React from 'react';
+import { useSecuredApi } from "@/features/auth/components/auth-components";
+
+const DeleteUser = () => {
+  const { deleteJson } = useSecuredApi();
+  const [userId, setUserId] = React.useState('');
+
+  const handleDelete = async () => {
+    const response = await deleteJson(`/api/v1/user/${userId}`);
+    console.log(response);
+  };
+
+  return (
+    <div>
+      <input
+        type="text"
+        value={userId}
+        onChange={(event) => setUserId(event.target.value)}
+        placeholder="User ID"
+      />
+      <button onClick={handleDelete}>Delete User</button>
+    </div>
+  );
+};
+```
+
+### hasPermission() Example
+To guard an admin UI element, you can use the `hasPermission()` method:
+```typescript
+import React from 'react';
+import { useSecuredApi } from "@/features/auth/components/auth-components";
+
+const AdminPanel = () => {
+  const { hasPermission } = useSecuredApi();
+
+  const isAdmin = async () => {
+    const result = await hasPermission('admin:access');
+    return result;
+  };
+
+  React.useEffect(() => {
+    const checkAdmin = async () => {
+      const isAdminResult = await isAdmin();
+      if (!isAdminResult) {
+        // Redirect to non-admin page or display error message
+      }
+    };
+    checkAdmin();
+  }, []);
+
+  return (
+    <div>
+      {/* Admin panel content */}
+    </div>
+  );
+};
+```
+
+### When Not to Use this Hook
 Do not use the `useSecuredApi()` hook for unauthenticated public endpoints (e.g., product listing). Instead, use plain `fetch()` or a custom hook with `useQuery`.
 
-## Auth0 Management Helpers
-The `useSecuredApi()` hook also exposes Auth0 Management API helpers, which require the `auth0:admin:api` permission. These helpers include:
-
+### Auth0 Management Helpers
+The `useSecuredApi()` hook also exposes several Auth0 Management API helpers, including:
 * `getAuth0ManagementToken()`
 * `listAuth0Users()`
 * `getUserPermissions()`
@@ -153,4 +177,4 @@ The `useSecuredApi()` hook also exposes Auth0 Management API helpers, which requ
 * `getResourceServerScopes()`
 * `checkResourceServerScopes()`
 
-These helpers can be used to manage Auth0 resources, such as users, permissions, and resource servers.
+These helpers require the `auth0:admin:api` permission and are useful for managing Auth0 users, permissions, and resource servers.

@@ -90,10 +90,26 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync, globSync } from 'fs
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 
-// Conservative limit: keeps input prompt small enough for the 32k-token models
-// on Groq.  8000 chars ≈ 2000 tokens; leaves ≥ 80% of context for the output.
-const MAX_SOURCE_CHARS = 14000;
-const MAX_OUTPUT_TOKENS = 6000;
+// ── Static fallbacks (used when model metadata is unavailable) ───────────────
+// These values target the Groq free-tier worst-case: 12 000 TPM per request.
+const DEFAULT_MAX_SOURCE_CHARS = 14_000; // per-file, ~3 500 tokens
+const DEFAULT_MAX_OUTPUT_TOKENS = 6_000;
+
+// ── Budget computation constants ──────────────────────────────────────────────
+/** Heuristic: 1 token ≈ 4 characters (GPT-4 / Llama tokenisers). */
+const CHARS_PER_TOKEN = 4;
+/**
+ * Reserved tokens for the system prompt, buildPrompt boilerplate, manualFacts,
+ * and Markdown fencing overhead.  Subtract this from context_window before
+ * allocating source budget.
+ */
+const PROMPT_OVERHEAD_TOKENS = 2_000;
+/** Hard upper bound on output tokens — longer rarely improves doc quality. */
+const MAX_OUTPUT_TOKENS_CAP = 8_000;
+
+// Keep legacy names as aliases so references elsewhere in the file still compile.
+const MAX_SOURCE_CHARS  = DEFAULT_MAX_SOURCE_CHARS;
+const MAX_OUTPUT_TOKENS = DEFAULT_MAX_OUTPUT_TOKENS;
 
 // ── Shared system prompt fragment reused across topics ──────────────────────
 const BASE_SYSTEM_v0 = `You are a senior TypeScript developer documenting the Fufuni e-commerce framework.
@@ -255,6 +271,12 @@ const EXCLUDED_MODEL_PATTERNS = /whisper|distil-whisper|playai|guard|tts|speech/
  */
 let modelPool: string[] = [];
 
+/**
+ * Full GroqModel metadata for each entry in modelPool, in the same order.
+ * Used by getModelBudget() to compute per-model token limits.
+ */
+let modelMeta: GroqModel[] = [];
+
 /** Monotonically increasing counter for model round-robin. */
 let modelIndex = 0;
 
@@ -270,6 +292,101 @@ function nextModel(): string {
     return m;
   }
   return process.env.AI_MODEL ?? 'openai/gpt-oss-20b';
+}
+
+// ─── per-request token cap (Groq TPM = per-request limit on free tier) ────────
+//
+// On the Groq free tier the TPM quota is consumed per request, not spread over
+// the whole minute.  A single 15 000-token request saturates the 12 000 TPM
+// budget immediately → HTTP 413.
+//
+// We learn the real cap from the first 413 error body ("Limit 12000, Requested…")
+// and apply it to all subsequent topics so they start with the right budget and
+// skip the halvings entirely.
+//
+// Pin it upfront via .env to avoid the first wasted 413 call:
+//   MAX_TOKENS_PER_REQUEST=11000   # Groq free llama-3.3-70b  (TPM=12k, safety margin)
+//   MAX_TOKENS_PER_REQUEST=5500    # Groq free llama-3.1-8b-instant (TPM=6k)
+
+/** Per-request cap: from MAX_TOKENS_PER_REQUEST env var, or learned from first 413. */
+let learnedRequestTokensCap: number | null =
+  process.env.MAX_TOKENS_PER_REQUEST
+    ? parseInt(process.env.MAX_TOKENS_PER_REQUEST, 10)
+    : null;
+
+/**
+ * Try to extract the provider's hard per-request token limit from a 413 body.
+ * Groq format: "Limit 12000, Requested 15101"
+ * Returns null when not found.
+ */
+function parseRequestTokensCap(errorMsg: string): number | null {
+  const m = errorMsg.match(/Limit\s+(\d[\d,]+)[,\s]/i);
+  return m ? parseInt(m[1].replace(/,/g, ''), 10) : null;
+}
+
+// ─── per-model budget ─────────────────────────────────────────────────────────
+
+interface ModelBudget {
+  /** Maximum tokens the model may generate in one response. */
+  maxOutputTokens: number;
+  /**
+   * Total character budget for ALL source files of a topic combined.
+   * Derived from: (context_window - maxOutputTokens - PROMPT_OVERHEAD_TOKENS) × CHARS_PER_TOKEN.
+   * Callers divide this by the number of source files to get the per-file limit.
+   */
+  maxSourceCharsTotal: number;
+}
+
+/**
+ * Compute optimal generation limits for a given model ID.
+ *
+ * When the model is present in modelPool (populated by initModels()), its
+ * context_window and max_completion_tokens are used to maximise the source
+ * budget while leaving enough room for the expected output.
+ *
+ * Falls back to DEFAULT_* constants when the model is unknown (e.g. discovery
+ * was skipped, the endpoint does not expose /models, or --skip-ai mode).
+ *
+ * Example outcomes:
+ *   llama-3.3-70b   (131 072 ctx, 32 768 out) → maxOut=8 000  src≈488 k chars
+ *   claude-haiku-4  (200 000 ctx,  8 096 out) → maxOut=8 000  src≈756 k chars
+ *   groq/compound   (131 072 ctx,  8 192 out) → maxOut=8 000  src≈488 k chars
+ *   fallback        —                          → maxOut=6 000  src= 56 k chars
+ */
+function getModelBudget(modelId: string): ModelBudget {
+  const m = modelMeta.find(p => p.id === modelId);
+  if (!m) {
+    return {
+      maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+      // Assume up to 4 source files at the default per-file limit.
+      maxSourceCharsTotal: DEFAULT_MAX_SOURCE_CHARS * 4,
+    };
+  }
+  const maxOutputTokens = Math.min(
+    m.max_completion_tokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
+    MAX_OUTPUT_TOKENS_CAP,
+  );
+  // Start with the model's full context window.
+  let inputBudgetTokens = Math.max(
+    1_000,
+    m.context_window - maxOutputTokens - PROMPT_OVERHEAD_TOKENS,
+  );
+
+  // Apply the per-request cap when known (Groq free: TPM = per-request limit).
+  // learnedRequestTokensCap is set from MAX_TOKENS_PER_REQUEST env var or from
+  // the first 413 error — whichever arrives first.
+  if (learnedRequestTokensCap !== null) {
+    const cappedInput = Math.max(
+      1_000,
+      learnedRequestTokensCap - maxOutputTokens - PROMPT_OVERHEAD_TOKENS,
+    );
+    inputBudgetTokens = Math.min(inputBudgetTokens, cappedInput);
+  }
+
+  return {
+    maxOutputTokens,
+    maxSourceCharsTotal: inputBudgetTokens * CHARS_PER_TOKEN,
+  };
 }
 
 /**
@@ -319,7 +436,7 @@ async function initModels(): Promise<void> {
       console.warn('  [warn] No suitable models found via GET /models. Using default.');
       modelPool = [process.env.AI_MODEL ?? 'openai/gpt-oss-20b'];
     } else {
-      modelObjects = usable;
+      modelMeta = usable;
       modelPool = usable.map(m => m.id);
 
       // ── formatted table ──────────────────────────────────────────────────
@@ -1219,7 +1336,7 @@ Include:
 -->
 `,
     manualFacts: [
-      'Each outbound event triggers a fetch with headers: X-Fufuni-Signature (HMAC-SHA256 hex of payload), X-Fufuni-Timestamp (Unix seconds), X-Fufuni-Delivery-Id (delivery UUID), User-Agent: Merchant-Webhook/1.0.',
+      'Each outbound event triggers a fetch with headers: X-Fufuni-Signature (HMAC-SHA256 hex of payload), X-Fufuni-Timestamp (Unix seconds), X-Fufuni-Delivery-Id (delivery UUID), User-Agent: Fufuni-Webhook/1.0.',
       'MAX_ATTEMPTS = 3 with exponential backoff: 2^attempt × 1000 ms. Retries on network errors, 5xx, and 429. No retry on other 4xx.',
       'webhook_deliveries columns: id, webhook_id, event_type, payload (JSON), status (pending/success/failed), attempts, response_code, response_body, created_at, last_attempt_at.',
       'generateWebhookSecret() produces a whsec_ prefixed 64-char lowercase hex string (32 random bytes). Store this secret server-side and share it with the third-party for signature verification.',
@@ -1760,7 +1877,13 @@ async function main() {
       return { combinedSources: combined, userPrompt: appendFacts(rawPrompt, topic.manualFacts) };
     }
 
-    let charsPerSource = topic.maxSourceChars ?? MAX_SOURCE_CHARS;
+    // Derive initial per-file char budget from the first (most capable) model's
+    // context_window and max_completion_tokens.  topic.maxSourceChars wins when
+    // set explicitly (e.g. for topics with many large files hitting Groq TPM).
+    const modelsToTryForBudget = modelPool.length > 0 ? modelPool : [nextModel()];
+    const initialBudget = getModelBudget(modelsToTryForBudget[0]);
+    const numSources = Math.max(1, topic.sources.length);
+    let charsPerSource = topic.maxSourceChars ?? Math.floor(initialBudget.maxSourceCharsTotal / numSources);
     let { combinedSources, userPrompt } = buildContent(charsPerSource);
 
     if (verbose) {
@@ -1799,7 +1922,8 @@ async function main() {
             const retryNote = attempt > 0 ? ` (model fallback ${attempt}/${modelsToTry.length - 1})` : '';
             console.log(`  → calling AI [${chosenModel}]${sizeNote}${retryNote}…`);
             try {
-              const result = await callAI(topic.systemPrompt, userPrompt, 4096, chosenModel);
+              const { maxOutputTokens } = getModelBudget(chosenModel);
+            const result = await callAI(topic.systemPrompt, userPrompt, maxOutputTokens, chosenModel);
               aiContent = result.content;
               aiMeta = { model: chosenModel, tokensIn: result.tokensIn, tokensOut: result.tokensOut };
               console.log(`  → received ${result.tokensOut} tokens out (${result.tokensIn} in)`);
@@ -1809,6 +1933,15 @@ async function main() {
               const msg = (innerErr as Error).message;
               const is413 = msg.includes('413') || msg.includes('Request too large') || msg.includes('rate_limit_exceeded');
               if (is413) {
+                // Learn the per-request cap from this error so subsequent topics
+                // start with the right budget without needing halvings.
+                if (learnedRequestTokensCap === null) {
+                  const cap = parseRequestTokensCap(msg);
+                  if (cap) {
+                    learnedRequestTokensCap = cap;
+                    console.log(`  [info] Learned per-request token cap: ${cap} tokens — future topics will use this limit directly.`);
+                  }
+                }
                 if (halvings < MAX_SIZE_HALVINGS) {
                   // Reduce prompt size and restart the model loop
                   halvings++;

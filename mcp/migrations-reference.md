@@ -3,105 +3,75 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    477
-  tokens_out:   955
+  tokens_out:   782
   api_endpoint: https://api.groq.com/openai/v1
 -->
-## Introduction to Migrations
-The Fufuni e-commerce framework utilizes a migration system to track and manage changes to the database schema. This process has evolved up to migration 033, and it's crucial to understand the rationale behind tracking these migrations. The primary purpose of migrations is to ensure that the database schema remains consistent across different environments and deployments. By tracking changes, we can guarantee that the database evolves in a predictable and reliable manner.
+## Overview of Migrations
+Migrations in the Fufuni e-commerce framework are crucial for tracking changes to the database schema as it evolves. This process has been refined over time, with the latest migration being 033. To understand the importance of migrations, let's consider a scenario where a new column is added to an existing table. Without a migration process, it would be challenging to ensure that all existing databases are updated to reflect this change. The migration process ensures that the database schema remains consistent across all environments, including development, staging, and production.
 
 ### Evolution of Migrations
-As the Fufuni framework has grown, so has the complexity of its database schema. To manage these changes, a strict 3-step migration process has been established. This process ensures that existing databases are updated correctly, newly created databases have the latest schema, and a record of all changes is maintained for compatibility and historical tracking purposes.
+As the framework has grown, so has the need for a robust migration process. Initially, migrations were handled manually, which led to inconsistencies and errors. With the introduction of the 3-step migration process, we can ensure that all databases are updated correctly and that new databases are created with the latest schema.
 
 ## The 3-Step Migration Process
-The 3-step migration process is a crucial aspect of managing database schema changes in the Fufuni framework. This process is **STRICTLY NECESSARY** to ensure that all databases are updated correctly and that a record of changes is maintained.
+The 3-step migration process is **STRICTLY** necessary to ensure that migrations are handled correctly. These steps are:
 
-### Step 1: Modifying `ensureInitialized()` in `apps/merchant/src/do.ts`
-The first step in the migration process involves modifying the `ensureInitialized()` function in `apps/merchant/src/do.ts`. This function is responsible for evolving existing databases to the latest schema. To add a new migration, you must update this function to include the SQL migration script.
-
+1. **Modifying `ensureInitialized()` in `apps/merchant/src/do.ts`**: This step involves adding the SQL migration script to the `ensureInitialized()` function. This function is responsible for evolving existing databases to the latest schema. For example:
 ```typescript
 // apps/merchant/src/do.ts
 import { DurableObject } from 'durable-objects';
-import { sql } from 'sqlite';
+import { DB } from './db';
 
-// ... existing code ...
-
-async function ensureInitialized() {
-  // ... existing code ...
-
-  // Add the new migration script here
-  await sql(`
-    -- Migration 034: Add new column to orders table
-    ALTER TABLE orders ADD COLUMN new_column TEXT;
-  `);
+export class MerchantDO extends DurableObject {
+  async ensureInitialized() {
+    // Add the SQL migration script here
+    await DB.run(`
+      ALTER TABLE products ADD COLUMN description TEXT;
+    `);
+  }
 }
-
-// ... existing code ...
 ```
 
-### Step 2: Updating the `SCHEMA` Constant in `apps/merchant/src/do.ts`
-The second step involves updating the `SCHEMA` constant in `apps/merchant/src/do.ts`. This constant defines the latest database schema, and any changes to the schema must be reflected here.
-
+2. **Modifying `SCHEMA` in `apps/merchant/src/do.ts`**: In this step, we update the `SCHEMA` constant to reflect the latest database schema. This ensures that newly created databases have the complete and up-to-date schema. For instance:
 ```typescript
 // apps/merchant/src/do.ts
-import { DurableObject } from 'durable-objects';
-import { sql } from 'sqlite';
-
-// ... existing code ...
-
-const SCHEMA = `
-  -- Define the latest database schema
-  CREATE TABLE IF NOT EXISTS orders (
+export const SCHEMA = `
+  CREATE TABLE products (
     id INTEGER PRIMARY KEY,
-    customer_id INTEGER NOT NULL,
-    order_date DATE NOT NULL,
-    new_column TEXT  -- New column added in migration 034
+    name TEXT NOT NULL,
+    description TEXT
   );
 `;
-
-// ... existing code ...
 ```
 
-### Step 3: Creating a New `.sql` File in `apps/merchant/migrations`
-The third and final step involves creating a new `.sql` file in the `apps/merchant/migrations` directory. This file contains the SQL migration script and serves as a record of the changes made to the database schema.
-
+3. **Creating a new `.sql` file in `apps/merchant/migrations`**: This step involves creating a new `.sql` file in the migrations directory to store the migration script. This file serves as a historical record of the migration and is used for compatibility and LLM visibility. For example:
 ```sql
 -- apps/merchant/migrations/034.sql
--- Migration 034: Add new column to orders table
-ALTER TABLE orders ADD COLUMN new_column TEXT;
+ALTER TABLE products ADD COLUMN description TEXT;
 ```
 
-## Running Migrations Automatically on DO Startup
-To run migrations automatically on Durable Object (DO) startup, you can modify the `ensureInitialized()` function to execute the migration scripts when the DO is initialized. This ensures that the database schema is up-to-date and consistent across all environments.
+## Running Migrations on DO Startup
+To run migrations automatically on startup, we can utilize the `ensureInitialized()` function in the `MerchantDO` class. This function is called when the Durable Object is initialized, ensuring that the database is always up-to-date with the latest schema.
 
+When a new migration is added, the `ensureInitialized()` function will execute the migration script, updating the existing database to the latest schema. If a new database is created, the `SCHEMA` constant will ensure that it is initialized with the complete and up-to-date schema.
+
+The following code demonstrates how the `ensureInitialized()` function is used to run migrations on startup:
 ```typescript
 // apps/merchant/src/do.ts
 import { DurableObject } from 'durable-objects';
-import { sql } from 'sqlite';
+import { DB } from './db';
 
-// ... existing code ...
+export class MerchantDO extends DurableObject {
+  async ensureInitialized() {
+    // Run migrations here
+    await DB.run(`
+      -- Migration scripts here
+    `);
+  }
 
-async function ensureInitialized() {
-  // ... existing code ...
-
-  // Run migration scripts on DO startup
-  const migrations = await getMigrations();
-  for (const migration of migrations) {
-    await sql(migration.script);
+  async fetch(request: Request) {
+    // Handle requests here
   }
 }
-
-async function getMigrations() {
-  // Load migration scripts from apps/merchant/migrations directory
-  const migrations = [];
-  const files = await fs.readdir('apps/merchant/migrations');
-  for (const file of files) {
-    const script = await fs.readFile(`apps/merchant/migrations/${file}`, 'utf8');
-    migrations.push({ script });
-  }
-  return migrations;
-}
-
-// ... existing code ...
 ```
 
-By following the 3-step migration process and running migrations automatically on DO startup, you can ensure that the database schema remains consistent and up-to-date across all environments. Remember to always follow the strict migration process to avoid any inconsistencies or errors in the database schema. The next migration should be numbered 034, as indicated by the verified facts.
+By following the 3-step migration process and utilizing the `ensureInitialized()` function, we can ensure that our database schema remains consistent and up-to-date across all environments.

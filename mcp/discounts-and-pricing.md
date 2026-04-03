@@ -3,71 +3,63 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    5519
-  tokens_out:   925
+  tokens_out:   802
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Discounts and Pricing Reference
-The Fufuni e-commerce framework utilizes a robust pricing system that allows for both direct variant prices and regional prices. Understanding the differences between these two pricing methods and how promo codes/discounts are applied is crucial for managing a multi-region e-commerce platform.
+### Introduction to Pricing
+In a multi-region e-commerce setup, it's crucial to differentiate between direct variant prices and regional prices. Direct variant prices refer to the base price of a product variant, whereas regional prices take into account the specific pricing for a region, considering factors like taxes, currency, and regional discounts.
 
-### Direct Variant Price vs. Regional Prices
-In the context of the Fufuni framework, direct variant prices refer to the prices stored directly in the variants table. However, in a multi-region production context, it is essential to **never read the price from the variants table directly**. Instead, prices by region are stored in the `variant_prices` and `shipping_rate_prices` tables. This approach enables the framework to support multiple currencies and regional pricing, ensuring that customers are charged the correct price for their region.
+### Direct Variant Price vs. Regional Price
+- **Direct Variant Price**: This is the base price of a product variant, stored in the `variants` table. However, in a multi-region production context, this price should never be read directly for final pricing calculations. Instead, the `variant_prices` table should be consulted for region-specific prices.
+- **Regional Price**: Regional prices are stored in the `variant_prices` table and are specific to each region. These prices are used in conjunction with the region's currency and tax rates to calculate the final price of a product variant.
 
-### Promo Codes/Discounts Application and Calculation
-The application and calculation of promo codes/discounts are handled by the `discounts.ts` file. Here's a step-by-step overview of the process:
-
-1. **Discount Validation**: When a discount code is applied, the `validateDiscount` function checks if the discount is active, if the customer has reached the minimum purchase requirement, and if the discount has not expired.
-2. **Discount Calculation**: The `calculateDiscount` function computes the discount amount based on the discount type (percentage or fixed amount).
-3. **Price Resolution**: The `lib/pricing.ts` file is responsible for resolving the final price of a variant or shipping rate, taking into account the regional prices, discounts, and taxes.
+### Promo Codes and Discounts
+Promo codes and discounts are applied and calculated using the `validateDiscount` and `calculateDiscount` functions in `apps/merchant/src/routes/discounts.ts`. 
+- **Validation**: The `validateDiscount` function checks if a discount code is applicable based on its status, expiration date, minimum purchase requirement, and usage limits.
+- **Calculation**: The `calculateDiscount` function computes the discount amount in cents for a given subtotal. It considers the discount type (percentage or fixed amount) and caps the discount amount if necessary.
 
 ### Role of lib/pricing.ts
-The `lib/pricing.ts` file serves as the **single source of truth** for final price calculation. It provides functions for resolving variant prices, shipping prices, and currency codes, ensuring that prices are calculated correctly and consistently across the application. The key functions in `lib/pricing.ts` include:
+The `lib/pricing.ts` file serves as the single source of truth for final price calculations. It provides functions to resolve variant prices and shipping prices for specific currencies and regions. The key functions include:
+- `resolveVariantPrice`: Resolves the price of a variant in a specific currency.
+- `resolveShippingPrice`: Resolves the price of a shipping rate in a specific currency.
+- `getCurrencyIdForRegion`: Retrieves the currency ID associated with a region.
+- `getCurrencyCodeForRegion`: Retrieves the ISO 4217 currency code for a region.
+- `getCurrencyIdFromCode`: Resolves the currency ID from an ISO 4217 currency code.
+- `hasPriceForCurrency`: Checks if a price exists for a variant in a specific currency.
 
-* `resolveVariantPrice`: Resolves the price of a variant in a specific currency.
-* `resolveShippingPrice`: Resolves the price of a shipping rate in a specific currency.
-* `getCurrencyIdForRegion`: Retrieves the currency ID associated with a region.
-* `getCurrencyCodeForRegion`: Retrieves the currency code (ISO 4217) for a region.
-* `getCurrencyIdFromCode`: Resolves the currency ID from an ISO 4217 currency code.
-* `hasPriceForCurrency`: Checks if a price exists for a variant in a specific currency.
-
-Example usage of `lib/pricing.ts` functions:
+### Example Usage
+To calculate the final price of a product variant in a specific region, you can use the following example:
 ```typescript
-import { resolveVariantPrice, resolveShippingPrice } from '../lib/pricing';
+import { getDb } from '../db';
+import { resolveVariantPrice, getCurrencyIdForRegion } from '../lib/pricing';
+import { validateDiscount, calculateDiscount } from '../routes/discounts';
 
-// Resolve variant price
-const variantId = '123e4567-e89b-12d3-a456-426655440000';
-const currencyId = '550e8400-e29b-41d3-a716-446655440000';
+// Get the database instance
+const db = getDb();
+
+// Define the variant ID, region ID, and discount code (if applicable)
+const variantId = 'variant-123';
+const regionId = 'region-456';
+const discountCode = 'DISCOUNT-10';
+
+// Get the currency ID for the region
+const currencyId = await getCurrencyIdForRegion(db, regionId);
+
+// Resolve the variant price for the region's currency
 const variantPrice = await resolveVariantPrice(db, variantId, currencyId);
 
-// Resolve shipping price
-const shippingRateId = '123e4567-e89b-12d3-a456-426655440001';
-const shippingPrice = await resolveShippingPrice(db, shippingRateId, currencyId);
+// Validate and calculate the discount (if applicable)
+let discountAmount = 0;
+if (discountCode) {
+  const discount = await getDiscount(db, discountCode); // Assuming a getDiscount function
+  await validateDiscount(db, discount, variantPrice);
+  discountAmount = calculateDiscount(discount, variantPrice);
+}
+
+// Calculate the final price
+const finalPrice = variantPrice - discountAmount;
+
+console.log(`Final price: $${(finalPrice / 100).toFixed(2)}`);
 ```
-By using the `lib/pricing.ts` file as the single source of truth for price calculation, the Fufuni framework ensures that prices are calculated accurately and consistently, providing a robust and reliable e-commerce platform for merchants and customers alike. 
-
-### Discount Calculation Example
-Here's an example of how the `calculateDiscount` function calculates the discount amount:
-```typescript
-import { calculateDiscount } from '../routes/discounts';
-
-// Define discount and subtotal
-const discount: Discount = {
-  id: '123e4567-e89b-12d3-a456-426655440000',
-  code: 'MYDISCOUNT',
-  type: 'percentage',
-  value: 10,
-  status: 'active',
-  min_purchase_cents: 1000,
-  max_discount_cents: 500,
-  starts_at: null,
-  expires_at: null,
-  usage_limit: null,
-  usage_limit_per_customer: null,
-  usage_count: 0,
-};
-const subtotalCents = 2000;
-
-// Calculate discount amount
-const discountAmount = calculateDiscount(discount, subtotalCents);
-console.log(`Discount amount: ${discountAmount} cents`);
-```
-In this example, the `calculateDiscount` function calculates the discount amount based on the discount type (percentage) and value (10%). The discount amount is then logged to the console.
+In this example, we first resolve the variant price for the region's currency using `resolveVariantPrice`. Then, we validate and calculate the discount using `validateDiscount` and `calculateDiscount`. Finally, we calculate the final price by subtracting the discount amount from the variant price.

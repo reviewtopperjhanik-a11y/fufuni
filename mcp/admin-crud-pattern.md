@@ -3,104 +3,52 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    3120
-  tokens_out:   916
+  tokens_out:   1221
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Introduction to Admin CRUD Pattern
-The Admin CRUD pattern is a standardized approach to building admin pages in the Fufuni e-commerce framework. It combines the `AdminCrudLayout` component with the `useAdminCrud` hook to provide a unified and efficient way to manage admin pages.
+The Admin CRUD pattern is a standardized approach for creating admin pages in the Fufuni e-commerce framework. This pattern utilizes the `AdminCrudLayout` component and the `useAdminCrud` hook to provide a unified and efficient way of managing admin pages.
 
-### Creating a New Admin Page
-To create a new admin page, start by importing the necessary components and hooks:
+## Creating a New Admin Page
+To create a new admin page using the Admin CRUD pattern, you can follow these steps:
+
+### Step 1: Import necessary components and hooks
 ```typescript
-import { AdminCrudLayout } from '@/shared/ui/admin/admin-crud-layout';
-import { useAdminCrud } from '@/shared/hooks/use-admin-crud';
+import { AdminCrudLayout } from '../shared/ui/admin/admin-crud-layout';
+import { useAdminCrud } from '../shared/hooks/use-admin-crud';
+import { Table, TableColumn } from '@heroui/react';
 ```
-Then, define the columns and data for your admin page. For example:
+
+### Step 2: Define the columns for the table
 ```typescript
-const columns = [
-  { key: 'id', label: 'ID' },
-  { key: 'name', label: 'Name' },
-  { key: 'description', label: 'Description' },
-  { key: 'actions', label: 'Actions' },
+const columns: TableColumn[] = [
+  {
+    label: 'ID',
+    accessor: 'id',
+  },
+  {
+    label: 'Name',
+    accessor: 'name',
+  },
+  {
+    label: 'Status',
+    accessor: 'status',
+  },
+  {
+    label: 'Actions',
+    accessor: 'actions',
+  },
 ];
+```
 
-const MyAdminPage = () => {
-  const {
-    items,
-    setItems,
-    displayedItems,
-    globalFilter,
-    setGlobalFilter,
-    statusFilter,
-    setStatusFilter,
-    isModalOpen,
-    setIsModalOpen,
-    isEditMode,
-    editingItem,
-    openCreate,
-    openEdit,
-    closeModal,
-  } = useAdminCrud({
-    filterFn: (item, term) => {
-      // Implement your custom filter function here
-      return item.name.toLowerCase().includes(term.toLowerCase());
-    },
-  });
-
-  const handleAdd = () => {
-    openCreate();
-  };
-
-  const handleEdit = (item) => {
-    openEdit(item);
-  };
-
-  const handleDelete = (item) => {
-    // Implement your custom delete function here
-  };
-
-  return (
-    <AdminCrudLayout
-      title="My Admin Page"
-      addLabel="Add New Item"
-      onAdd={handleAdd}
-      globalFilter={globalFilter}
-      onGlobalFilterChange={setGlobalFilter}
-      statusFilter={statusFilter}
-      onStatusFilterChange={setStatusFilter}
-    >
-      <Table columns={columns} data={displayedItems}>
-        {(item) => (
-          <TableRow>
-            <TableCell>{item.id}</TableCell>
-            <TableCell>{item.name}</TableCell>
-            <TableCell>{item.description}</TableCell>
-            <TableCell>
-              <RowActions
-                onEdit={() => handleEdit(item)}
-                onDelete={() => handleDelete(item)}
-              />
-            </TableCell>
-          </TableRow>
-        )}
-      </Table>
-    </AdminCrudLayout>
-  );
+### Step 3: Define the filter function for the `useAdminCrud` hook
+```typescript
+const filterFn = (item: any, term: string) => {
+  return item.name.toLowerCase().includes(term) || item.id.toLowerCase().includes(term);
 };
 ```
-In this example, we define a `MyAdminPage` component that uses the `useAdminCrud` hook to manage the data and state for the admin page. We also define a `RowActions` component to handle edit and delete actions for each item.
 
-### Defining Columns and Wiring up useAdminCrud
-To define columns, create an array of objects with `key` and `label` properties. For example:
-```typescript
-const columns = [
-  { key: 'id', label: 'ID' },
-  { key: 'name', label: 'Name' },
-  { key: 'description', label: 'Description' },
-  { key: 'actions', label: 'Actions' },
-];
-```
-To wire up `useAdminCrud`, pass a `filterFn` function to the hook. This function should take an item and a search term as arguments and return a boolean indicating whether the item matches the search term. For example:
+### Step 4: Use the `useAdminCrud` hook to manage the CRUD state
 ```typescript
 const {
   items,
@@ -118,13 +66,122 @@ const {
   openEdit,
   closeModal,
 } = useAdminCrud({
-  filterFn: (item, term) => {
-    // Implement your custom filter function here
-    return item.name.toLowerCase().includes(term.toLowerCase());
-  },
+  filterFn,
 });
 ```
-### Avoiding Custom Implementations
-To avoid custom implementations, use the `AdminCrudLayout` component and `useAdminCrud` hook as is. Do not attempt to recreate the CRUD pattern from scratch. Instead, extend and customize the existing implementation as needed.
 
-By following this pattern, you can ensure consistency and efficiency across all admin pages in your application. Remember to always use the `AdminCrudLayout` component and `useAdminCrud` hook, and avoid custom implementations whenever possible.
+### Step 5: Render the `AdminCrudLayout` component
+```typescript
+return (
+  <AdminCrudLayout
+    title="My Admin Page"
+    addLabel="Add New"
+    onAdd={openCreate}
+    globalFilter={globalFilter}
+    onGlobalFilterChange={setGlobalFilter}
+    statusFilter={statusFilter}
+    onStatusFilterChange={setStatusFilter}
+  >
+    <Table columns={columns} data={displayedItems}>
+      {(item) => (
+        <Table.Row key={item.id}>
+          <Table.Cell>{item.id}</Table.Cell>
+          <Table.Cell>{item.name}</Table.Cell>
+          <Table.Cell>{item.status}</Table.Cell>
+          <Table.Cell>
+            <RowActions onEdit={() => openEdit(item)} onDelete={() => console.log('Delete', item.id)} />
+          </Table.Cell>
+        </Table.Row>
+      )}
+    </Table>
+  </AdminCrudLayout>
+);
+```
+
+## Example Use Case
+The following example demonstrates how to use the `AdminCrudLayout` and `useAdminCrud` to create a simple admin page for managing a list of items:
+```typescript
+import { AdminCrudLayout } from '../shared/ui/admin/admin-crud-layout';
+import { useAdminCrud } from '../shared/hooks/use-admin-crud';
+import { Table, TableColumn } from '@heroui/react';
+import { RowActions } from '../shared/ui/admin/row-actions';
+
+const MyAdminPage = () => {
+  const columns: TableColumn[] = [
+    {
+      label: 'ID',
+      accessor: 'id',
+    },
+    {
+      label: 'Name',
+      accessor: 'name',
+    },
+    {
+      label: 'Status',
+      accessor: 'status',
+    },
+    {
+      label: 'Actions',
+      accessor: 'actions',
+    },
+  ];
+
+  const filterFn = (item: any, term: string) => {
+    return item.name.toLowerCase().includes(term) || item.id.toLowerCase().includes(term);
+  };
+
+  const {
+    items,
+    setItems,
+    displayedItems,
+    globalFilter,
+    setGlobalFilter,
+    statusFilter,
+    setStatusFilter,
+    isModalOpen,
+    setIsModalOpen,
+    isEditMode,
+    editingItem,
+    openCreate,
+    openEdit,
+    closeModal,
+  } = useAdminCrud({
+    filterFn,
+  });
+
+  return (
+    <AdminCrudLayout
+      title="My Admin Page"
+      addLabel="Add New"
+      onAdd={openCreate}
+      globalFilter={globalFilter}
+      onGlobalFilterChange={setGlobalFilter}
+      statusFilter={statusFilter}
+      onStatusFilterChange={setStatusFilter}
+    >
+      <Table columns={columns} data={displayedItems}>
+        {(item) => (
+          <Table.Row key={item.id}>
+            <Table.Cell>{item.id}</Table.Cell>
+            <Table.Cell>{item.name}</Table.Cell>
+            <Table.Cell>{item.status}</Table.Cell>
+            <Table.Cell>
+              <RowActions onEdit={() => openEdit(item)} onDelete={() => console.log('Delete', item.id)} />
+            </Table.Cell>
+          </Table.Row>
+        )}
+      </Table>
+    </AdminCrudLayout>
+  );
+};
+```
+
+## Benefits of Using the Admin CRUD Pattern
+Using the Admin CRUD pattern provides several benefits, including:
+
+*   **Consistency**: The pattern ensures consistency across all admin pages, making it easier for users to navigate and understand the interface.
+*   **Reusability**: The `AdminCrudLayout` component and `useAdminCrud` hook can be reused across multiple admin pages, reducing code duplication and improving maintainability.
+*   **Efficient Development**: The pattern provides a standardized approach to creating admin pages, allowing developers to focus on implementing business logic rather than reinventing the CRUD pattern.
+*   **Improved User Experience**: The pattern provides a consistent and intuitive user interface, making it easier for users to manage data and perform CRUD operations.
+
+By following the Admin CRUD pattern, developers can create efficient, consistent, and user-friendly admin pages that improve the overall user experience.

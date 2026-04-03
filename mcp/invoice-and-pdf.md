@@ -3,25 +3,66 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    6099
-  tokens_out:   745
+  tokens_out:   810
   api_endpoint: https://api.groq.com/openai/v1
 -->
-## Invoice and PDF Generation
-The Fufuni e-commerce framework utilizes a 100% client-side architecture for invoice and PDF generation. This approach ensures that all PDF generation occurs within the browser, using libraries such as jsPDF and jspdf-autotable, without relying on any server-side processing. This not only reduces the load on the server but also provides a seamless and efficient experience for the end-user.
+## Introduction to Invoice and PDF Generation
+The Fufuni e-commerce framework utilizes a 100% client-side architecture for generating invoices and PDFs. This approach eliminates the need for backend processing, ensuring a seamless and efficient experience for users. The client-side generation is facilitated by the jsPDF and jspdf-autotable libraries.
 
-### Client-Side Architecture
-The client-side architecture is facilitated by the `lib/invoice-generator.ts` and `utils/invoice-pdf.ts` modules. The `generateInvoice` function in `lib/invoice-generator.ts` takes an `InvoiceData` object as input and generates an A4 PDF, which is then downloaded as `invoice-{orderNumber}.pdf`. This function is responsible for creating the PDF layout, including the header, order details, items table, totals, and footer.
+## Client-Side Architecture
+The invoice generation process is handled entirely within the browser, leveraging the capabilities of jsPDF and jspdf-autotable. This design choice offers several benefits, including:
 
-### Currency Formatting
-Currency formatting is handled by the `utils/currency.ts` module, which provides functions for formatting cent amounts into locale-aware currency strings. The supported currencies include USD, EUR, GBP, CAD, CHF, AUD, JPY, and CNY. The `formatMoney` function is used to format an amount in cents to a localized currency string, taking into account the locale and currency code. This ensures that the currency symbol and decimal separator are correctly displayed according to the user's locale.
+* Reduced server load and dependency
+* Improved performance and responsiveness
+* Enhanced security, as no sensitive data is transmitted to the server
 
-### Delivering the PDF Payload
-The PDF payload is delivered using blob URLs. The `downloadInvoicePdf` function in `utils/invoice-pdf.ts` generates the PDF and triggers a browser download using the `doc.save()` method. The `openInvoicePdf` function, on the other hand, opens the PDF in a new browser tab using the `window.open()` method with a blob URL.
+The `lib/invoice-generator.ts` module exposes the `generateInvoice` function, which takes an `InvoiceData` object as input and generates an A4-sized PDF. The resulting PDF is then downloaded as `invoice-{orderNumber}.pdf`.
 
-### Example Usage
-To generate an invoice PDF, you can use the `generateInvoice` function from `lib/invoice-generator.ts` as follows:
+## Currency Formatting
+Currency formatting is handled by the `utils/currency.ts` module, which provides functions for formatting cent amounts into locale-aware currency strings. The supported currencies include USD, EUR, GBP, CAD, CHF, AUD, JPY, and CNY.
+
+The `formatMoney` function is used to format an amount in cents to a localized currency string. It accepts the following parameters:
+
+* `cents`: the amount in cents
+* `currency`: the ISO 4217 currency code (e.g., "EUR", "USD", "JPY")
+* `locale`: an optional BCP 47 locale tag (e.g., "fr-FR", "en-US")
+
+Example usage:
 ```typescript
-import { generateInvoice } from '../lib/invoice-generator';
+import { formatMoney } from './utils/currency';
+
+const amountInCents = 2999;
+const currencyCode = 'EUR';
+const locale = 'fr-FR';
+
+const formattedAmount = formatMoney(amountInCents, currencyCode, locale);
+console.log(formattedAmount); // Output: "29,99 €"
+```
+
+## Delivering the PDF Payload
+The `utils/invoice-pdf.ts` module provides two public functions for delivering the PDF payload:
+
+* `downloadInvoicePdf`: triggers a browser download of the generated PDF
+* `openInvoicePdf`: opens the PDF in a new browser tab via `window.open(blobUri)`
+
+Both functions accept an `OrderForPdf` object, which contains the necessary data for generating the invoice. The `downloadInvoicePdf` function saves the PDF as `invoice-{orderNumber}.pdf`, while the `openInvoicePdf` function opens the PDF in a new tab using a blob URL.
+
+Example usage:
+```typescript
+import { downloadInvoicePdf, openInvoicePdf } from './utils/invoice-pdf';
+
+const orderData: OrderForPdf = {
+  // Order data properties
+};
+
+downloadInvoicePdf(orderData); // Download the PDF
+openInvoicePdf(orderData); // Open the PDF in a new tab
+```
+
+## Example Use Cases
+The following example demonstrates how to generate an invoice and download it as a PDF:
+```typescript
+import { generateInvoice } from './lib/invoice-generator';
 
 const invoiceData: InvoiceData = {
   orderNumber: 'ORD-12345',
@@ -41,25 +82,4 @@ const invoiceData: InvoiceData = {
 
 generateInvoice(invoiceData);
 ```
-Similarly, you can use the `downloadInvoicePdf` or `openInvoicePdf` functions from `utils/invoice-pdf.ts` to generate and download or open the PDF, respectively:
-```typescript
-import { downloadInvoicePdf, openInvoicePdf } from '../utils/invoice-pdf';
-
-const order: OrderForPdf = {
-  number: 'ORD-12345',
-  created_at: '2026-03-22',
-  currency: 'EUR',
-  email: 'john@example.com',
-  items: [
-    { title: 'Widget', qty: 2, unit_price_cents: 2999 }
-  ],
-  subtotal_cents: 5998,
-  tax_cents: 1140,
-  shipping_cents: 798,
-  total_cents: 7936,
-};
-
-downloadInvoicePdf(order);
-// or
-openInvoicePdf(order);
-```
+This code generates an invoice based on the provided `InvoiceData` object and downloads it as `invoice-ORD-12345.pdf`.

@@ -3,166 +3,81 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    2891
-  tokens_out:   1074
+  tokens_out:   716
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## API Error Handling Reference
-The Fufuni e-commerce framework utilizes the `ApiError` class to handle and respond to errors in a standardized manner. This reference guide provides an overview of the `ApiError` class, its static helpers, and how to effectively use it for error handling in both the backend and frontend.
+Fufuni's API utilizes the `ApiError` class to handle and respond to errors in a structured manner. This reference guide provides an overview of how to use `ApiError` effectively in your application.
 
-### ApiError Class Static Helpers
-The `ApiError` class provides several static helper methods to create commonly used error responses. The following table summarizes these methods:
+### ApiError Static Helpers Table
+The `ApiError` class provides several static helper methods for common error scenarios. The following table summarizes these methods, their corresponding HTTP status codes, and typical use cases:
 
 | Method | HTTP Status | Use Case |
 | --- | --- | --- |
 | `unauthorized` | 401 | Authentication or authorization failures |
 | `forbidden` | 403 | Insufficient permissions or access denied |
 | `notFound` | 404 | Resource not found or missing |
-| `invalidRequest` | 400 | Invalid request data or format |
+| `invalidRequest` | 400 | Invalid or malformed request data |
 | `conflict` | 409 | Resource conflict or duplicate entry |
-| `insufficientInventory` | 409 | Insufficient stock or inventory for a product |
+| `insufficientInventory` | 409 | Insufficient stock or quantity |
+| `internalServerError` | 500 | Unexpected server errors or exceptions |
 | `stripeError` | 502 | Stripe payment processing errors |
-| `internalServerError` | 500 | Unhandled server-side errors or exceptions |
-| `badRequest` | 400 | Invalid or malformed request data |
+| `badRequest` | 400 | Generic bad request or client error |
 
 ### Hono Error Conversion
-When an `ApiError` is thrown in a Hono route handler, it is automatically converted into a JSON response with the correct HTTP status code. The response format is standardized as follows:
-```json
-{
-  "error": {
-    "code": "<error_code>",
-    "message": "<error_message>",
-    "details": "<error_details>"
-  }
-}
-```
-This conversion is handled by Hono's global error handler, which ensures that all error responses are consistent and easily parseable by clients.
+When an `ApiError` is thrown in a route handler or middleware, Hono's global error handler converts it into a standard JSON error response with the correct HTTP status code. This ensures that API clients receive a consistent and informative error format.
 
-### Code Examples for Common Error Types
+### Code Examples
 Here are code examples for each common error type:
 
-#### Not Found
 ```typescript
+// Not Found
 throw ApiError.notFound('Product not found');
-```
-Response:
-```json
-{
-  "error": {
-    "code": "not_found",
-    "message": "Not found",
-    "details": undefined
-  }
-}
-```
 
-#### Unauthorized
-```typescript
-throw ApiError.unauthorized('Invalid API key');
-```
-Response:
-```json
-{
-  "error": {
-    "code": "unauthorized",
-    "message": "Unauthorized",
-    "details": undefined
-  }
-}
-```
+// Unauthorized
+throw ApiError.unauthorized('Authentication required');
 
-#### Forbidden
-```typescript
+// Forbidden
 throw ApiError.forbidden('Insufficient permissions');
-```
-Response:
-```json
-{
-  "error": {
-    "code": "forbidden",
-    "message": "Forbidden",
-    "details": undefined
-  }
-}
-```
 
-#### Conflict
-```typescript
-throw ApiError.conflict('Duplicate product entry');
-```
-Response:
-```json
-{
-  "error": {
-    "code": "conflict",
-    "message": "Conflict",
-    "details": undefined
-  }
-}
-```
+// Conflict
+throw ApiError.conflict('Resource already exists');
 
-#### Invalid Request
-```typescript
+// Invalid Request
 throw ApiError.invalidRequest('Invalid request data', { field: 'name' });
-```
-Response:
-```json
-{
-  "error": {
-    "code": "invalid_request",
-    "message": "Invalid request",
-    "details": { "field": "name" }
-  }
-}
+
+// Insufficient Inventory
+throw ApiError.insufficientInventory('INS-001');
+
+// Internal Server Error
+throw ApiError.internalServerError('Unexpected server error');
 ```
 
-#### Insufficient Inventory
+### Custom Error Messages
+To create custom error messages with `ApiError`, you can use the `ApiError` constructor directly:
+
 ```typescript
-throw ApiError.insufficientInventory('sku-123');
-```
-Response:
-```json
-{
-  "error": {
-    "code": "insufficient_inventory",
-    "message": "Insufficient inventory for SKU: sku-123",
-    "details": { "sku": "sku-123" }
-  }
-}
+throw new ApiError('custom_error', 422, 'Custom error message');
 ```
 
-#### Internal Server Error
-```typescript
-throw ApiError.internalServerError('Unexpected error occurred');
-```
-Response:
-```json
-{
-  "error": {
-    "code": "internal_server_error",
-    "message": "Internal server error",
-    "details": undefined
-  }
-}
-```
+Alternatively, you can create a custom static helper method on the `ApiError` class:
 
-### Creating Custom Error Messages
-To create a custom error message, you can use the `ApiError` constructor directly:
 ```typescript
-throw new ApiError('custom_error', 500, 'Custom error message', { details: 'custom details' });
-```
-Response:
-```json
-{
-  "error": {
-    "code": "custom_error",
-    "message": "Custom error message",
-    "details": { "details": "custom details" }
+export class ApiError extends Error {
+  // ...
+
+  static customError(message: string) {
+    return new ApiError('custom_error', 422, message);
   }
 }
+
+// Usage
+throw ApiError.customError('Custom error message');
 ```
 
 ### Frontend Error Handling
-When using the `useSecuredApi()` hook, API errors are automatically caught and returned as a rejected promise. You can handle these errors in your frontend code as follows:
+On the frontend, when using `useSecuredApi()` callers, you can handle API errors by catching the error and checking the `error.response` property:
+
 ```typescript
 import { useSecuredApi } from './api';
 
@@ -170,15 +85,17 @@ const fetchData = async () => {
   try {
     const response = await useSecuredApi('/api/data');
     // Handle successful response
-  } catch (error: any) {
+  } catch (error) {
     if (error.response) {
-      const errorCode = error.response.data.error.code;
       const errorMessage = error.response.data.error.message;
+      console.error(errorMessage);
       // Handle API error
     } else {
-      // Handle unexpected error
+      console.error('Unknown error:', error);
+      // Handle unknown error
     }
   }
 };
 ```
-By following these guidelines, you can effectively handle API errors in your Fufuni application and provide a better user experience.
+
+By following these guidelines and using the `ApiError` class effectively, you can ensure that your Fufuni application provides informative and consistent error handling for a better developer experience.

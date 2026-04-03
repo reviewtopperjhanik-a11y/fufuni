@@ -3,61 +3,67 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    4356
-  tokens_out:   1113
+  tokens_out:   1191
   api_endpoint: https://api.groq.com/openai/v1
 -->
-## Seed Data Script Reference
-The seed script is used to populate a local or test environment with realistic sample data sets.
+## Introduction to Seed Data Script
+The seed data script is used to populate a local or test environment with realistic sample data sets. This script is idempotent for rerun safety where possible, allowing maintainers and contributors to use it to create demo data via the API.
 
-### Running the Seed Script
+## Running the Seed Script
 To run the seed script, use the following command:
 ```bash
 npx tsx scripts/seed.ts <api_url> <admin_key>
 ```
-For example:
+Replace `<api_url>` with the URL of your API and `<admin_key>` with your admin key. For example:
 ```bash
 npx tsx scripts/seed.ts http://localhost:8787 sk_abc123
 ```
-Replace `<api_url>` with the URL of your API and `<admin_key>` with your admin key.
-
-### PRODUCT_CATALOG Structure
-The PRODUCT_CATALOG structure is not explicitly defined in the provided code, but it can be inferred from the `seedProducts` function (not shown in the provided code). To add a new product with variants and pricing, you would typically create a new object with the following structure:
+## PRODUCT_CATALOG Structure
+The `PRODUCT_CATALOG` structure is used to define products with variants and pricing. To add a new product, you can use the following example as a reference:
 ```typescript
+// Define a new product
 const newProduct = {
   handle: 'new-product',
   name: JSON.stringify({
     'en-US': 'New Product',
     'fr-FR': 'Nouveau Produit',
-    // ...
+    'es-ES': 'Nuevo Producto',
   }),
   description: JSON.stringify({
     'en-US': 'This is a new product',
     'fr-FR': 'Ceci est un nouveau produit',
-    // ...
+    'es-ES': 'Este es un nuevo producto',
   }),
+  price: {
+    currency: 'EUR',
+    amount: 1000, // 10.00 EUR
+    compare_at_price: 1200, // 12.00 EUR
+  },
   variants: [
     {
-      sku: 'new-product-variant-1',
-      price_cents: 1000, // in EUR cents
-      tax_rate_id: tax20.id, // reference to a tax rate object
-    },
-    {
-      sku: 'new-product-variant-2',
-      price_cents: 1500, // in EUR cents
-      tax_rate_id: tax20.id, // reference to a tax rate object
+      handle: 'new-product-variant',
+      name: JSON.stringify({
+        'en-US': 'New Product Variant',
+        'fr-FR': 'Nouvelle Variante de Produit',
+        'es-ES': 'Nueva Variante de Producto',
+      }),
+      price: {
+        currency: 'EUR',
+        amount: 1000, // 10.00 EUR
+        compare_at_price: 1200, // 12.00 EUR
+      },
     },
   ],
 };
-```
-You would then pass this object to the `api` function to create the product:
-```typescript
-const product = await api('/v1/products', newProduct);
-```
 
-### Adding a New Seed Category
-To add a new seed category, you can use the `createCat` helper function:
+// Create the new product using the api function
+const newProductResponse = await api('/v1/products', newProduct);
+```
+## Adding a New Seed Category
+To add a new seed category, you can use the `createCat` helper function as a reference:
 ```typescript
-async function createCat(data: Record<string, any>, imageFile: string) {
+// Helper: create a category with WebP image_url and thumbnail_url
+async function createNewCategory(data: Record<string, any>, imageFile: string) {
   const imageUrl = await toWebpDataUri(imageFile, 1200, 80);
   const thumbUrl  = await toWebpDataUri(imageFile, 300, 80);
   return api('/v1/categories', {
@@ -66,74 +72,60 @@ async function createCat(data: Record<string, any>, imageFile: string) {
     ...(thumbUrl  ? { thumbnail_url: thumbUrl } : {}),
   });
 }
-```
-For example:
-```typescript
-const newCategory = await createCat({
+
+// Create a new category
+const newCategory = await createNewCategory({
   handle: 'new-category',
   name: JSON.stringify({
     'en-US': 'New Category',
     'fr-FR': 'Nouvelle Catégorie',
-    // ...
+    'es-ES': 'Nueva Categoría',
   }),
   description: JSON.stringify({
     'en-US': 'This is a new category',
     'fr-FR': 'Ceci est une nouvelle catégorie',
-    // ...
+    'es-ES': 'Esta es una nueva categoría',
   }),
 }, 'new-category.png');
 ```
-
-### apiWithRetry Helper
-The `apiWithRetry` helper exists to handle transient failures like rate limiting. It wraps the `api` function and retries the request up to a specified number of times (default 5) if it fails. You can use it to create custom seed data by calling it instead of the `api` function:
+## apiWithRetry Helper
+The `apiWithRetry` helper is used to retry API requests that fail due to rate limiting or other transient errors. It will wait for a specified amount of time before retrying the request, and will throw an error if all retries fail.
 ```typescript
-const data = await apiWithRetry('/v1/custom-endpoint', customData);
+// Example usage of apiWithRetry
+const response = await apiWithRetry('/v1/products', { /* payload */ }, 5);
 ```
-Make sure to handle the `maxRetries` parameter according to your needs.
-
-### Currency Conversion
-Currency conversion is done using the `convertCents` function:
-```typescript
-function convertCents(cents: number, rate: number): number {
-  return Math.round(cents * rate);
-}
-```
-This function takes the price in EUR cents and the exchange rate multiplier to the target currency. For example, to convert 1000 EUR cents to USD cents:
-```typescript
-const usdCents = convertCents(1000, EUR_TO_USD);
-```
-The `EUR_TO_USD` and `EUR_TO_GBP` constants are defined in the script:
+## Currency Conversion
+Currency conversion is done using the `convertCents` function, which converts EUR cents to USD or GBP cents. The conversion rates are defined as constants:
 ```typescript
 const EUR_TO_USD = 1.14;
 const EUR_TO_GBP = 0.86;
-```
 
-### Image Embedding
-Images are embedded using the `toWebpDataUri` helper function:
+// Example usage of convertCents
+const priceInEurCents = 1000; // 10.00 EUR
+const priceInUsdCents = convertCents(priceInEurCents, EUR_TO_USD);
+const priceInGbpCents = convertCents(priceInEurCents, EUR_TO_GBP);
+```
+## Image Embedding
+Images are embedded using the `toWebpDataUri` helper function, which converts an image file or base64 string to a WebP data URI. If the image file is not found, it will fall back to using a base64 string.
 ```typescript
-async function toWebpDataUri(
-  src: string | null,
-  maxSide: number,
-  quality = 80,
-): Promise<string | null> {
-  // ...
-}
+// Example usage of toWebpDataUri
+const imageUrl = await toWebpDataUri('image.png', 1200, 80);
 ```
-This function takes the image source (either a file path or a base64-encoded string), the maximum side length, and the quality (default 80). It returns a data URI string or null if the source is missing or unreadable.
-
-### Adding a New Seed Helper Function
+## Adding a New Seed Helper Function
 To add a new seed helper function, follow the existing pattern:
 ```typescript
-async function newHelperFunction(data: Record<string, any>) {
-  // perform some operation on the data
-  return result;
+// New seed helper function
+async function seedNewData() {
+  // Create new data using the api function
+  const newDataResponse = await api('/v1/new-data', { /* payload */ });
+  return newDataResponse;
+}
+
+// Add the new seed helper function to the seed function
+async function seed() {
+  // ... existing seed helpers ...
+  await seedNewData();
+  // ... existing seed helpers ...
 }
 ```
-For example:
-```typescript
-async function createNewEntity(data: Record<string, any>) {
-  const result = await api('/v1/new-entity', data);
-  return result;
-}
-```
-Make sure to handle errors and edge cases according to your needs. You can then call this function in the `seed` function to perform the desired operation.
+Note that new seed helper functions should be added to the end of the `seed` function, and should be used to create new data using the `api` function.

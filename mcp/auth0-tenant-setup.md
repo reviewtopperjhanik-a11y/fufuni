@@ -3,57 +3,103 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    3032
-  tokens_out:   650
+  tokens_out:   978
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Auth0 Tenant Setup & Permissions
-The Fufuni e-commerce framework utilizes Auth0 for authentication and authorization. The `deploy-tenant-resources.ts` script is used to provision all necessary Auth0 resources, including the SPA app, API resource server, permission scopes, post-login Action, and M2M client for the Management API.
+The Auth0 tenant setup is a crucial part of the Fufuni e-commerce framework. This reference will guide you through the process of setting up the Auth0 tenant, understanding the permissions and scopes, and managing users and permissions.
 
 ### Running the Deployment Script
-To run the script, execute the following command:
+To provision all the necessary Auth0 resources, you can run the `deploy-tenant-resources.ts` script. This script provisions the following resources:
+* SPA app
+* API resource server
+* Permission scopes
+* Post-login Action (injects user metadata into the JWT)
+* M2M client for Management API
+
+To run the script, use the following command:
 ```bash
 npx tsx scripts/auth0/deploy-tenant-resources.ts -- --env-file=.env
 ```
-Replace `.env` with the path to your environment file containing the required Auth0 settings.
+Make sure to replace `.env` with the path to your environment file.
 
-### Auth0 Permissions Table
-The following table lists the Auth0 permissions used by Fufuni, along with their descriptions:
+### Auth0 Permissions and Scopes
+The following table lists the Auth0 permissions and scopes used by Fufuni:
 
-| Permission | Description |
-| --- | --- |
-| `admin:store` | General admin permission, grants access to the admin dashboard |
-| `auth0:admin:api` | Management API proxy permission, allows access to the Auth0 Management API |
-| `ai:api` | AI features permission, grants access to AI-related functionality |
-| `mail:api` | Email sending permission, allows sending emails through the Fufuni platform |
-| `admin:database` | Direct DB access permission, grants access to the database for administrative tasks |
+| Permission | Description | Role |
+| --- | --- | --- |
+| `admin:store` | General admin permission | `admin` |
+| `auth0:admin:api` | Management API proxy permission | `authadmin` |
+| `ai:api` | AI features permission | `aiadmin` |
+| `mail:api` | Email sending permission | `mail` |
+| `admin:database` | Direct DB access permission | `databaseadmin` |
+
+These permissions are used to grant access to specific features and resources within the Fufuni application.
 
 ### Post-Login Action
-The post-login Action injects `user_metadata` into the access token as a custom claim. This allows for the availability of wishlist and preferences in the JWT without requiring extra API calls.
+The post-login Action injects `user_metadata` into the access token as a custom claim. This allows the wishlist and preferences to be made available in the JWT without requiring additional API calls.
+
+Here's an example of how the post-login Action code is executed:
+```typescript
+const actionCode = await readFile(new URL("./auth0-code/add-userinfo-to-access-jwt.js", scriptDir), "utf-8");
+const actionId = await createAndInsert(auth0Domain, token, postLoginActionName, actionCode, "post-login");
+```
+The `add-userinfo-to-access-jwt.js` script contains the logic for injecting the `user_metadata` into the access token.
 
 ### M2M Token Caching
-The M2M token for the Management API is cached in KV with the key `auth0_management_token` for approximately 23 hours. This caching mechanism helps avoid exhausting the monthly M2M token quota.
+The M2M token for the Management API is cached in KV with the key `auth0_management_token` and a TTL of approximately 23 hours. This caching mechanism helps avoid exhausting the monthly M2M token quota.
 
+Here's an example of how the M2M token is cached:
+```typescript
+const token = await getValidMgmtToken(auth0Domain, managementClientId, managementClientSecret, envFilePath || ".env");
+// Cache the token in KV
+await cacheToken(token, "auth0_management_token", 23 * 60 * 60); // 23 hours
+```
 ### UsersAndPermissionsPage
-The `UsersAndPermissionsPage` (`/admin/users-and-permissions`) requires the `auth0:admin:api` permission. This page uses the backend proxy to call the Auth0 Management API directly from the browser, allowing admins to manage users and permissions.
+The UsersAndPermissionsPage (`/admin/users-and-permissions`) requires the `auth0:admin:api` permission to access. This page uses the backend proxy to call the Auth0 Management API directly from the browser.
+
+To access this page, you need to have the `auth0:admin:api` permission assigned to your role.
 
 ### Adding a New Permission
 To add a new permission, follow these steps:
 
-1. **Update the deployment script**: Add the new permission to the `deploy-tenant-resources.ts` script.
-2. **Re-run the deployment script**: Execute the deployment script to provision the new permission.
-3. **Add a backend RBAC guard**: Implement a backend Role-Based Access Control (RBAC) guard to enforce the new permission.
-4. **Gate the frontend with AuthenticationGuardWithPermission**: Use the `AuthenticationGuardWithPermission` component to gate the frontend and ensure that only authorized users can access the corresponding functionality.
+1. Add the new permission to the `deploy-tenant-resources.ts` script.
+2. Re-run the script to provision the new permission.
+3. Add a backend RBAC guard to enforce the new permission.
+4. Gate the frontend with `AuthenticationGuardWithPermission` to ensure only authorized users can access the protected resources.
 
-Example of adding a new permission to the `deploy-tenant-resources.ts` script:
+Here's an example of how to add a new permission:
 ```typescript
-const api = await createOrUpdateResourceServer(auth0Domain, token, {
-  name: `${tenant}-api`,
-  identifier: audience,
-  scopes: [
-    // Existing scopes...
-    { value: "new:permission", description: "New permission description" },
-  ],
-  // Other configuration options...
-});
+// Add the new permission to the deploy script
+const newPermission = "example:api";
+const permissions = [
+  "admin:store",
+  "auth0:admin:api",
+  "ai:api",
+  "mail:api",
+  "admin:database",
+  newPermission,
+];
+
+// Re-run the script to provision the new permission
+npx tsx scripts/auth0/deploy-tenant-resources.ts -- --env-file=.env
+
+// Add a backend RBAC guard
+import { hasPermission } from "./rbac";
+const exampleRoute = async (req, res) => {
+  if (!hasPermission(req.user, newPermission)) {
+    return res.status(403).send("Forbidden");
+  }
+  // Protected resource access
+};
+
+// Gate the frontend with AuthenticationGuardWithPermission
+import { AuthenticationGuardWithPermission } from "./auth";
+const examplePage = () => {
+  return (
+    <AuthenticationGuardWithPermission permission={newPermission}>
+      <div>Protected page</div>
+    </AuthenticationGuardWithPermission>
+  );
+};
 ```
-Note that the new permission should be added to the `scopes` array in the `createOrUpdateResourceServer` function call.

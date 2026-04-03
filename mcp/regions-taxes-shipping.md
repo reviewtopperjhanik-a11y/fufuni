@@ -3,72 +3,76 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    3175
-  tokens_out:   694
+  tokens_out:   692
   api_endpoint: https://api.groq.com/openai/v1
 -->
-## Regions, Taxes and Shipping Reference
-This document outlines the concepts and behaviors related to regions, taxes, and shipping in the Fufuni e-commerce framework.
+## Overview of Regions, Taxes, and Shipping
+A region in the Fufuni e-commerce framework groups together several entities, including countries (region_countries), warehouses (region_warehouses), and shipping rates (region_shipping_rates). This grouping enables efficient management of tax rules, shipping options, and inventory across different geographic locations.
 
-### Regions
-A region in Fufuni is an entity that groups together several related components:
-- Countries (region_countries): A region can be associated with multiple countries.
-- Warehouses (region_warehouses): Warehouses are also associated with regions, determining the storage locations for products.
-- Shipping rates (region_shipping_rates): Regions define the shipping rates applicable for orders within that region.
+## Regions and Entities
+A region is essentially a container that holds various entities, allowing for the application of common settings and rules. The entities grouped under a region include:
 
-These associations enable the framework to manage and apply different rules based on the region, such as tax calculations and shipping options.
+* Countries: These are the geographical areas where the region's rules and settings apply.
+* Warehouses: These are the physical locations where inventory is stored and shipped from.
+* Shipping rates: These are the rates and options available for shipping products to customers within the region.
 
-### Tax Inclusive Behavior
-The `tax_inclusive` flag on a region determines whether the displayed prices for products in that region already include Value Added Tax (VAT). The `lib/tax.ts` module handles this behavior by adjusting the tax calculation accordingly.
+## Tax Inclusive Behavior
+The `tax_inclusive` flag on a region determines how prices are displayed to customers. When `tax_inclusive` is set to `true`, the displayed price already includes VAT. The `lib/tax.ts` module handles this behavior by adapting the tax calculation accordingly.
 
-When `tax_inclusive` is `true`, the prices shown to the customer are considered to already include VAT. The tax calculation will then extract the VAT amount from the price to determine the tax amount. Conversely, when `tax_inclusive` is `false`, the prices are considered exclusive of VAT, and the tax amount is added to the price.
-
+Here is an example of how `lib/tax.ts` handles tax inclusive prices:
 ```typescript
-// Example of how tax_inclusive affects calculation in lib/tax.ts
-if (regionTaxInclusive) {
-  // Extract tax from the inclusive price
-  const taxAmount = calculateTaxFromInclusivePrice(price);
-} else {
-  // Add tax to the exclusive price
-  const taxAmount = calculateTaxToAdd(price);
+// lib/tax.ts
+export async function calculateCartTaxes(db: Database, cartId: string, shippingCountry: string | null): Promise<{
+    taxes: { name: string, amount_cents: number, tax_inclusive: boolean, rate_percentage: number }[],
+    itemRates: Map<string, number>,
+    shipping_ht_cents: number
+}> {
+    // ...
+    const regionTaxInclusive = region_tax_inclusive === 1;
+    if (regionTaxInclusive) {
+        // Calculate taxes based on inclusive price
+        // ...
+    } else {
+        // Calculate taxes based on exclusive price
+        // ...
+    }
+    // ...
 }
 ```
 
-### Applying Tax Codes to Shipping Rates
-Shipping rates in Fufuni can have a `tax_code` associated with them. This `tax_code` allows for the application of specific tax rules to shipping rates. By specifying a `tax_code` for a shipping rate, the framework can calculate the tax for shipping separately from the products, enabling more flexible and accurate tax handling.
+## Applying Tax Codes to Shipping Rates
+The `tax_code` on a shipping rate allows applying specific tax rules to shipping. This enables flexible taxation of shipping costs based on the type of shipping or the customer's location.
 
+For example, a shipping rate with a `tax_code` of "ST" might be subject to a standard tax rate, while a shipping rate with a `tax_code` of "EX" might be exempt from taxes.
+
+Here is an example of how tax codes can be applied to shipping rates:
 ```typescript
-// Example of applying a tax code to a shipping rate
-const shippingRate = {
-  id: 'shipping-rate-id',
-  display_name: 'Standard Shipping',
-  tax_code: 'SHIPPING_TAX_CODE',
-};
-
-// In lib/tax.ts, when calculating taxes for an order
-if (shippingRate.tax_code) {
-  const shippingTaxAmount = calculateTaxForShipping(shippingRate.tax_code, shippingRate.amount);
-  // Add shippingTaxAmount to the total tax calculation
+// lib/shipping.ts
+export interface ShippingRateItem {
+    id: string;
+    display_name: string;
+    description: string | null;
+    amount_cents: number;
+    currency: string;
+    min_delivery_days: number | null;
+    max_delivery_days: number | null;
+    shipping_class_id: string | null;
+    tax_code: string | null; // Tax code for shipping rate
+    tax_inclusive: boolean;
 }
-```
 
-## Using Regions, Taxes, and Shipping in Practice
-When implementing or integrating with the Fufuni framework, understanding how regions group different entities, how `tax_inclusive` affects price displays and calculations, and how tax codes apply to shipping rates is crucial for accurate and compliant e-commerce operations.
-
-```typescript
-// Example of setting up a region with countries, warehouses, and shipping rates
-const region = {
-  id: 'region-id',
-  countries: ['country-1', 'country-2'],
-  warehouses: ['warehouse-1'],
-  shippingRates: [
-    {
-      id: 'shipping-rate-id',
-      display_name: 'Standard Shipping',
-      tax_code: 'SHIPPING_TAX_CODE',
-    },
-  ],
+// Apply tax code to shipping rate
+const shippingRate: ShippingRateItem = {
+    id: 'SR-1',
+    display_name: 'Standard Shipping',
+    description: null,
+    amount_cents: 1000,
+    currency: 'USD',
+    min_delivery_days: 3,
+    max_delivery_days: 7,
+    shipping_class_id: null,
+    tax_code: 'ST', // Apply standard tax rate
+    tax_inclusive: true,
 };
-
-// Ensure lib/tax.ts and other relevant modules are integrated and configured
-// to correctly handle tax_inclusive and tax_code settings for regions and shipping rates.
 ```
+By applying specific tax codes to shipping rates, businesses can ensure accurate and compliant taxation of shipping costs.

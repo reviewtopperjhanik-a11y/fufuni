@@ -171,7 +171,7 @@ async function deliverWebhook(
           'X-Fufuni-Signature': signature,
           'X-Fufuni-Timestamp': String(timestamp),
           'X-Fufuni-Delivery-Id': deliveryId,
-          'User-Agent': 'Merchant-Webhook/1.0',
+          'User-Agent': 'Fufuni-Webhook/1.0',
         },
         body: payloadString,
       });

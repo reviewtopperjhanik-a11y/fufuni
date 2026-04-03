@@ -3,494 +3,401 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    719
-  tokens_out:   2864
+  tokens_out:   2334
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Backend Conventions
-
 ### Routes
-DO: Use `c.req.valid("json")` to validate incoming JSON requests.
+DO use `c.req.valid("json")` to parse JSON requests:
 ```typescript
 import { createRoute } from 'hono';
 import { z } from 'zod';
-import { UserSchema } from '../schemas';
+import { MyRequestSchema } from '../schemas/my-request-schema';
 
-const userRoute = createRoute()
-  .post('/users', (c) => {
-    const userInput = c.req.valid("json", UserSchema);
+export const myRoute = createRoute()
+  .post(async (c) => {
+    const reqBody = c.req.valid("json", MyRequestSchema);
     // ...
   });
 ```
-DON'T: Use `c.req.json()` directly without validation.
+DON'T use `c.req.json()` directly:
 ```typescript
 // WRONG
-const userRoute = createRoute()
-  .post('/users', (c) => {
-    const userInput = c.req.json();
+export const myRoute = createRoute()
+  .post(async (c) => {
+    const reqBody = await c.req.json();
     // ...
   });
 ```
 
 ### Schemas
-DO: Declare Zod schemas in separate files and import them.
+DO declare Zod schemas in separate files and import them:
 ```typescript
-// apps/merchant/src/schemas/UserSchema.ts
+// apps/merchant/src/schemas/my-request-schema.ts
 import { z } from 'zod';
 
-export const UserSchema = z.object({
-  name: z.string(),
-  email: z.string().email(),
+export const MyRequestSchema = z.object({
+  foo: z.string(),
+  bar: z.number(),
 });
 ```
 ```typescript
-// apps/merchant/src/routes/userRoute.ts
+// apps/merchant/src/routes/my-route.ts
 import { createRoute } from 'hono';
-import { UserSchema } from '../schemas';
+import { MyRequestSchema } from '../schemas/my-request-schema';
 
-const userRoute = createRoute()
-  .post('/users', (c) => {
-    const userInput = c.req.valid("json", UserSchema);
+export const myRoute = createRoute()
+  .post(async (c) => {
+    const reqBody = c.req.valid("json", MyRequestSchema);
     // ...
   });
 ```
-DON'T: Declare Zod schemas inline in route files.
+DON'T declare Zod schemas inline in route files:
 ```typescript
 // WRONG
-const userRoute = createRoute()
-  .post('/users', (c) => {
-    const UserSchema = z.object({
-      name: z.string(),
-      email: z.string().email(),
+export const myRoute = createRoute()
+  .post(async (c) => {
+    const MyRequestSchema = z.object({
+      foo: z.string(),
+      bar: z.number(),
     });
-    const userInput = c.req.valid("json", UserSchema);
+    const reqBody = c.req.valid("json", MyRequestSchema);
     // ...
   });
 ```
 
 ### DB Queries
-DO: Use the `variant_prices` table joined with `region` to get variant prices in a multi-region context.
+DO use `variant_prices` joined with `region` to retrieve variant prices in multi-region context:
 ```typescript
-// apps/merchant/src/db/variants.ts
-import { DurableObject } from 'durable-objects';
+// apps/merchant/src/db/queries/variant-prices.ts
+import { db } from '../db';
 
-const getVariantPrice = async (variantId: number, regionId: number) => {
-  const query = `
-    SELECT vp.price
-    FROM variant_prices vp
-    JOIN region r ON vp.region_id = r.id
-    WHERE vp.variant_id = $1 AND r.id = $2
-  `;
-  const result = await db.query(query, [variantId, regionId]);
-  return result.rows[0].price;
+export const getVariantPrices = async (variantId: number, regionId: number) => {
+  const results = await db.query(
+    `SELECT * FROM variant_prices
+      JOIN variants ON variant_prices.variant_id = variants.id
+      JOIN region ON variant_prices.region_id = region.id
+      WHERE variants.id = $1 AND region.id = $2`,
+    [variantId, regionId]
+  );
+  return results.rows;
 };
 ```
-DON'T: Read variant price from the `variants` table directly.
+DON'T read variant price from the `variants` table directly:
 ```typescript
 // WRONG
-const getVariantPrice = async (variantId: number) => {
-  const query = `
-    SELECT price
-    FROM variants
-    WHERE id = $1
-  `;
-  const result = await db.query(query, [variantId]);
+export const getVariantPrice = async (variantId: number) => {
+  const result = await db.query(`SELECT price FROM variants WHERE id = $1`, [variantId]);
   return result.rows[0].price;
 };
 ```
 
 ### Auth
-DO: Use the backend proxy `/v1/__auth0/*` endpoints to call the Auth0 Management API.
+DO use the backend proxy `/v1/__auth0/*` endpoints to call the Auth0 Management API:
 ```typescript
-// apps/merchant/src/routes/authRoute.ts
+// apps/merchant/src/routes/auth0.ts
 import { createRoute } from 'hono';
 
-const authRoute = createRoute()
-  .post('/v1/__auth0/users', async (c) => {
-    const userInput = c.req.valid("json", UserSchema);
-    const response = await fetch('/v1/__auth0/users', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(userInput),
-    });
-    return response.json();
+export const getAuth0User = createRoute()
+  .get(async (c) => {
+    const userId = c.req.params.userId;
+    const response = await fetch(`/v1/__auth0/users/${userId}`);
+    const userData = await response.json();
+    return userData;
   });
 ```
-DON'T: Call the Auth0 Management API directly from the frontend.
+DON'T call the Auth0 Management API directly from the frontend:
 ```typescript
 // WRONG
-const createUser = async (userInput: any) => {
-  const response = await fetch('https://your-auth0-domain.com/api/v2/users', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(userInput),
-  });
-  return response.json();
+export const getAuth0User = async (userId: string) => {
+  const response = await fetch(`https://example.auth0.com/api/v2/users/${userId}`);
+  const userData = await response.json();
+  return userData;
 };
 ```
 
 ### Migrations
-DO: Create a new numbered migration file for each change.
-```bash
-# Create a new migration file
-npx prisma migrate dev --create-only --name add-users-table
-```
-```sql
--- apps/merchant/src/migrations/20230220152347_add-users-table.sql
+DO create a new numbered migration instead of modifying an existing one:
+```typescript
+// db/migrations/001-create-users-table.sql
 CREATE TABLE users (
   id SERIAL PRIMARY KEY,
-  name VARCHAR(255),
-  email VARCHAR(255)
+  name VARCHAR(255) NOT NULL
 );
 ```
-DON'T: Modify an existing migration file.
-```bash
-# WRONG
-# Modify the existing migration file
-npx prisma migrate dev --create-only --name add-users-table
+```typescript
+// db/migrations/002-add-email-column.sql
+ALTER TABLE users ADD COLUMN email VARCHAR(255) NOT NULL;
+```
+DON'T modify an existing migration file:
+```typescript
+// WRONG
+// db/migrations/001-create-users-table.sql (modified)
+CREATE TABLE users (
+  id SERIAL PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) NOT NULL
+);
 ```
 
 ## Frontend Conventions
-
 ### Hooks
-DO: Use the `useSecuredApi()` hook to make API calls with JWT tokens.
+DO use the `useSecuredApi()` hook to handle JWT tokens:
 ```typescript
-// apps/client/src/hooks/useSecuredApi.ts
-import { useState, useEffect } from 'react';
-import { api } from '../api';
+// apps/client/src/hooks/use-secured-api.ts
+import { useApi } from '../utils/api';
 
-const useSecuredApi = () => {
-  const [data, setData] = useState(null);
-  const [error, setError] = useState(null);
-
-  const fetchData = async () => {
-    try {
-      const response = await api.get('/users');
-      setData(response.data);
-    } catch (error) {
-      setError(error);
-    }
+export const useSecuredApi = () => {
+  const api = useApi();
+  const jwtToken = api.getJwtToken();
+  return {
+    get: async (url: string) => {
+      const response = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${jwtToken}`,
+        },
+      });
+      return response.json();
+    },
   };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  return { data, error };
 };
 ```
-```typescript
-// apps/client/src/components/UserList.tsx
-import React from 'react';
-import { useSecuredApi } from '../hooks/useSecuredApi';
-
-const UserList = () => {
-  const { data, error } = useSecuredApi();
-
-  if (error) {
-    return <div>Error: {error.message}</div>;
-  }
-
-  if (!data) {
-    return <div>Loading...</div>;
-  }
-
-  return (
-    <ul>
-      {data.map((user) => (
-        <li key={user.id}>{user.name}</li>
-      ))}
-    </ul>
-  );
-};
-```
-DON'T: Pass JWT tokens manually in API calls.
+DON'T pass JWT tokens manually in API calls:
 ```typescript
 // WRONG
-const fetchUsers = async () => {
-  const response = await fetch('/users', {
-    headers: { Authorization: `Bearer ${jwtToken}` },
+export const fetchData = async () => {
+  const jwtToken = localStorage.getItem('jwtToken');
+  const response = await fetch('/api/data', {
+    headers: {
+      Authorization: `Bearer ${jwtToken}`,
+    },
   });
   return response.json();
 };
 ```
 
 ### Components
-DO: Add new pages to the router and update `apps/client/src/config/site.ts` for navbar visibility.
+DO use the `HeroUI` components and follow the design guidelines:
 ```typescript
-// apps/client/src/router.ts
-import { Routes, Route } from 'react-router-dom';
-import { UserList } from './components/UserList';
+// apps/client/src/components/my-component.tsx
+import { Button } from '@hero-ui/react';
 
-const App = () => {
+export const MyComponent = () => {
   return (
-    <Routes>
-      <Route path="/users" element={<UserList />} />
-    </Routes>
+    <div>
+      <Button variant="primary">Click me!</Button>
+    </div>
   );
 };
 ```
-```typescript
-// apps/client/src/config/site.ts
-const siteConfig = {
-  navbar: [
-    { label: 'Users', path: '/users' },
-  ],
-};
-```
-DON'T: Add new pages without updating `apps/client/src/config/site.ts`.
+DON'T use custom or outdated components:
 ```typescript
 // WRONG
-const App = () => {
+export const MyComponent = () => {
   return (
-    <Routes>
-      <Route path="/users" element={<UserList />} />
-    </Routes>
+    <div>
+      <button style={{ backgroundColor: 'blue', color: 'white' }}>
+        Click me!
+      </button>
+    </div>
   );
 };
 ```
 
 ### Auth Guards
-DO: Use the `useAuth` hook to protect routes with authentication.
+DO use the `useAuth0()` hook to protect routes:
 ```typescript
-// apps/client/src/hooks/useAuth.ts
-import { useState, useEffect } from 'react';
-import { api } from '../api';
+// apps/client/src/hooks/use-auth0.ts
+import { useAuth0 } from '../utils/auth0';
 
-const useAuth = () => {
-  const [user, setUser] = useState(null);
-  const [loading, setLoading] = useState(true);
-
-  const login = async (email: string, password: string) => {
-    try {
-      const response = await api.post('/login', { email, password });
-      setUser(response.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  const logout = async () => {
-    try {
-      await api.post('/logout');
-      setUser(null);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  useEffect(() => {
-    const fetchUser = async () => {
-      try {
-        const response = await api.get('/me');
-        setUser(response.data);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchUser();
-  }, []);
-
-  return { user, login, logout, loading };
+export const useAuthGuard = () => {
+  const { isAuthenticated, user } = useAuth0();
+  if (!isAuthenticated) {
+    return null;
+  }
+  return user;
 };
 ```
-```typescript
-// apps/client/src/components/ProtectedRoute.tsx
-import React from 'react';
-import { useAuth } from '../hooks/useAuth';
-
-const ProtectedRoute = () => {
-  const { user, loading } = useAuth();
-
-  if (loading) {
-    return <div>Loading...</div>;
-  }
-
-  if (!user) {
-    return <div>You need to login to access this page</div>;
-  }
-
-  return <div>Protected route</div>;
-};
-```
-DON'T: Expose `sk_` API keys to the frontend.
+DON'T implement custom auth guards:
 ```typescript
 // WRONG
-const api = axios.create({
-  baseURL: 'https://your-api.com',
-  headers: { 'Authorization': `Bearer ${skapiKey}` },
-});
+export const useAuthGuard = () => {
+  const jwtToken = localStorage.getItem('jwtToken');
+  if (!jwtToken) {
+    return null;
+  }
+  return jwtToken;
+};
 ```
 
 ### Image Upload
-DO: Use a secure image upload component that handles errors and uploads files to a secure storage.
+DO use the `uppy` library for image upload:
 ```typescript
-// apps/client/src/components/ImageUpload.tsx
-import React, { useState } from 'react';
-import { api } from '../api';
+// apps/client/src/components/image-upload.tsx
+import { Uppy } from '@uppy/react';
 
-const ImageUpload = () => {
-  const [image, setImage] = useState(null);
-  const [error, setError] = useState(null);
-
-  const handleImageChange = (event) => {
-    const file = event.target.files[0];
-    setImage(file);
-  };
-
-  const handleUpload = async () => {
-    try {
-      const response = await api.post('/images', {
-        image: image,
-      });
-      console.log(response.data);
-    } catch (error) {
-      setError(error);
-    }
-  };
-
+export const ImageUpload = () => {
   return (
-    <div>
-      <input type="file" onChange={handleImageChange} />
-      <button onClick={handleUpload}>Upload</button>
-      {error ? <div>Error: {error.message}</div> : null}
-    </div>
+    <Uppy
+      meta={{}}
+      restrictions={{ maxFileSize: 1000000 }}
+      onCompletion={(result) => {
+        console.log(result);
+      }}
+    >
+      <button>Upload image</button>
+    </Uppy>
   );
 };
 ```
-DON'T: Use `localStorage` or `sessionStorage` to store sensitive data.
+DON'T use custom or outdated libraries:
 ```typescript
 // WRONG
-const storeImage = (image) => {
-  localStorage.setItem('image', image);
+export const ImageUpload = () => {
+  return (
+    <input
+      type="file"
+      accept="image/*"
+      onChange={(event) => {
+        const file = event.target.files[0];
+        // ...
+      }}
+    />
+  );
 };
 ```
 
 ## Infrastructure Conventions
-
 ### Env Vars
-DO: Use environment variables to store sensitive data.
+DO store sensitive data in environment variables:
 ```bash
-# Create a new environment variable
-export STRIPE_API_KEY=your_stripe_api_key
+# .env
+STRIPE_SECRET_KEY=sk_test_1234567890
 ```
 ```typescript
-// apps/merchant/src/stripe.ts
-import Stripe from 'stripe';
+// apps/merchant/src/utils/stripe.ts
+import { Stripe } from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_API_KEY, {
-  apiVersion: '2022-11-15',
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2022-08-01',
 });
 ```
-DON'T: Hardcode sensitive data in code.
+DON'T hardcode sensitive data:
 ```typescript
 // WRONG
-const stripe = new Stripe('your_stripe_api_key', {
-  apiVersion: '2022-11-15',
+export const stripe = new Stripe('sk_test_1234567890', {
+  apiVersion: '2022-08-01',
 });
 ```
 
 ### CI Secrets
-DO: Use CI secrets to store sensitive data.
+DO store secrets in the CI/CD pipeline:
 ```yml
-# .github/workflows/deploy.yml
+# .github/workflows/ci.yml
 env:
-  STRIPE_API_KEY: ${{ secrets.STRIPE_API_KEY }}
+  STRIPE_SECRET_KEY: ${{ secrets.STRIPE_SECRET_KEY }}
 ```
 ```typescript
-// apps/merchant/src/stripe.ts
-import Stripe from 'stripe';
+// apps/merchant/src/utils/stripe.ts
+import { Stripe } from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_API_KEY, {
-  apiVersion: '2022-11-15',
+export const stripe = new Stripe(process.env.STRIPE_SECRET_KEY, {
+  apiVersion: '2022-08-01',
 });
 ```
-DON'T: Expose sensitive data in CI logs.
+DON'T store secrets in plain text:
 ```yml
 // WRONG
-# .github/workflows/deploy.yml
+# .github/workflows/ci.yml
 env:
-  STRIPE_API_KEY: your_stripe_api_key
+  STRIPE_SECRET_KEY: sk_test_1234567890
 ```
 
 ### Stripe Webhooks
-DO: Use Stripe webhooks to handle events.
+DO handle Stripe webhooks using the `stripe-webhook` library:
 ```typescript
-// apps/merchant/src/stripe.ts
-import Stripe from 'stripe';
+// apps/merchant/src/routes/stripe-webhooks.ts
+import { createRoute } from 'hono';
+import { Stripe } from 'stripe';
 
-const stripe = new Stripe(process.env.STRIPE_API_KEY, {
-  apiVersion: '2022-11-15',
-});
-
-const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
-
-const handleStripeWebhook = async (request) => {
-  const event = stripe.webhooks.constructEvent(request.body, request.headers['stripe-signature'], webhookSecret);
-  // Handle event
-};
+export const stripeWebhookRoute = createRoute()
+  .post(async (c) => {
+    const event = Stripe.webhook.constructEvent(
+      c.req.body,
+      c.req.headers['stripe-signature'],
+      process.env.STRIPE_WEBHOOK_SECRET
+    );
+    // ...
+  });
 ```
-DON'T: Ignore Stripe webhook signatures.
+DON'T implement custom Stripe webhook handling:
 ```typescript
 // WRONG
-const handleStripeWebhook = async (request) => {
-  const event = request.body;
-  // Handle event
-};
+export const stripeWebhookRoute = createRoute()
+  .post(async (c) => {
+    const event = c.req.body;
+    // ...
+  });
 ```
 
-## AI Features
-
+## AI Features Conventions
 ### ai-client.ts
-DO: Add helpers to the existing `ai-client.ts` file.
+DO add helpers to the existing `ai-client.ts` file:
 ```typescript
 // apps/client/src/utils/ai-client.ts
-import { aiClient } from '../api';
+import { AiClient } from '../utils/ai';
 
-const getAiRecommendations = async () => {
-  const response = await aiClient.get('/recommendations');
-  return response.data;
+export const aiClient = new AiClient();
+
+export const getAiData = async () => {
+  const response = await aiClient.getAiData();
+  return response.json();
 };
-
-export { getAiRecommendations };
 ```
-DON'T: Create a new AI client utility.
+DON'T create a new AI client utility:
 ```typescript
 // WRONG
-// apps/client/src/utils/new-ai-client.ts
-import axios from 'axios';
-
-const newAiClient = axios.create({
-  baseURL: 'https://your-ai-api.com',
-});
-
-const getNewAiRecommendations = async () => {
-  const response = await newAiClient.get('/recommendations');
-  return response.data;
+export const myAiClient = {
+  getAiData: async () => {
+    const response = await fetch('/api/ai-data');
+    return response.json();
+  },
 };
-
-export { getNewAiRecommendations };
 ```
 
 ### Permissions
-DO: Use permissions to restrict access to AI features.
+DO use the `permissions` array to control access to AI features:
 ```typescript
-// apps/merchant/src/permissions.ts
-import { permissions } from '../api';
-
-const hasAiAccess = async (user) => {
-  const response = await permissions.check(user.id, 'ai-access');
-  return response.allowed;
-};
-
-export { hasAiAccess };
+// apps/client/src/config/permissions.ts
+export const permissions = [
+  {
+    feature: 'ai-data',
+    roles: ['admin', 'moderator'],
+  },
+];
 ```
-DON'T: Ignore permissions when accessing AI features.
+```typescript
+// apps/client/src/utils/ai-client.ts
+import { permissions } from '../config/permissions';
+
+export const getAiData = async () => {
+  const userRole = await getUserRole();
+  if (!permissions.find((p) => p.feature === 'ai-data' && p.roles.includes(userRole))) {
+    return null;
+  }
+  const response = await aiClient.getAiData();
+  return response.json();
+};
+```
+DON'T implement custom permission checks:
 ```typescript
 // WRONG
-const getAiRecommendations = async () => {
-  const response = await aiClient.get('/recommendations');
-  return response.data;
+export const getAiData = async () => {
+  const userRole = await getUserRole();
+  if (userRole !== 'admin') {
+    return null;
+  }
+  const response = await aiClient.getAiData();
+  return response.json();
 };
 ```

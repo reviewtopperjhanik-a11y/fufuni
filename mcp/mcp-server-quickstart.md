@@ -3,123 +3,113 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    513
-  tokens_out:   1022
+  tokens_out:   994
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Introduction to Remote MCP Server
-A remote MCP (Model Context Protocol) server is a Cloudflare Workers application that exposes a knowledge base as a set of tools, which can be used to accelerate AI-assisted development. By providing a centralized repository of knowledge, developers can use AI models to generate code, answer questions, and automate tasks more efficiently.
+A remote MCP (Model Context Protocol) server is a centralized service that provides access to a collection of tools, each representing a specific knowledge domain. By utilizing a remote MCP server, AI-assisted development can be accelerated by providing a unified interface to access and manage various tools, thereby streamlining the development process.
 
 ## Building the Fufuni MCP Server
-To build the Fufuni MCP server, we will create a Cloudflare Worker that serves the static Markdown files in the `mcp/` directory. We will use the `@cloudflare/agents` package to create an MCP server.
+The Fufuni MCP server will be built using Cloudflare Workers, which provides a free tier that can be used to host the server. The server will be responsible for serving static Markdown files from the `mcp/` directory.
 
 ### Worker Entry File Skeleton
-Here is the skeleton of the `index.ts` file:
+The Worker entry file, `index.ts`, will use the `@cloudflare/agents` library to create an instance of `McpAgent` and `McpServer`. The following code provides a basic skeleton for the Worker entry file:
 ```typescript
 import { McpAgent, McpServer } from '@cloudflare/agents';
-import { readFileSync } from 'fs';
-import { join } from 'path';
+import { DurableObject } from 'durable-objects';
 
-const tools: { [key: string]: { description: string; response: string } } = {};
+const tools: { [name: string]: { description: string; response: string } } = {};
 
-// Register tools
-const mcpDir = join(__dirname, 'mcp');
-const files = readFileSync(mcpDir, 'utf8').split('\n').filter((f) => f.endsWith('.md'));
-files.forEach((file) => {
-  const filePath = join(mcpDir, file);
-  const fileContent = readFileSync(filePath, 'utf8');
-  const firstLine = fileContent.split('\n')[0].trim();
-  const toolName = file.split('.')[0];
-  tools[toolName] = {
-    description: firstLine.replace(/^#/, '').trim(),
-    response: fileContent,
-  };
-});
+// Read tools from mcp/ directory
+const files = await Deno.readDir('mcp');
+for (const file of files) {
+  if (file.isFile && file.name.endsWith('.md')) {
+    const fileContent = await Deno.readTextFile(`mcp/${file.name}`);
+    const [, description] = fileContent.match(/^# (.*)$/) || [];
+    const toolName = file.name.replace('.md', '');
+    tools[toolName] = { description, response: fileContent };
+  }
+}
 
 const mcpServer = new McpServer({
-  tools,
+  getTool(name: string) {
+    return tools[name];
+  },
 });
 
-const mcpAgent = new McpAgent({
-  server: mcpServer,
+const mcpAgent = new McpAgent(mcpServer, {
+  // Serve SSE endpoint
+  sse: async (request: Request) => {
+    const toolName = new URL(request.url).searchParams.get('tool');
+    if (!toolName) return new Response('Tool not specified', { status: 400 });
+    const tool = tools[toolName];
+    if (!tool) return new Response('Tool not found', { status: 404 });
+    return new Response(tool.response, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+      },
+    });
+  },
+  // Serve HTTP endpoint
+  http: async (request: Request) => {
+    const toolName = new URL(request.url).searchParams.get('tool');
+    if (!toolName) return new Response('Tool not specified', { status: 400 });
+    const tool = tools[toolName];
+    if (!tool) return new Response('Tool not found', { status: 404 });
+    return new Response(tool.response, {
+      headers: {
+        'Content-Type': 'text/plain',
+      },
+    });
+  },
 });
 
-// Serve SSE and HTTP endpoints
-addEventListener('fetch', (event) => {
-  const url = new URL(event.request.url);
-  if (url.pathname === '/sse') {
-    // Serve SSE endpoint
-    event.respondWith(mcpServer.sse(event.request));
-  } else if (url.pathname === '/mcp') {
-    // Serve HTTP endpoint
-    event.respondWith(mcpServer.http(event.request));
-  }
+// Handle incoming requests
+addEventListener('fetch', (event: FetchEvent) => {
+  event.respondWith(mcpAgent.handleRequest(event.request));
 });
 ```
-### Registering Tools
-In the code above, we register one tool per static Markdown file in the `mcp/` directory. The tool name is the file stem, the description is the first H1 line, and the response is the file content.
 
-### Configuration
-Here is the `wrangler.jsonc` configuration for the MCP worker:
-```json
+### Wrangler Configuration
+The `wrangler.jsonc` configuration file should be set up to deploy the Worker to Cloudflare:
+```jsonc
 {
-  "name": "fufuni-mcp",
+  "name": "fufuni-mcp-server",
   "type": "worker",
-  "account_id": "<your-account-id>",
-  "workers_dev": true,
-  "route": "mcp.fufuni.com/*",
-  "zone_id": "<your-zone-id>"
+  "account_id": "your_account_id",
+  "zone_id": "your_zone_id",
+  "route": "your_domain/mcp/*",
+  "workers_dev": true
 }
 ```
-### Serving SSE and HTTP Endpoints
-We serve the SSE and HTTP endpoints using the `addEventListener` function.
 
-### Adding KV Caching
-To add KV caching, we can use the `kv` namespace in Cloudflare Workers. Here is an example of how to cache the file reads:
+### KV Caching
+To add KV caching, we can use the Cloudflare Workers KV storage to store the tool responses. We can modify the `getTool` method to use the KV storage:
 ```typescript
-import { kv } from '@cloudflare/workers';
+const kv = await DurableObject.get('KV_STORAGE');
 
-const cache = kv.namespace('mcp-cache');
-
-// Register tools
-const mcpDir = join(__dirname, 'mcp');
-const files = readFileSync(mcpDir, 'utf8').split('\n').filter((f) => f.endsWith('.md'));
-files.forEach((file) => {
-  const filePath = join(mcpDir, file);
-  cache.get(file).then((cachedValue) => {
-    if (cachedValue) {
-      // Use cached value
-      tools[file.split('.')[0]] = {
-        description: cachedValue.description,
-        response: cachedValue.response,
-      };
-    } else {
-      // Read file and cache value
-      const fileContent = readFileSync(filePath, 'utf8');
-      const firstLine = fileContent.split('\n')[0].trim();
-      const toolName = file.split('.')[0];
-      tools[toolName] = {
-        description: firstLine.replace(/^#/, '').trim(),
-        response: fileContent,
-      };
-      cache.put(file, {
-        description: firstLine.replace(/^#/, '').trim(),
-        response: fileContent,
-      });
-    }
-  });
+const mcpServer = new McpServer({
+  async getTool(name: string) {
+    const cachedResponse = await kv.get(`tool:${name}`);
+    if (cachedResponse) return cachedResponse;
+    const tool = tools[name];
+    if (!tool) return null;
+    await kv.put(`tool:${name}`, tool.response);
+    return tool.response;
+  },
 });
 ```
-### Deployment Command
-To deploy the MCP worker, run the following command:
+
+### SSE and HTTP Endpoints
+The Worker will serve two endpoints: `/sse` for Server-Sent Events (SSE) and `/mcp` for HTTP requests. The SSE endpoint will be used for real-time updates, while the HTTP endpoint will be used for one-time requests.
+
+### Deployment and Connection
+To deploy the Worker, run the following command:
 ```bash
 wrangler publish
 ```
-### Connecting to Claude Desktop / VS Code Copilot
-To connect to Claude Desktop / VS Code Copilot, follow these steps:
-
-1. Go to the Claude Desktop / VS Code Copilot settings.
-2. Click on "Add MCP Server".
-3. Enter the URL of your MCP server (e.g. `https://mcp.fufuni.com/mcp`).
-4. Click "Connect".
-
-You should now be able to use the Fufuni MCP server with Claude Desktop / VS Code Copilot.
+Once the Worker is deployed, you can connect to it using Claude Desktop or VS Code Copilot by providing the URL of the Worker:
+```bash
+https://your_domain/mcp
+```
+This will allow you to access the tools and use them in your development workflow.

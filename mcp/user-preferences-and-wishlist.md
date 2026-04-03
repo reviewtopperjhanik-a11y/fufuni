@@ -3,135 +3,91 @@
   Do not edit manually. Run the script to regenerate.
   model:        llama-3.3-70b-versatile
   tokens_in:    1450
-  tokens_out:   1163
+  tokens_out:   864
   api_endpoint: https://api.groq.com/openai/v1
 -->
 ## Architecture
-The Fufuni e-commerce framework utilizes Auth0 user_metadata to store user preferences, including the wishlist, instead of a dedicated database table. This design choice is driven by the need to minimize database overhead for per-user preferences. By storing preferences in the user's JWT token, the framework avoids the need for an additional database query on every page load, resulting in improved performance.
+The Fufuni framework stores user preferences, including the wishlist, in the Auth0 `user_metadata` object. This design decision avoids the need for a database table dedicated to per-user preferences, reducing the complexity of the database schema. Instead, the `user_metadata` object is utilized to store lightweight, per-user data that can be easily accessed and updated.
 
 ## User Metadata Namespacing
-To ensure multi-tenant safety, the user_metadata is namespaced under a key derived from the `STORE_URL`. This prevents collisions between multiple Fufuni instances sharing the same Auth0 tenant. The namespace is used to store preferences, such as the wishlist, and is retrieved using the `getStoreMetadata` function.
+To ensure multi-tenant safety, the `user_metadata` object is namespaced under a key derived from the `STORE_URL`. This namespace prevents collisions between different Fufuni instances that may share the same Auth0 tenant. The `getStoreMetadata` function is responsible for extracting the namespaced metadata from the `user_metadata` object.
 
 ## useWishlist() Hook
-The `useWishlist()` hook provides an API for managing the user's wishlist. It reads the wishlist from the JWT token client-side using the `decodeJwt()` function, eliminating the need for an extra API roundtrip on every render. The hook exposes several functions, including `toggle()`, which allows users to add or remove products from their wishlist.
+The `useWishlist()` hook provides an API for managing the user's wishlist. It reads the JWT client-side using the `decodeJwt()` function to extract the `user_metadata` object. The hook then uses the `getStoreMetadata` function to extract the wishlist from the namespaced metadata.
+
+The `toggle()` function is used to add or remove products from the wishlist. When called, it sends a request to the backend to update the wishlist, and then triggers a token refresh using the `refreshToken()` function. The updated token is then used to extract the new wishlist, which is set using the `setWishlist()` function. Finally, the `WISHLIST_UPDATED_EVENT` is dispatched to notify other components of the change.
 
 ```typescript
-// Example usage of the useWishlist() hook
 import { useWishlist } from "@/hooks/use-wishlist";
 
-const MyComponent = () => {
-  const { wishlist, toggle, isFavorite } = useWishlist();
+function MyComponent() {
+  const { wishlist, toggle } = useWishlist();
 
-  const handleToggle = async (productId: string) => {
-    await toggle(productId);
+  const handleToggle = (productId: string) => {
+    toggle(productId);
   };
 
   return (
     <div>
       {wishlist.map((productId) => (
         <div key={productId}>
-          <p>Product {productId}</p>
-          <button onClick={() => handleToggle(productId)}>
-            {isFavorite(productId) ? "Remove from wishlist" : "Add to wishlist"}
-          </button>
+          <button onClick={() => handleToggle(productId)}>Toggle</button>
         </div>
       ))}
     </div>
   );
-};
+}
 ```
-
-The `toggle()` flow involves the following steps:
-
-1.  Check if the user is authenticated.
-2.  Determine whether the product is already in the user's wishlist.
-3.  If the product is in the wishlist, send a `DELETE` request to `/v1/me/wishlist/{productId}` to remove it.
-4.  If the product is not in the wishlist, send a `POST` request to `/v1/me/wishlist` with the product ID to add it.
-5.  Refresh the JWT token using the `refreshToken()` function.
-6.  Update the local wishlist state using the `setWishlist()` function.
-7.  Dispatch a `WISHLIST_UPDATED_EVENT` to trigger a token refresh and update the UI.
 
 ## WISHLIST_UPDATED_EVENT
-The `WISHLIST_UPDATED_EVENT` is a custom DOM event dispatched after a wishlist mutation. Components can listen to this event to trigger a token refresh and update the UI without requiring a full page reload.
+The `WISHLIST_UPDATED_EVENT` is a custom DOM event dispatched after a wishlist mutation. Components can listen to this event to trigger a token refresh, ensuring that the UI reflects the changes without a full page reload.
 
 ```typescript
-// Dispatching the WISHLIST_UPDATED_EVENT
-window.dispatchEvent(
-  new CustomEvent(WISHLIST_UPDATED_EVENT, { detail: newWishlist }),
-);
-
-// Listening to the WISHLIST_UPDATED_EVENT
-window.addEventListener(WISHLIST_UPDATED_EVENT, (event) => {
+window.addEventListener("fufuni:wishlist-updated", (event: CustomEvent) => {
   const newWishlist = event.detail;
-  // Update the UI with the new wishlist
+  // Update the component state with the new wishlist
 });
 ```
 
-## Backend: PATCH /v1/me/preferences
-The backend provides a `PATCH /v1/me/preferences` endpoint to update the user's preferences, including the wishlist, via the Auth0 Management API. The payload shape for this endpoint is a JSON object containing the updated preferences.
+## Backend
+The backend provides a `PATCH /v1/me/preferences` endpoint to update the user's preferences, including the wishlist. This endpoint persists changes to the `user_metadata` object via the Auth0 Management API.
 
 ```typescript
-// Example payload for PATCH /v1/me/preferences
-const payload = {
-  extra_user_info: {
-    user_metadata: {
-      wishlist: ["product-1", "product-2"],
-    },
-  },
-};
+import { patchJson } from "@/lib/api-base";
 
-// Sending the request
-fetch("/v1/me/preferences", {
-  method: "PATCH",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify(payload),
-});
+const updatePreferences = async (preferences: any) => {
+  await patchJson("/v1/me/preferences", preferences);
+};
 ```
 
 ## Saved Carts
-Unlike the wishlist, saved carts are stored in a dedicated database table called `saved_carts`. This is because saved carts reference cart rows by foreign key, requiring a more structured storage approach. Saved carts are managed via the `PATCH /v1/me/saved-carts` endpoint.
+Unlike the wishlist, saved carts use a database table (`saved_carts`) to store cart rows by foreign key. This is because saved carts require more complex relationships between carts and products. The `PATCH /v1/me/saved-carts` endpoint is used to manage saved carts.
 
 ## Adding a New Preference Field
 To add a new preference field, follow these steps:
 
-1.  Update the user_metadata type to include the new preference field.
-2.  Read the new preference field in the `useWishlist()` hook using the `decodeJwt()` function.
-3.  Persist the new preference field using the `patchJson` function on the `/v1/me/preferences` endpoint.
-4.  Dispatch a custom event to trigger a token refresh and update the UI.
+1. Update the `user_metadata` type to include the new field.
+2. Read the new field in the `useWishlist()` hook using the `decodeJwt()` function.
+3. Persist the new field with the `patchJson()` function on the `/v1/me/preferences` endpoint.
+4. Dispatch a custom event to trigger a token refresh.
 
 ```typescript
-// Example: adding a new preference field called "preferred_currency"
-// 1. Update the user_metadata type
+// Update user_metadata type
 interface UserMetadata {
   // ...
-  preferred_currency: string;
+  newPreferenceField: string;
 }
 
-// 2. Read the new preference field in the useWishlist() hook
-const preferredCurrency = getStoreMetadata(userMetadata, STORE_URL).preferred_currency;
+// Read new field in useWishlist() hook
+const newPreferenceField = payload["extra_user_info/user_metadata"]?.newPreferenceField;
 
-// 3. Persist the new preference field
-const payload = {
-  extra_user_info: {
-    user_metadata: {
-      // ...
-      preferred_currency: "USD",
-    },
-  },
+// Persist new field
+const updatePreferences = async (preferences: any) => {
+  await patchJson("/v1/me/preferences", { ...preferences, newPreferenceField });
 };
 
-fetch("/v1/me/preferences", {
-  method: "PATCH",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify(payload),
-});
-
-// 4. Dispatch a custom event to trigger a token refresh and update the UI
+// Dispatch custom event
 window.dispatchEvent(
-  new CustomEvent("fufuni:preferences-updated", { detail: payload }),
+  new CustomEvent("fufuni:preferences-updated", { detail: newPreferenceField }),
 );
 ```
