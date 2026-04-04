@@ -1,3 +1,6 @@
+# AI config plaintext — only the encrypted ai.json.enc belongs in git
+ai.json
+
 # Node modules
 node_modules/
 

@@ -36,6 +36,9 @@
     "sensitive_datas:restore": "bash -c 'source .env && export PROJECT_ROOT=$(pwd) && ./_sensitive_datas/restore_sensitive_datas'",
     "auth0:deploy-action": "tsx scripts/create-and-add-userinfo-action.ts",
     "mcp:generate": "tsx scripts/generate-static-mcp-response.ts",
-    "mcp:generate:force": "tsx scripts/generate-static-mcp-response.ts --force"
+    "mcp:generate:force": "tsx scripts/generate-static-mcp-response.ts --force",
+    "ai:encrypt": "bash -c 'openssl enc -aes-256-cbc -a -pbkdf2 -iter 100000 -salt -in ai.json -out ai.json.enc -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json.enc written\"'",
+    "ai:decrypt": "bash -c 'openssl enc -d -aes-256-cbc -a -pbkdf2 -iter 100000 -in ai.json.enc -out ai.json -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json written (keep it out of git!)\"'",
+    "ai:kv:push": "bash -c 'source .env && wrangler kv key put --namespace-id=$(grep -o '\\\"id\\\":\\\"[a-f0-9]*\\\"' apps/merchant/wrangler.jsonc | head -1 | grep -o '[a-f0-9]\\{32,\\}') ai:config --path=ai.json.enc'"
   }
 }

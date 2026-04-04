@@ -27,6 +27,23 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { authMiddleware, aiAccessOnly } from '../middleware/auth';
 import { ApiError, type HonoEnv } from '../types';
+import { decryptAiConfig, selectModels, pickKey, type AiConfig } from '../lib/ai-enc';
+
+// Module-level cache: decrypted once per Worker isolate lifetime (seconds–minutes).
+// Never written to KV or disk — lives only in memory.
+let _configCache: AiConfig | null = null;
+
+async function loadConfig(env: HonoEnv['Bindings']): Promise<AiConfig | null> {
+  if (_configCache) return _configCache;
+  const enc = await env.KV_CACHE.get('ai:config');
+  if (!enc || !env.CRYPTOKEN) return null;
+  try {
+    _configCache = await decryptAiConfig(enc, env.CRYPTOKEN);
+    return _configCache;
+  } catch {
+    return null; // fall back to env vars
+  }
+}
 
 const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', authMiddleware);
@@ -61,36 +78,48 @@ const aiParamsRoute = createRoute({
 });
 
 adminApp.openapi(aiParamsRoute, async (c) => {
+  // 1. Try encrypted config from KV first (ai:config key)
+  const config = await loadConfig(c.env);
+  if (config) {
+    // selectModels() returns candidates sorted by priority ascending (1 = best).
+    // We pick candidates[0] = highest-priority model across all providers.
+    const candidates = selectModels(config);
+    if (candidates.length > 0) {
+      const { provider, model } = candidates[0];
+      const keyObj = pickKey(provider);
+      return c.json({
+        apiKey: keyObj.key,
+        model: model.id,
+        url: provider.endpoint,
+      }, 200);
+    }
+  }
+
+  // 2. Fallback: legacy env vars (backward-compatible with pre-encrypted deployments)
   const rawApiKey = c.env.AI_API_KEY;
   const model = c.env.AI_MODEL;
   const url = c.env.AI_API_URL;
 
-  // If any required value is missing, return 503 so the client can
-  // hide the AI button gracefully instead of showing a cryptic error.
   if (!rawApiKey || !model || !url) {
     throw new ApiError(
       'not_configured',
       503,
-      'AI is not configured. Set AI_API_KEY, AI_MODEL and AI_API_URL.'
+      'AI is not configured. Either: (1) upload ai.json.enc to KV_CACHE under key "ai:config", ' +
+      'or (2) set env vars AI_API_KEY, AI_MODEL, AI_API_URL.'
     );
   }
 
-  const apiKeys = rawApiKey
-    .split(',')
-    .map((k) => k.trim())
-    .filter(Boolean);
-
+  const apiKeys = rawApiKey.split(',').map(k => k.trim()).filter(Boolean);
   if (apiKeys.length === 0) {
-    throw new ApiError(
-      'not_configured',
-      503,
-      'AI is not configured. AI_API_KEY must contain at least one key.'
-    );
+    throw new ApiError('not_configured', 503, 'AI_API_KEY must contain at least one key.');
   }
 
-  const apiKey = apiKeys[Math.floor(Math.random() * apiKeys.length)];
-
-  return c.json({ apiKey, model, url }, 200);
+  // Random selection from the key pool (uniform load-balancing)
+  return c.json({
+    apiKey: apiKeys[Math.floor(Math.random() * apiKeys.length)],
+    model,
+    url,
+  }, 200);
 });
 
 export { adminApp as adminAi };

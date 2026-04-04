@@ -86,9 +86,10 @@
  * constant if they exceed this budget.
  */
 
-import { readFileSync, writeFileSync, mkdirSync, existsSync, globSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { decryptAiConfig, selectModels, collectKeys } from './ai-enc.js';
 
 // ── Static fallbacks (used when model metadata is unavailable) ───────────────
 // These values target the Groq free-tier worst-case: 12 000 TPM per request.
@@ -112,16 +113,6 @@ const MAX_SOURCE_CHARS = DEFAULT_MAX_SOURCE_CHARS;
 const MAX_OUTPUT_TOKENS = DEFAULT_MAX_OUTPUT_TOKENS;
 
 // ── Shared system prompt fragment reused across topics ──────────────────────
-const BASE_SYSTEM_v0 = `You are a senior TypeScript developer documenting the Fufuni e-commerce framework.
-Fufuni runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod-OpenAPI)
-and React 19 + Vite + HeroUI v3 for the frontend.
-Write concise, structured Markdown with TypeScript/SQL code examples.
-Always use fenced code blocks with language tags (typescript, sql, etc.).
-Target audience: junior developers contributing to or customising this framework.
-Output ONLY the Markdown content — no preamble like "Here is the documentation:", no trailing notes.
-When "## Verified facts" are provided, treat them as ground truth — they override any contradicting
-inference from source code.`;
-
 const BASE_SYSTEM = `You are a senior TypeScript developer documenting the Fufuni e‑commerce framework.
 Fufuni runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod‑OpenAPI),
 and React 19 + Vite + HeroUI v3 for the frontend.
@@ -149,12 +140,74 @@ const ROOT = resolve(__dirname, '..'); // repository root
 
 // ─── CLI flags ────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
-const topicFlag = argv.find(a => a.startsWith('--topic='))?.split('=')[1];
+const topicFlags = argv
+  .filter(a => a.startsWith('--topic='))
+  .map(a => a.split('=')[1])
+  .filter(Boolean);
+const aiJsonEncFlag = argv.find(a => a.startsWith('--ai-json-enc='))?.split('=')[1];
+const showKeyOwner = argv.includes('--show-key-owner');
+const showKeyUsageSummary = argv.includes('--key-usage-summary');
 const dryRun = argv.includes('--dry-run');
 const skipAI = argv.includes('--skip-ai');
 const force = argv.includes('--force');
 const discoverModels = argv.includes('--discover-models');
 const verbose = argv.includes('--verbose');
+const showHelp = argv.includes('--help') || argv.includes('-h');
+
+const VALID_FLAGS = new Set([
+  '--help',
+  '-h',
+  '--dry-run',
+  '--skip-ai',
+  '--force',
+  '--discover-models',
+  '--verbose',
+  '--ai-json-enc',
+  '--show-key-owner',
+  '--key-usage-summary',
+  '--provider',
+]);
+
+function printHelp(exitCode = 0): void {
+  console.log(`Usage: npx tsx scripts/generate-static-mcp-response.ts [options]
+
+Options:
+  --help, -h           Show this help message and exit
+  --topic=<name>       Generate the named topic (use the topic slug from the topic list). Can be specified multiple times.
+  --ai-json-enc=<file> Specify an alternative ai.json.enc config file path
+  --show-key-owner     Print the owner of the API key used for each AI call
+  --key-usage-summary  Print a summary of each API key's success/failure counts at the end of execution
+  --provider=<key>     Only use models from the specified provider key
+  --dry-run            Build prompts without calling the AI or writing files
+  --skip-ai            Build files from extracted source only, no AI call
+  --force              Overwrite existing mcp/*.md files
+  --discover-models    Ignore AI_MODEL and force discovery via GET /models
+  --verbose            Show additional debug logs
+
+Environment variables:
+  AI_API_KEY           Comma-separated list of Groq API keys
+  AI_MODEL             Optional pinned model ID
+  AI_API_URL           Optional API endpoint override
+  CRYPTOKEN            Password used to encrypt/decrypt ai.json.enc
+`);
+  process.exit(exitCode);
+}
+
+const unknownFlags = argv.filter(arg =>
+  !VALID_FLAGS.has(arg) &&
+  !arg.startsWith('--topic=') &&
+  !arg.startsWith('--ai-json-enc=') &&
+  !arg.startsWith('--provider='),
+);
+
+if (showHelp) {
+  printHelp(0);
+}
+
+if (unknownFlags.length > 0) {
+  console.error(`Error: unknown flag${unknownFlags.length > 1 ? 's' : ''}: ${unknownFlags.join(', ')}`);
+  printHelp(1);
+}
 
 // ─── load .env from project root ────────────────────────────────────────────
 // We do a minimal manual parse rather than importing dotenv to keep this script
@@ -224,6 +277,18 @@ function parseRetryAfterMs(
  * Incremented by nextApiKey() after each call.
  */
 let keyIndex = 0;
+const apiKeyOwnerByKey = new Map<string, string>();
+const apiKeyUsageSummary = new Map<string, { owner: string; success: number; failure: number }>();
+const expiredApiKeys = new Set<string>();
+
+function getKeySummary(key: string) {
+  let summary = apiKeyUsageSummary.get(key);
+  if (!summary) {
+    summary = { owner: apiKeyOwnerByKey.get(key) ?? 'unknown', success: 0, failure: 0 };
+    apiKeyUsageSummary.set(key, summary);
+  }
+  return summary;
+}
 
 /**
  * Return the next API key using strict round-robin rotation across the
@@ -231,20 +296,25 @@ let keyIndex = 0;
  * reused, giving the most uniform distribution of requests across rate-limit
  * buckets.
  */
-function nextApiKey(): string {
+function nextApiKey(): { key: string; owner: string } {
   const raw = process.env.AI_API_KEY ?? '';
   if (!raw) throw new Error('AI_API_KEY is not set. Add it to your .env file.');
-  const keys = raw.split(',').map(k => k.trim()).filter(Boolean);
+  const allKeys = raw.split(',').map(k => k.trim()).filter(Boolean);
+  const keys = allKeys.filter(k => !expiredApiKeys.has(k));
+  if (keys.length === 0) {
+    throw new Error('No valid API keys available. All configured keys are expired.');
+  }
   const key = keys[keyIndex % keys.length];
+  const owner = apiKeyOwnerByKey.get(key) ?? 'unknown';
   keyIndex++;
   // Show in log the index of the key being used (1-based for human readability) and the total number of keys.
   if (verbose) {
     console.log(`  [ai] Using API key ${keyIndex % keys.length || keys.length}/${keys.length}`);
   }
-  return key;
+  return { key, owner };
 }
 
-const AI_API_URL = process.env.AI_API_URL ?? 'https://api.groq.com/openai/v1';
+let AI_API_URL = process.env.AI_API_URL ?? 'https://api.groq.com/openai/v1';
 
 // ─── model discovery ─────────────────────────────────────────────────────────
 
@@ -373,14 +443,12 @@ const KNOWN_MODEL_SPECS: Record<string, ModelSpec> = {
   // https://developers.openai.com/api/docs/models/gpt-5.4
   'gpt-5.4': { context_window: 1_000_000, max_completion_tokens: 128_000 },
   // ── Google Gemini ────────────────────────────────────────────────────────────
+  // https://ai.google.dev/gemini-api/docs/gemini-3
   'gemini-1.5-pro': { context_window: 1_000_000, max_completion_tokens: 8_192 },
   'gemini-1.5-flash': { context_window: 1_000_000, max_completion_tokens: 8_192 },
   'gemini-2.0-flash': { context_window: 1_048_576, max_completion_tokens: 8_192 },
-  'gemini-3-flash': { context_window: 1_048_576, max_completion_tokens: 65_536 },
-  // Google Vertex AI — Gemini 3.1 Pro (non-preview)
-  // https://docs.cloud.google.com/vertex-ai/generative-ai/docs/models/gemini/3-1-pro
-  // Historical note: older Gemini API docs also exposed a preview-suffixed variant.
-  'gemini-3.1-pro': { context_window: 1_048_576, max_completion_tokens: 65_536 },
+  'gemini-3-flash-preview': { context_window: 1_048_576, max_completion_tokens: 65_536 },
+  'gemini-3.1-pro-preview': { context_window: 1_048_576, max_completion_tokens: 65_536 },
 };
 
 /**
@@ -566,7 +634,10 @@ async function callAI(
   model = nextModel(),
 ): Promise<{ content: string; tokensIn: number; tokensOut: number }> {
   const isAnthropic = AI_API_URL.includes('anthropic.com');
-  const isGemini = AI_API_URL.includes('generativelanguage.googleapis.com') && !AI_API_URL.includes('openai');
+  const isGemini = (
+    AI_API_URL.includes('generativelanguage.googleapis.com') ||
+    AI_API_URL.includes('gemini.googleapis.com')
+  ) && !AI_API_URL.includes('openai');
 
   if (verbose) {
     console.log(`  [ai] model=${model} endpoint=${AI_API_URL}`);
@@ -575,12 +646,20 @@ async function callAI(
 
   for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
     // Fresh key on every attempt — rotates through the pool automatically.
-    const apiKey = nextApiKey();
+    const apiKeyEntry = nextApiKey();
+    const apiKey = apiKeyEntry.key;
+    const apiKeyOwner = apiKeyEntry.owner;
+    const keySummary = getKeySummary(apiKey);
 
-    let response: Response;
+    if (showKeyOwner) {
+      console.log(`  → using key owned by [${apiKeyOwner || 'unknown'}]`);
+    }
 
-    if (isAnthropic) {
-      response = await fetch(`${AI_API_URL}/messages`, {
+    try {
+      let response: Response;
+
+      if (isAnthropic) {
+        response = await fetch(`${AI_API_URL}/messages`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -625,6 +704,7 @@ async function callAI(
 
     // ── 429 handling: wait then retry ────────────────────────────────────────
     if (response.status === 429 && attempt < MAX_429_RETRIES) {
+      keySummary.failure++;
       const errorText = await response.text();
       const waitMs = parseRetryAfterMs(errorText, response.headers.get('retry-after'), attempt);
       console.log(
@@ -637,6 +717,7 @@ async function callAI(
 
     // ── other HTTP errors ─────────────────────────────────────────────────────
     if (!response.ok) {
+      keySummary.failure++;
       const errorText = await response.text();
       const label = isAnthropic ? 'Anthropic' : isGemini ? 'Gemini' : 'OpenAI/Groq';
       throw new Error(`AI API error (${label}) ${response.status}: ${errorText}`);
@@ -645,6 +726,7 @@ async function callAI(
     // ── parse successful response ─────────────────────────────────────────────
     if (isAnthropic) {
       const data = await response.json();
+      keySummary.success++;
       return {
         content: data.content?.[0]?.text ?? '',
         tokensIn: data.usage?.input_tokens ?? estimateTokens(systemPrompt + userPrompt),
@@ -654,6 +736,7 @@ async function callAI(
 
     if (isGemini) {
       const data = await response.json();
+      keySummary.success++;
       return {
         content: data.candidates?.[0]?.content?.parts?.[0]?.text ?? '',
         tokensIn: data.usageMetadata?.promptTokenCount ?? estimateTokens(systemPrompt + userPrompt),
@@ -669,8 +752,13 @@ async function callAI(
     const content = data.choices?.[0]?.message?.content ?? '';
     const tokensIn = data.usage?.prompt_tokens ?? estimateTokens(systemPrompt + userPrompt);
     const tokensOut = data.usage?.completion_tokens ?? estimateTokens(content);
+    keySummary.success++;
     if (verbose) console.log(`  [ai] output tokens ≈ ${tokensOut}`);
     return { content, tokensIn, tokensOut };
+  } catch (err) {
+    keySummary.failure++;
+    throw err;
+  }
   }
 
   // Unreachable — the loop always returns or throws before exhausting retries.
@@ -1753,10 +1841,11 @@ Include:
   // ── 14. AI-assisted features ─────────────────────────────────────────────────
   {
     name: 'ai-assisted-features',
-    description: 'Client-side AI: review moderation, auto-translation, ai-client.ts',
+    description: 'Client-side AI: review moderation, auto-translation, encrypted ai.json.enc provider config',
     sources: [
       'apps/client/src/utils/ai-client.ts',
       'apps/merchant/src/routes/ai.ts',
+      'apps/merchant/src/lib/ai-enc.ts',
     ],
     systemPrompt: BASE_SYSTEM,
     staticHeader: `<!--
@@ -1766,27 +1855,33 @@ Include:
 `,
     manualFacts: [
       'ALL AI inference runs in the browser — there is no server-side inference. The browser fetches credentials then calls the AI provider directly.',
-      'Backend GET /v1/ai/parameters requires Auth0 permission ai:api (enforced by aiAccessOnly middleware). Returns { apiKey: string, model: string, url: string }. apiKey is randomly chosen from the AI_API_KEY comma-separated pool. Returns 503 if any of AI_API_KEY, AI_MODEL, or AI_API_URL is missing.',
+      'Backend GET /v1/ai/parameters requires Auth0 permission ai:api (enforced by aiAccessOnly middleware). Returns { apiKey: string, model: string, url: string }. apiKey is selected from the highest-priority model in the decrypted ai.json.enc configuration (stored in KV_CACHE under key ai:config). Falls back to env vars AI_API_KEY, AI_MODEL, AI_API_URL if KV is empty. Returns 503 if configuration is missing.',
+      'AI provider configuration: encrypted ai.json.enc contains multiple providers (anthropic, groq, openrouter) with metadata per key: { key, owner?, type? ("expired"|"free"|"paid"|"premium"|"unlimited") }. Model priority determines selection order. Decryption uses Web Crypto API with PBKDF2-SHA256 (OpenSSL compatible).',
+      'apps/merchant/src/lib/ai-enc.ts exports decryptAiConfig(base64Ciphertext, password) → AiConfig, selectModels(config, opts) → sorted list, and pickKey(provider) → random AiKey with metadata.',
       'apps/client/src/utils/ai-client.ts is the single AI utility module. Follow DRY — add new AI helpers here, never create a parallel AI client.',
       'AiParams interface: { apiKey: string, model: string, url: string, provider?: "openai" | "groq" | "anthropic" | "auto" }. Provider is auto-detected from the url field: url containing "anthropic" → Anthropic Messages API; "groq" → Groq (OAI-compatible); default → OpenAI.',
       'Current AI functions: analyzeReviewWithAi(review: ReviewInput, params: AiParams): Promise<ReviewAnalysisResult> — returns { success, recommendation: "approve"|"reject", reason?, error? }. analyzeReviewsBatchWithAi(reviews[], params, onProgress?) — processes up to 5 reviews in parallel. translateWithAi(content, targetLanguage, params, isHtml?, options?) — returns { success, content?, error? }.',
       'Gate AI UI with AuthenticationGuardWithPermission permission="ai:api" or hasPermission("ai:api") (from useSecuredApi()) before showing AI controls.',
-      'To add a new AI feature: add a typed helper function to ai-client.ts following the AiParams interface, then fetch credentials from GET /v1/ai/parameters and pass them to your helper.',
+      'To add a new AI feature: (1) add a typed helper function to ai-client.ts following the AiParams interface; (2) fetch credentials from GET /v1/ai/parameters; (3) pass params to your helper.',
+      'To update AI keys: edit ai.json, run "npm run ai:encrypt", then update KV with "npm run ai:kv:push" (production) or update wrangler.jsonc bindings (development).',
     ],
     buildPrompt: (src) => appendFacts(`
-Below are ai-client.ts and the ai.ts backend route.
+Below are ai-client.ts and the ai.ts backend route with encrypted config support.
 
 ${src}
 
 Task: Write an "AI-Assisted Features" reference.
 Include:
 1. Architecture: why AI runs in the browser (no backend inference) and security implications.
-2. Backend: GET /v1/ai/parameters — required permission, response shape, API key rotation.
-3. ai-client.ts: AiParams interface, supported providers, auto-detection logic.
-4. analyzeReviewWithAi(): signature, ReviewAnalysisResult type, usage example.
-5. translateWithAi(): signature, usage example.
-6. How to gate AI features with the ai:api Auth0 permission.
-7. How to add a new AI use case (step-by-step with code).
+2. Backend: GET /v1/ai/parameters — required permission, response shape, provider selection by model priority.
+3. AI configuration: ai.json.enc encryption, KV storage (ai:config key), fallback to env vars.
+4. Key metadata: owner, type tier (free|paid|premium|unlimited), implications for quota management.
+5. ai-client.ts: AiParams interface, supported providers, auto-detection logic.
+6. analyzeReviewWithAi(): signature, ReviewAnalysisResult type, usage example.
+7. translateWithAi(): signature, usage example.
+8. How to gate AI features with the ai:api Auth0 permission.
+9. How to add a new AI use case (step-by-step with code).
+10. Updating AI keys: ai.json → encrypt → deploy to KV.
 `),
   },
 
@@ -2177,24 +2272,147 @@ For each anti-pattern, show the WRONG code, then the CORRECT alternative.
 
 ];
 
+// ─── AI config from ai.json.enc ───────────────────────────────────────────────
+/**
+ * If ai.json.enc exists at the repo root and CRYPTOKEN is set, decrypt it and
+ * use it to populate AI_API_KEY / AI_API_URL / AI_MODEL / modelPool / modelMeta.
+ *
+ * CLI env vars always win (they're already in process.env before loadDotenv runs).
+ * --provider=<key> (or AI_PROVIDER env var) selects a specific provider.
+ * Without a provider filter, the model with the lowest priority number is picked.
+ */
+async function loadAiConfigOverride(): Promise<void> {
+  const cryptoken = process.env.CRYPTOKEN;
+  const configPath = aiJsonEncFlag ? join(ROOT, aiJsonEncFlag) : join(ROOT, 'ai.json.enc');
+
+  if (aiJsonEncFlag) {
+    if (!cryptoken) {
+      console.error('Error: CRYPTOKEN must be defined when --ai-json-enc is specified.');
+      process.exit(1);
+    }
+    if (!existsSync(configPath)) {
+      console.error(`Error: specified ai.json.enc file not found: ${configPath}`);
+      process.exit(1);
+    }
+  } else if (!cryptoken || !existsSync(configPath)) {
+    return;
+  }
+
+  let config;
+  try {
+    config = await decryptAiConfig(readFileSync(configPath, 'utf8'), cryptoken);
+  } catch (err) {
+    if (aiJsonEncFlag) {
+      console.error(`Error: failed to decrypt or parse ${configPath}: ${err}`);
+      process.exit(1);
+    }
+    console.warn(`[config] Failed to decrypt ai.json.enc: ${err}. Falling back to env vars.`);
+    return;
+  }
+
+  for (const provider of Object.values(config.providers)) {
+    for (const keyObj of provider.keys) {
+      apiKeyOwnerByKey.set(keyObj.key, keyObj.owner ?? 'unknown');
+      if (keyObj.type === 'expired') {
+        expiredApiKeys.add(keyObj.key);
+      }
+    }
+  }
+
+  // --provider=<key> or AI_PROVIDER env var narrow to one provider
+  const providerArg =
+    argv.find(a => a.startsWith('--provider='))?.slice(11) ??
+    process.env.AI_PROVIDER;
+
+  const candidates = selectModels(config, providerArg ? { providerKey: providerArg } : {});
+  if (candidates.length === 0) {
+    console.warn(`[config] ai.json.enc: no models found${providerArg ? ` for provider "${providerArg}"` : ''}. Falling back to env vars.`);
+    return;
+  }
+
+  const best = candidates[0]; // lowest priority number = most preferred
+
+  // Override values if they're empty/missing (even if defined on CLI as "").
+  // This allows `AI_API_KEY="" npm run mcp:generate` to use encrypted config.
+  if (!process.env.AI_API_KEY?.trim()) {
+    const allKeys = collectKeys(config, providerArg ? { providerKey: providerArg } : {});
+    const validKeys = allKeys.filter(k => !expiredApiKeys.has(k));
+    if (validKeys.length === 0) {
+      console.error('Error: no valid API keys available in ai.json.enc. All configured keys are expired.');
+      process.exit(1);
+    }
+    process.env.AI_API_KEY = validKeys.join(',');
+  }
+  if (!process.env.AI_MODEL?.trim()) {
+    process.env.AI_MODEL = best.model.id;
+  }
+  if (!process.env.AI_API_URL?.trim()) {
+    AI_API_URL = best.provider.endpoint;
+  }
+
+  // Pre-populate modelPool + modelMeta from config — avoids a /models API call
+  // and enables getModelBudget() for providers without a /models endpoint (e.g. Anthropic).
+  if (!discoverModels) {
+    // candidates is already sorted by priority ascending (1=best) from selectModels().
+    // Filter to the selected provider and maintain priority order.
+    const providerCandidates = candidates.filter(c => c.providerKey === best.providerKey);
+
+    if (providerCandidates.length === 0) {
+      console.error(`Error: no models found for provider "${best.providerKey}". Check ai.json.enc.`);
+      process.exit(1);
+    }
+
+    // modelPool is populated in priority order: [best, fallback1, fallback2, ...].
+    // nextModel() will round-robin through this list starting with modelPool[0].
+    modelPool = providerCandidates.map(c => c.model.id);
+    modelMeta = providerCandidates.map(c => ({
+      id: c.model.id,
+      object: 'model' as const,
+      context_window: c.model.contextWindow,
+      max_completion_tokens: c.model.maxOutputTokens,
+      owned_by: c.providerKey,
+      active: true,
+    }));
+
+    // Verify modelPool is sorted by priority (first element = best)
+    if (verbose) {
+      console.log(`  [config] modelPool (in priority order): ${modelPool.join(' → ')}`);
+    }
+
+    // Apply tpmLimit from best model as learned cap immediately (avoids first-413 waste)
+    if (best.model.tpmLimit !== null && learnedRequestTokensCap === null) {
+      learnedRequestTokensCap = best.model.tpmLimit;
+      if (verbose) {
+        console.log(`  [config] tpmLimit cap set to ${best.model.tpmLimit} from ${best.model.id}`);
+      }
+    }
+  }
+
+  console.log(
+    `[config] ai.json.enc → provider="${best.providerKey}" model="${best.model.id}" (priority ${best.model.priority}) ` +
+    `keys=${collectKeys(config, providerArg ? { providerKey: providerArg } : {}).length}`,
+  );
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────────
 async function main() {
-  // Display how many keys we have in the pool before starting generation so we can correlate with AI call success/failures.
-
+  // Load encrypted AI config first (populates env vars + modelPool before initModels).
+  await loadAiConfigOverride();
 
   // Discover usable models from the API before printing the summary.
-  // Skipped in dry-run and skip-ai modes to avoid unnecessary API calls.
-  if (!dryRun && !skipAI) {
+  // Skipped in dry-run, skip-ai modes, or when modelPool was pre-populated from config.
+  if (!dryRun && !skipAI && modelPool.length === 0) {
     await initModels();
   }
 
-  // Filter to a single topic if --topic= was provided
-  const topics = topicFlag
-    ? TOPICS.filter(t => t.name === topicFlag)
+  // Filter to the named topics if --topic= was provided one or more times.
+  const topics = topicFlags.length > 0
+    ? TOPICS.filter(t => topicFlags.includes(t.name))
     : TOPICS;
 
-  if (topicFlag && topics.length === 0) {
-    console.error(`Error: unknown topic "${topicFlag}". Available topics:`);
+  const invalidTopics = topicFlags.filter(name => !TOPICS.some(t => t.name === name));
+  if (invalidTopics.length > 0) {
+    console.error(`Error: unknown topic(s) "${invalidTopics.join(', ')}". Available topics:`);
     for (const t of TOPICS) console.error(`  ${t.name}`);
     process.exit(1);
   }
@@ -2366,6 +2584,15 @@ async function main() {
 
   console.log('\n' + '─'.repeat(60));
   console.log(`Done. generated=${generated} skipped=${skipped} errors=${errors}`);
+
+  if (showKeyUsageSummary) {
+    console.log('\nKey usage summary:');
+    for (const [key, summary] of apiKeyUsageSummary.entries()) {
+      const prefix = key.slice(0, 5);
+      const suffix = key.slice(-5);
+      console.log(`  [key (first 5 chars "${prefix}" … last 5 chars "${suffix}")] owned by [${summary.owner}] succeed ${summary.success} times failed ${summary.failure} times`);
+    }
+  }
 
   if (errors > 0) process.exit(1);
 }

@@ -161,6 +161,12 @@ export type Env = {
 
   /** Default TTL for all other cached responses in seconds.  Defaults to 3600 (1 h) if not set. */
   KV_CACHE_DEFAULT_TTL_SECONDS?: string;
+
+  /**
+   * Passphrase used to decrypt ai.json.enc at runtime (in-memory only — never written to disk).
+   * Set as a Cloudflare secret. Used by GET /v1/ai/parameters when ai:config is stored in KV_CACHE.
+   */
+  CRYPTOKEN?: string;
 };
 
 /**
