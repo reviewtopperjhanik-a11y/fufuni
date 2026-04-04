@@ -116,3 +116,16 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/merchant
+
+      - name: Upload ai.json.enc to KV_CACHE
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ ! -f ai.json.enc ]; then
+            echo "Warning: ai.json.enc not found. Skipping KV upload."
+            exit 0
+          fi
+          cd apps/merchant
+          npx wrangler kv:key put ai:config --path ../ai.json.enc --binding KV_CACHE
+          echo "✓ ai.json.enc uploaded to KV_CACHE"
