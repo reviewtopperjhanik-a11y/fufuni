@@ -25,7 +25,7 @@
 // apps/merchant/src/routes/ai.ts
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
-import { authMiddleware, aiAccessOnly } from '../middleware/auth';
+import { authMiddleware, databaseAdminOnly, aiAccessOnly } from '../middleware/auth';
 import { ApiError, type HonoEnv } from '../types';
 import { decryptAiConfig, selectModels, type AiConfig } from '../lib/ai-enc';
 
@@ -58,6 +58,15 @@ const AiParamsResponse = z.object({
   apiKey: z.string(),
   model: z.string(),
   url: z.string(),
+});
+
+const AiUploadBody = z.object({
+  content: z.string().describe('Raw ai.json.enc file contents'),
+});
+
+const AiUploadResponse = z.object({
+  ok: z.boolean(),
+  key: z.literal('ai:config'),
 });
 
 const aiParamsRoute = createRoute({
@@ -150,6 +159,46 @@ adminApp.openapi(aiParamsRoute, async (c) => {
     model,
     url,
   }, 200);
+});
+
+const aiUploadRoute = createRoute({
+  method: 'post',
+  path: '/config',
+  tags: ['AI'],
+  summary: 'Upload encrypted AI configuration to Cloudflare KV',
+  description:
+    'Stores the raw ai.json.enc payload under the KV key "ai:config" so the worker can decrypt it at runtime.',
+  security: [{ bearerAuth: ['admin:database'] }],
+  middleware: [databaseAdminOnly] as const,
+  request: {
+    body: {
+      content: {
+        'application/json': { schema: AiUploadBody },
+      },
+    },
+  },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: AiUploadResponse } },
+      description: 'Uploaded AI configuration',
+    },
+    400: {
+      description: 'Invalid request body',
+    },
+  },
+});
+
+adminApp.openapi(aiUploadRoute, async (c) => {
+  const body = c.req.valid('json');
+
+  if (!body.content || body.content.trim().length === 0) {
+    throw new ApiError('invalid_body', 400, 'Request body must contain the raw ai.json.enc content.');
+  }
+
+  await c.env.KV_CACHE.put('ai:config', body.content);
+  _configCache = null;
+
+  return c.json({ ok: true, key: 'ai:config' }, 200);
 });
 
 export { adminApp as adminAi };
