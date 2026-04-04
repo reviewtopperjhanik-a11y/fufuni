@@ -1,0 +1,36 @@
+# Copyright (c) 2024-2026 Ronan LE MEILLAT
+# License: AGPL-3.0-or-later
+#
+# This workflow uploads ai.json.enc to Cloudflare KV when the file changes.
+
+name: Upload ai.json.enc to KV_CACHE
+
+on:
+  push:
+    paths:
+      - ai.json.enc
+
+permissions:
+  contents: write
+  id-token: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Upload ai.json.enc to KV_CACHE
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ ! -f ai.json.enc ]; then
+            echo "Warning: ai.json.enc not found. Skipping KV upload."
+            exit 0
+          fi
+          cd apps/merchant
+          npx wrangler kv key put --path ../../ai.json.enc --binding KV_CACHE --remote ai:config
+          echo "✓ ai.json.enc uploaded to KV_CACHE"

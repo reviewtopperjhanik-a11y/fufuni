@@ -27,7 +27,7 @@ import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from '@hono/zod-openapi';
 import { authMiddleware, aiAccessOnly } from '../middleware/auth';
 import { ApiError, type HonoEnv } from '../types';
-import { decryptAiConfig, selectModels, pickKey, type AiConfig } from '../lib/ai-enc';
+import { decryptAiConfig, selectModels, type AiConfig } from '../lib/ai-enc';
 
 // Module-level cache: decrypted once per Worker isolate lifetime (seconds–minutes).
 // Never written to KV or disk — lives only in memory.
@@ -48,6 +48,11 @@ async function loadConfig(env: HonoEnv['Bindings']): Promise<AiConfig | null> {
 const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', authMiddleware);
 
+// Query parameters
+const AiParamsQuery = z.object({
+  provider: z.string().optional().describe('Optional provider key filter (e.g., "groq", "anthropic")'),
+});
+
 // Response schema
 const AiParamsResponse = z.object({
   apiKey: z.string(),
@@ -62,36 +67,61 @@ const aiParamsRoute = createRoute({
   summary: 'Retrieve AI configuration for the client',
   description:
     'Returns the API key, model and base URL for the AI provider. ' +
-    'Requires admin permission. ' +
-    'Values are set via GitHub secrets at deploy time.',
+    'Requires ai:api permission. ' +
+    'Selects a non-expired key randomly from the highest-priority model. ' +
+    'Optionally filter by provider using the ?provider=<key> query parameter.',
   security: [{ bearerAuth: ['ai:api'] }],
   middleware: [aiAccessOnly] as const,
+  request: { query: AiParamsQuery },
   responses: {
     200: {
       content: { 'application/json': { schema: AiParamsResponse } },
       description: 'AI parameters',
     },
     503: {
-      description: 'AI not configured on this instance',
+      description: 'AI not configured on this instance or no non-expired keys available',
     },
   },
 });
 
 adminApp.openapi(aiParamsRoute, async (c) => {
+  const query = c.req.valid('query');
+  const providerFilter = query.provider;
+
   // 1. Try encrypted config from KV first (ai:config key)
   const config = await loadConfig(c.env);
   if (config) {
     // selectModels() returns candidates sorted by priority ascending (1 = best).
-    // We pick candidates[0] = highest-priority model across all providers.
-    const candidates = selectModels(config);
-    if (candidates.length > 0) {
-      const { provider, model } = candidates[0];
-      const keyObj = pickKey(provider);
+    // Filter by provider key if specified via ?provider=<key> query param.
+    const candidates = selectModels(config, providerFilter ? { providerKey: providerFilter } : {});
+
+    // Iterate through candidates (in priority order) and find the first provider with non-expired keys.
+    for (const { provider, model } of candidates) {
+      const validKeys = provider.keys.filter(k => k.type !== 'expired');
+      if (validKeys.length === 0) continue; // Skip if all keys are expired.
+
+      // Random selection from valid (non-expired) keys for load-balancing.
+      const keyObj = validKeys[Math.floor(Math.random() * validKeys.length)];
       return c.json({
         apiKey: keyObj.key,
         model: model.id,
         url: provider.endpoint,
       }, 200);
+    }
+
+    // All candidates have expired keys only.
+    if (providerFilter) {
+      throw new ApiError(
+        'no_valid_keys',
+        503,
+        `Provider "${providerFilter}" has no non-expired API keys configured.`
+      );
+    } else {
+      throw new ApiError(
+        'no_valid_keys',
+        503,
+        'All configured AI providers have only expired API keys. Update ai.json.enc and re-deploy.'
+      );
     }
   }
 

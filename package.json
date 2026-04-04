@@ -11,11 +11,11 @@
     "apps/mcp"
   ],
   "devDependencies": {
-    "@auth0/auth0-mcp-server": "^0.1.0-beta.9",
+    "@auth0/auth0-mcp-server": "^0.1.0-beta.10",
     "@heroui/react-mcp": "^1.1.0",
     "fast-glob": "^3.3.3",
     "jose": "^6.2.2",
-    "turbo": "^2.8.21",
+    "turbo": "^2.9.3",
     "typedoc": "^0.28.18",
     "typedoc-plugin-markdown": "^4.11.0",
     "vitepress": "^1.6.4"
@@ -39,6 +39,6 @@
     "mcp:generate:force": "tsx scripts/generate-static-mcp-response.ts --force",
     "ai:encrypt": "bash -c 'openssl enc -aes-256-cbc -a -pbkdf2 -iter 100000 -salt -in ai.json -out ai.json.enc -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json.enc written\"'",
     "ai:decrypt": "bash -c 'openssl enc -d -aes-256-cbc -a -pbkdf2 -iter 100000 -in ai.json.enc -out ai.json -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json written (keep it out of git!)\"'",
-    "ai:kv:push": "bash -c 'source .env && wrangler kv key put --namespace-id=$(grep -o '\\\"id\\\":\\\"[a-f0-9]*\\\"' apps/merchant/wrangler.jsonc | head -1 | grep -o '[a-f0-9]\\{32,\\}') ai:config --path=ai.json.enc'"
+    "ai:kv:push": "bash -c 'source .env && NS_ID=$(jq -r \".kv_namespaces[0].id\" apps/merchant/wrangler.jsonc) && wrangler kv key put --namespace-id=$NS_ID ai:config --path=ai.json.enc && echo \"✓ ai.json.enc uploaded to KV_CACHE\"'"
   }
 }
