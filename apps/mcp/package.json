@@ -9,6 +9,7 @@
     "build": "npm run gen-knowledge && wrangler deploy --dry-run",
     "deploy": "npm run gen-knowledge && wrangler deploy",
     "gen-knowledge": "tsx scripts/gen-knowledge.ts",
+    "stdio": "npm run gen-knowledge && tsx src/stdio.ts",
     "typegen": "wrangler types"
   },
   "dependencies": {
