@@ -89,7 +89,13 @@
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { decryptAiConfig, selectModels, collectKeys } from './ai-enc.js';
+import {
+  decryptAiConfig,
+  selectModels,
+  collectKeys,
+  ModelBudget,
+  getModelBudget as getModelBudgetImpl,
+} from './ai-enc.js';
 
 // ── Static fallbacks (used when model metadata is unavailable) ───────────────
 // These values target the Groq free-tier worst-case: 12 000 TPM per request.
@@ -400,113 +406,18 @@ function parseRequestTokensCap(errorMsg: string): number | null {
 
 // ─── per-model budget ─────────────────────────────────────────────────────────
 
-interface ModelBudget {
-  /** Maximum tokens the model may generate in one response. */
-  maxOutputTokens: number;
-  /**
-   * Total character budget for ALL source files of a topic combined.
-   * Derived from: (context_window - maxOutputTokens - PROMPT_OVERHEAD_TOKENS) × CHARS_PER_TOKEN.
-   * Callers divide this by the number of source files to get the per-file limit.
-   */
-  maxSourceCharsTotal: number;
-}
-
-type ModelSpec = {
-  context_window: number;
-  max_completion_tokens: number;
-};
 /**
- * Static specs for well-known models that won't appear in the Groq /models
- * discovery endpoint (e.g. Anthropic Claude, OpenAI, Gemini).
- * Used as a fallback in getModelBudget() when modelMeta is empty (pinned model
- * or non-Groq endpoint without /models support).
- */
-const KNOWN_MODEL_SPECS: Record<string, ModelSpec> = {
-  // ── Anthropic Claude ────────────────────────────────────────────────────────
-    // Anthropic Claude API Docs — Models overview
-  // https://platform.claude.com/docs/en/about-claude/models/overview
-  'claude-opus-4-6': { context_window: 1_000_000, max_completion_tokens: 128_000 },
-  'claude-sonnet-4-6': { context_window: 1_000_000, max_completion_tokens: 64_000 },
-  'claude-haiku-4-5-20251001': { context_window: 200_000, max_completion_tokens: 64_000 },
-  'claude-haiku-4-5': { context_window: 200_000, max_completion_tokens: 64_000 },
-  'claude-sonnet-4-5': { context_window: 200_000, max_completion_tokens: 8_096 },
-  'claude-opus-4-5': { context_window: 200_000, max_completion_tokens: 8_096 },
-  'claude-3-5-haiku-20241022': { context_window: 200_000, max_completion_tokens: 8_096 },
-  'claude-3-5-sonnet-20241022': { context_window: 200_000, max_completion_tokens: 8_096 },
-  'claude-3-opus-20240229': { context_window: 200_000, max_completion_tokens: 4_096 },
-  // ── OpenAI ──────────────────────────────────────────────────────────────────
-  'gpt-4o': { context_window: 128_000, max_completion_tokens: 16_384 },
-  'gpt-4o-mini': { context_window: 128_000, max_completion_tokens: 16_384 },
-  'gpt-4-turbo': { context_window: 128_000, max_completion_tokens: 4_096 },
-// OpenAI API — official model IDs confirmed by “All models”
-  // https://developers.openai.com/api/docs/models/all
-  // https://developers.openai.com/api/docs/models/gpt-5.4
-  'gpt-5.4': { context_window: 1_000_000, max_completion_tokens: 128_000 },
-  // ── Google Gemini ────────────────────────────────────────────────────────────
-  // https://ai.google.dev/gemini-api/docs/gemini-3
-  'gemini-1.5-pro': { context_window: 1_000_000, max_completion_tokens: 8_192 },
-  'gemini-1.5-flash': { context_window: 1_000_000, max_completion_tokens: 8_192 },
-  'gemini-2.0-flash': { context_window: 1_048_576, max_completion_tokens: 8_192 },
-  'gemini-3-flash-preview': { context_window: 1_048_576, max_completion_tokens: 65_536 },
-  'gemini-3.1-pro-preview': { context_window: 1_048_576, max_completion_tokens: 65_536 },
-};
-
-/**
- * Compute optimal generation limits for a given model ID.
- *
- * When the model is present in modelPool (populated by initModels()), its
- * context_window and max_completion_tokens are used to maximise the source
- * budget while leaving enough room for the expected output.
- *
- * Falls back to DEFAULT_* constants when the model is unknown (e.g. discovery
- * was skipped, the endpoint does not expose /models, or --skip-ai mode).
- *
- * Example outcomes:
- *   llama-3.3-70b   (131 072 ctx, 32 768 out) → maxOut=8 000  src≈488 k chars
- *   claude-haiku-4  (200 000 ctx,  8 096 out) → maxOut=8 000  src≈756 k chars
- *   groq/compound   (131 072 ctx,  8 192 out) → maxOut=8 000  src≈488 k chars
- *   fallback        —                          → maxOut=6 000  src= 56 k chars
+ * Wrapper around the shared getModelBudget() implementation, bound to this script's
+ * global state (modelMeta, learnedRequestTokensCap, etc.).
  */
 function getModelBudget(modelId: string): ModelBudget {
-  // Priority: live pool metadata > static table > defaults.
-  const poolEntry = modelMeta.find(p => p.id === modelId);
-  const knownSpec = KNOWN_MODEL_SPECS[modelId];
-  const spec = poolEntry ?? (knownSpec
-    ? { context_window: knownSpec.context_window, max_completion_tokens: knownSpec.max_completion_tokens }
-    : null);
-
-  if (!spec) {
-    return {
-      maxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
-      // Assume up to 4 source files at the default per-file limit.
-      maxSourceCharsTotal: DEFAULT_MAX_SOURCE_CHARS * 4,
-    };
-  }
-  const maxOutputTokens = Math.min(
-    spec.max_completion_tokens ?? DEFAULT_MAX_OUTPUT_TOKENS,
-    MAX_OUTPUT_TOKENS_CAP,
-  );
-  // Start with the model's full context window.
-  let inputBudgetTokens = Math.max(
-    1_000,
-    spec.context_window - maxOutputTokens - PROMPT_OVERHEAD_TOKENS,
-  );
-
-  // Apply the per-request cap when known (Groq free: TPM = per-request limit).
-  // learnedRequestTokensCap is set from MAX_TOKENS_PER_REQUEST env var or from
-  // the first 413 error — whichever arrives first.
-  if (learnedRequestTokensCap !== null) {
-    const cappedInput = Math.max(
-      1_000,
-      learnedRequestTokensCap - maxOutputTokens - PROMPT_OVERHEAD_TOKENS,
-    );
-    inputBudgetTokens = Math.min(inputBudgetTokens, cappedInput);
-  }
-
-  return {
-    maxOutputTokens,
-    maxSourceCharsTotal: inputBudgetTokens * CHARS_PER_TOKEN,
-  };
+  return getModelBudgetImpl(modelId, modelMeta, {
+    defaultMaxOutputTokens: DEFAULT_MAX_OUTPUT_TOKENS,
+    maxOutputTokensCap: MAX_OUTPUT_TOKENS_CAP,
+    promptOverheadTokens: PROMPT_OVERHEAD_TOKENS,
+    charsPerToken: CHARS_PER_TOKEN,
+    learnedRequestTokensCap,
+  });
 }
 
 /**
@@ -1857,7 +1768,7 @@ Include:
       'ALL AI inference runs in the browser — there is no server-side inference. The browser fetches credentials then calls the AI provider directly.',
       'Backend GET /v1/ai/parameters requires Auth0 permission ai:api (enforced by aiAccessOnly middleware). Returns { apiKey: string, model: string, url: string }. apiKey is selected from the highest-priority model in the decrypted ai.json.enc configuration (stored in KV_CACHE under key ai:config). Falls back to env vars AI_API_KEY, AI_MODEL, AI_API_URL if KV is empty. Returns 503 if configuration is missing.',
       'AI provider configuration: encrypted ai.json.enc contains multiple providers (anthropic, groq, openrouter) with metadata per key: { key, owner?, type? ("expired"|"free"|"paid"|"premium"|"unlimited") }. Model priority determines selection order. Decryption uses Web Crypto API with PBKDF2-SHA256 (OpenSSL compatible).',
-      'apps/merchant/src/lib/ai-enc.ts exports decryptAiConfig(base64Ciphertext, password) → AiConfig, selectModels(config, opts) → sorted list, and pickKey(provider) → random AiKey with metadata.',
+      'apps/merchant/src/lib/ai-enc.ts exports decryptAiConfig(base64Ciphertext, password) → AiConfig, selectModels(config, opts) → sorted list, pickKey(provider) → random AiKey with metadata, getModelBudget(modelId, modelMeta?, opts?) → optimized token budget per model, and KNOWN_MODEL_SPECS with static capability data for Claude, GPT, and Gemini models.',
       'apps/client/src/utils/ai-client.ts is the single AI utility module. Follow DRY — add new AI helpers here, never create a parallel AI client.',
       'AiParams interface: { apiKey: string, model: string, url: string, provider?: "openai" | "groq" | "anthropic" | "auto" }. Provider is auto-detected from the url field: url containing "anthropic" → Anthropic Messages API; "groq" → Groq (OAI-compatible); default → OpenAI.',
       'Current AI functions: analyzeReviewWithAi(review: ReviewInput, params: AiParams): Promise<ReviewAnalysisResult> — returns { success, recommendation: "approve"|"reject", reason?, error? }. analyzeReviewsBatchWithAi(reviews[], params, onProgress?) — processes up to 5 reviews in parallel. translateWithAi(content, targetLanguage, params, isHtml?, options?) — returns { success, content?, error? }.',

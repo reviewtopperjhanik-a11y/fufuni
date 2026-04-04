@@ -186,3 +186,128 @@ export function collectKeys(
   }
   return keys;
 }
+
+// ─── Model specifications and budgets ──────────────────────────────────────
+
+export type ModelSpec = {
+  context_window: number;
+  max_completion_tokens: number;
+};
+
+/**
+ * Static specs for well-known models that won't appear in API discovery
+ * endpoints (e.g. Anthropic Claude, OpenAI, Gemini).
+ * Used as a fallback when model metadata is unavailable (pinned model
+ * or non-Groq endpoint without /models support).
+ */
+export const KNOWN_MODEL_SPECS: Record<string, ModelSpec> = {
+  // ── Anthropic Claude ────────────────────────────────────────────────────────
+  // https://platform.claude.com/docs/en/about-claude/models/overview
+  'claude-opus-4-6': { context_window: 1_000_000, max_completion_tokens: 128_000 },
+  'claude-sonnet-4-6': { context_window: 1_000_000, max_completion_tokens: 64_000 },
+  'claude-haiku-4-5-20251001': { context_window: 200_000, max_completion_tokens: 64_000 },
+  'claude-haiku-4-5': { context_window: 200_000, max_completion_tokens: 64_000 },
+  'claude-sonnet-4-5': { context_window: 200_000, max_completion_tokens: 8_096 },
+  'claude-opus-4-5': { context_window: 200_000, max_completion_tokens: 8_096 },
+  'claude-3-5-haiku-20241022': { context_window: 200_000, max_completion_tokens: 8_096 },
+  'claude-3-5-sonnet-20241022': { context_window: 200_000, max_completion_tokens: 8_096 },
+  'claude-3-opus-20240229': { context_window: 200_000, max_completion_tokens: 4_096 },
+  // ── OpenAI ──────────────────────────────────────────────────────────────────
+  // https://developers.openai.com/api/docs/models/all
+  'gpt-4o': { context_window: 128_000, max_completion_tokens: 16_384 },
+  'gpt-4o-mini': { context_window: 128_000, max_completion_tokens: 16_384 },
+  'gpt-4-turbo': { context_window: 128_000, max_completion_tokens: 4_096 },
+  'gpt-5.4': { context_window: 1_000_000, max_completion_tokens: 128_000 },
+  // ── Google Gemini ────────────────────────────────────────────────────────────
+  // https://ai.google.dev/gemini-api/docs/gemini-3
+  'gemini-1.5-pro': { context_window: 1_000_000, max_completion_tokens: 8_192 },
+  'gemini-1.5-flash': { context_window: 1_000_000, max_completion_tokens: 8_192 },
+  'gemini-2.0-flash': { context_window: 1_048_576, max_completion_tokens: 8_192 },
+  'gemini-3-flash-preview': { context_window: 1_048_576, max_completion_tokens: 65_536 },
+  'gemini-3.1-pro-preview': { context_window: 1_048_576, max_completion_tokens: 65_536 },
+};
+
+export interface ModelBudget {
+  /** Maximum tokens the model may generate in one response. */
+  maxOutputTokens: number;
+  /**
+   * Total character budget for ALL source files combined.
+   * Derived from: (context_window - maxOutputTokens - promptOverheadTokens) × charsPerToken.
+   * Callers divide this by the number of source files to get the per-file limit.
+   */
+  maxSourceCharsTotal: number;
+}
+
+/**
+ * Compute optimal generation limits for a given model ID.
+ *
+ * Uses provided metadata, falls back to KNOWN_MODEL_SPECS, then to default constants.
+ * The returned budget maximises source file inclusion while leaving enough room
+ * for the model's expected output and prompt overhead.
+ *
+ * @param modelId Model identifier (e.g. "claude-opus-4-6", "gpt-4o")
+ * @param modelMeta Optional live metadata from API discovery (takes priority)
+ * @param opts Options for budget calculation:
+ *   - defaultMaxOutputTokens: fallback max generation tokens (default 6000)
+ *   - maxOutputTokensCap: hard ceiling on generation tokens (default 8000)
+ *   - promptOverheadTokens: reserved tokens for system prompt and overhead (default 2000)
+ *   - charsPerToken: tokenization ratio (default 4)
+ *   - learnedRequestTokensCap: per-request rate limit, if known (optional)
+ */
+export function getModelBudget(
+  modelId: string,
+  modelMeta?: Array<{ id: string; context_window: number; max_completion_tokens?: number }>,
+  opts: {
+    defaultMaxOutputTokens?: number;
+    maxOutputTokensCap?: number;
+    promptOverheadTokens?: number;
+    charsPerToken?: number;
+    learnedRequestTokensCap?: number | null;
+  } = {},
+): ModelBudget {
+  const defaultMaxOut = opts.defaultMaxOutputTokens ?? 6_000;
+  const maxOutCap = opts.maxOutputTokensCap ?? 8_000;
+  const promptOverhead = opts.promptOverheadTokens ?? 2_000;
+  const charsPerToken = opts.charsPerToken ?? 4;
+  const learnedCap = opts.learnedRequestTokensCap ?? null;
+
+  // Priority: live metadata > static table > defaults.
+  const poolEntry = modelMeta?.find(m => m.id === modelId);
+  const knownSpec = KNOWN_MODEL_SPECS[modelId];
+  const spec = poolEntry ?? (knownSpec
+    ? { context_window: knownSpec.context_window, max_completion_tokens: knownSpec.max_completion_tokens }
+    : null);
+
+  if (!spec) {
+    return {
+      maxOutputTokens: defaultMaxOut,
+      // Assume up to 4 source files at a conservative per-file limit.
+      maxSourceCharsTotal: (opts.defaultMaxOutputTokens ?? 14_000) * 4,
+    };
+  }
+
+  const maxOutputTokens = Math.min(
+    spec.max_completion_tokens ?? defaultMaxOut,
+    maxOutCap,
+  );
+
+  // Start with the model's full context window.
+  let inputBudgetTokens = Math.max(
+    1_000,
+    spec.context_window - maxOutputTokens - promptOverhead,
+  );
+
+  // Apply the per-request cap when known (e.g. Groq free tier: TPM = per-request limit).
+  if (learnedCap !== null) {
+    const cappedInput = Math.max(
+      1_000,
+      learnedCap - maxOutputTokens - promptOverhead,
+    );
+    inputBudgetTokens = Math.min(inputBudgetTokens, cappedInput);
+  }
+
+  return {
+    maxOutputTokens,
+    maxSourceCharsTotal: inputBudgetTokens * charsPerToken,
+  };
+}
