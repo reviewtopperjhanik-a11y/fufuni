@@ -127,5 +127,5 @@ jobs:
             exit 0
           fi
           cd apps/merchant
-          npx wrangler kv:key put ai:config --path ../ai.json.enc --binding KV_CACHE
+          npx wrangler kv put ai:config --path ../../ai.json.enc --binding KV_CACHE
           echo "✓ ai.json.enc uploaded to KV_CACHE"
