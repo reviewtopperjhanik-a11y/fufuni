@@ -827,7 +827,12 @@ Keep it under 600 words. Use Markdown headings level 2 (##) and 3 (###).
 -->
 `,
     manualFacts: [
-      'The Durable Object can execute synchronous SQL queries via `this.sql.exec()` but incoming calls from the Worker are asynchronous (fetch-based).',
+      'The Durable Object executes SQL synchronously via `this.sql.exec()` but incoming calls from the Worker are asynchronous (fetch-based RPC via MERCHANT binding).',
+      'Migrations are tracked via the SQL `migrations` table (columns: name TEXT PK, applied_at TEXT). There is NO storage.put("db_version") pattern — all migration state lives in the DB itself.',
+      'ensureInitialized() first runs the SCHEMA DDL, then iterates an inline array of { name, sql } migration objects and inserts their name into the migrations table once applied.',
+      'Fufuni does NOT use Drizzle ORM or any query builder. All queries are raw SQL strings passed to db.query<T>(sql, params) or db.run(sql, params) from the getDb() helper.',
+      'Per-user theme is stored in Auth0 user_metadata (JWT custom claim), NOT in the store_themes DB table. The store_themes table holds merchant-level default theme configuration.',
+      'getDb(c.var.db) returns a Database object with query<T>(sql, params?): Promise<T[]> and run(sql, params?): Promise<{changes}> — both proxy to the Durable Object via RPC.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below is the source of the Durable Object class (do.ts).  It contains the SCHEMA
@@ -1768,7 +1773,7 @@ Include:
       'ALL AI inference runs in the browser — there is no server-side inference. The browser fetches credentials then calls the AI provider directly.',
       'Backend GET /v1/ai/parameters requires Auth0 permission ai:api (enforced by aiAccessOnly middleware). Returns { apiKey: string, model: string, url: string }. Optional query parameter ?provider=<key> filters to a specific provider. Selects the highest-priority (best) model across (filtered) providers, then picks a non-expired key randomly from that provider for load-balancing. Falls back to env vars AI_API_KEY, AI_MODEL, AI_API_URL if KV is empty. Returns 503 if no non-expired keys are available or configuration is missing.',
       'AI provider configuration: encrypted ai.json.enc contains multiple providers (anthropic, groq, openrouter) with metadata per key: { key, owner?, type? ("expired"|"free"|"paid"|"premium"|"unlimited") }. Model priority determines selection order. Decryption uses Web Crypto API with PBKDF2-SHA256 (OpenSSL compatible).',
-      'apps/merchant/src/lib/ai-enc.ts exports decryptAiConfig(base64Ciphertext, password) → AiConfig, selectModels(config, opts) → sorted list, pickKey(provider) → random AiKey with metadata, getModelBudget(modelId, modelMeta?, opts?) → optimized token budget per model, and KNOWN_MODEL_SPECS with static capability data for Claude, GPT, and Gemini models.',
+      'apps/merchant/src/lib/ai-enc.ts exports decryptAiConfig(base64Ciphertext, password) → AiConfig, selectModels(config, opts) → sorted list, pickKey(provider) → random AiKey with metadata, findModelById(config, modelId) → implementations across providers sorted by priority, findModelByIdInProvider(config, providerKey, modelId) → specific model in a provider, getModelBudget(modelId, modelMeta?, opts?) → optimized token budget per model, and KNOWN_MODEL_SPECS with static capability data for Claude, GPT, and Gemini models.',
       'apps/client/src/utils/ai-client.ts is the single AI utility module. Follow DRY — add new AI helpers here, never create a parallel AI client.',
       'AiParams interface: { apiKey: string, model: string, url: string, provider?: "openai" | "groq" | "anthropic" | "auto" }. Provider is auto-detected from the url field: url containing "anthropic" → Anthropic Messages API; "groq" → Groq (OAI-compatible); default → OpenAI.',
       'Current AI functions: analyzeReviewWithAi(review: ReviewInput, params: AiParams): Promise<ReviewAnalysisResult> — returns { success, recommendation: "approve"|"reject", reason?, error? }. analyzeReviewsBatchWithAi(reviews[], params, onProgress?) — processes up to 5 reviews in parallel. translateWithAi(content, targetLanguage, params, isHtml?, options?) — returns { success, content?, error? }.',
@@ -1787,12 +1792,13 @@ Include:
 2. Backend: GET /v1/ai/parameters — required permission, response shape, provider selection by model priority.
 3. AI configuration: ai.json.enc encryption, KV storage (ai:config key), fallback to env vars.
 4. Key metadata: owner, type tier (free|paid|premium|unlimited), implications for quota management.
-5. ai-client.ts: AiParams interface, supported providers, auto-detection logic.
-6. analyzeReviewWithAi(): signature, ReviewAnalysisResult type, usage example.
-7. translateWithAi(): signature, usage example.
-8. How to gate AI features with the ai:api Auth0 permission.
-9. How to add a new AI use case (step-by-step with code).
-10. Updating AI keys: ai.json → encrypt → deploy to KV.
+5. Model selection in ai-enc.ts: findModelById() for cross-provider lookup, findModelByIdInProvider() for specific provider lookup, priority ordering.
+6. ai-client.ts: AiParams interface, supported providers, auto-detection logic.
+7. analyzeReviewWithAi(): signature, ReviewAnalysisResult type, usage example.
+8. translateWithAi(): signature, usage example.
+9. How to gate AI features with the ai:api Auth0 permission.
+10. How to add a new AI use case (step-by-step with code).
+11. Updating AI keys: ai.json → encrypt → deploy to KV.
 `),
   },
 
@@ -2156,8 +2162,9 @@ Include:
     manualFacts: [
       'NEVER use c.req.json() directly — always use c.req.valid("json") after declaring the body schema in createRoute().',
       'NEVER declare Zod schemas inline in route files — always put them in apps/merchant/src/schemas/ and import them.',
-      'NEVER modify an existing migration file — create a new numbered migration instead.',
-      'NEVER update SCHEMA in do.ts without also updating ensureInitialized() and creating the SQL migration file.',
+      'NEVER modify an existing migration — add a new { name, sql } object to the inline migrations array in ensureInitialized() in do.ts AND create a matching SQL file in apps/merchant/migrations/.',
+      'NEVER update the SCHEMA constant in do.ts without also adding a migration in ensureInitialized() — the SCHEMA only runs on fresh DOs; existing DOs rely on the migrations array.',
+      'NEVER use Drizzle ORM, db/queries.ts, or storage.put("db_version") — Fufuni uses raw SQL via db.query<T>() / db.run() from getDb(), and tracks migrations in the SQL migrations table.',
       'NEVER expose sk_ API keys to the frontend — only pk_ keys are safe for browser use.',
       'NEVER read variant price from the variants table directly in multi-region context — always use variant_prices joined with region.',
       'NEVER call the Auth0 Management API from the frontend directly — use the backend proxy /v1/__auth0/* endpoints.',

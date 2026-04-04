@@ -311,3 +311,53 @@ export function getModelBudget(
     maxSourceCharsTotal: inputBudgetTokens * charsPerToken,
   };
 }
+
+// ─── Model selection and filtering ─────────────────────────────────────────
+
+export interface ModelWithProvider {
+  /** Provider key under which this model appears. */
+  providerKey: string;
+  provider: AiProvider;
+  model: AiModel;
+}
+
+/**
+ * Find all implementations of a specific model across providers.
+ * Useful when a model (e.g., "gpt-4o") is available from multiple providers,
+ * and you need to decide which to use based on priority or other criteria.
+ *
+ * @param config Decrypted AiConfig
+ * @param modelId Model identifier to search for (e.g., "gpt-4o")
+ * @returns List of ModelWithProvider for all matching implementations, sorted by priority ascending.
+ */
+export function findModelById(config: AiConfig, modelId: string): ModelWithProvider[] {
+  const matches: ModelWithProvider[] = [];
+  for (const [providerKey, provider] of Object.entries(config.providers)) {
+    for (const model of provider.models) {
+      if (model.id === modelId) {
+        matches.push({ providerKey, provider, model });
+      }
+    }
+  }
+  // Sort by priority ascending: 1 = best fallback, higher = worse fallback
+  return matches.sort((a, b) => a.model.priority - b.model.priority);
+}
+
+/**
+ * Find a model within a specific provider by ID.
+ *
+ * @param config Decrypted AiConfig
+ * @param providerKey Provider identifier (e.g., "groq", "anthropic")
+ * @param modelId Model identifier (e.g., "gpt-4o")
+ * @returns ModelWithProvider if found, null otherwise.
+ */
+export function findModelByIdInProvider(
+  config: AiConfig,
+  providerKey: string,
+  modelId: string,
+): ModelWithProvider | null {
+  const provider = config.providers[providerKey];
+  if (!provider) return null;
+  const model = provider.models.find(m => m.id === modelId);
+  return model ? { providerKey, provider, model } : null;
+}

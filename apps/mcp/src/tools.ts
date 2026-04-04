@@ -57,6 +57,48 @@ export function registerFufuniTools(
     return { content: [{ type: "text", text: content }] };
   });
 
+  // search_topics: full-text search across all topic content.
+  server.registerTool("search_topics", {
+    title: "Search Fufuni knowledge base",
+    description:
+      "Search for a keyword or phrase across all Fufuni knowledge topics. Returns matching topic slugs with surrounding context. Use this when you know what you're looking for but not which topic covers it (e.g. 'useSecuredApi', 'stripe refund', 'getDb').",
+    inputSchema: z.object({
+      query: z.string().describe("Keyword or phrase to search for (case-insensitive)"),
+      max_results: z.number().int().min(1).max(20).optional()
+        .describe("Maximum number of matching excerpts to return (default 5)"),
+    }),
+  }, async ({ query, max_results = 5 }) => {
+    const needle = query.toLowerCase();
+    const results: Array<{ slug: string; excerpt: string }> = [];
+
+    for (const [slug, content] of Object.entries(knowledge)) {
+      if (results.length >= max_results) break;
+      const lines = content.split('\n');
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].toLowerCase().includes(needle)) {
+          const start = Math.max(0, i - 2);
+          const end = Math.min(lines.length - 1, i + 3);
+          const excerpt = lines.slice(start, end + 1).join('\n').trim();
+          results.push({ slug, excerpt });
+          break; // one best excerpt per topic
+        }
+      }
+    }
+
+    if (results.length === 0) {
+      return {
+        content: [{ type: "text", text: `No topics found containing "${query}". Try list_topics to see all available topics.` }],
+      };
+    }
+
+    const text = results
+      .map(r => `**${r.slug}**\n\`\`\`\n${r.excerpt}\n\`\`\``)
+      .join('\n\n');
+    return {
+      content: [{ type: "text", text: `Found "${query}" in ${results.length} topic(s):\n\n${text}` }],
+    };
+  });
+
   // ── Per-topic dedicated tools ─────────────────────────────────────────────
   // One tool per knowledge file so AI assistants can directly invoke the relevant
   // topic without a list_topics + get_topic round-trip.
