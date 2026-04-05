@@ -84,9 +84,8 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                         <Button
                           isIconOnly
                           size="sm"
-                          variant="bordered"
-                          radius="none"
-                          className="w-6 h-6 min-w-0 text-xs"
+                          variant="outline"
+                          className="w-6 h-6 min-w-0 text-xs rounded-none"
                           aria-label="Diminuer la quantité"
                           onPress={() =>
                             item.qty > 1
@@ -102,9 +101,8 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                         <Button
                           isIconOnly
                           size="sm"
-                          variant="bordered"
-                          radius="none"
-                          className="w-6 h-6 min-w-0 text-xs"
+                          variant="outline"
+                          className="w-6 h-6 min-w-0 text-xs rounded-none"
                           aria-label="Augmenter la quantité"
                           onPress={() => updateQuantity(item.sku, item.qty + 1)}
                         >

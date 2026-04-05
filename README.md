@@ -39,24 +39,6 @@
 
 The entire stack can be self-hosted for **€0 / month** within these generous free tiers. GitHub Actions automates deployment — push to `main` and everything deploys automatically.
 
-## 🤖 AI-Native: Universal Commerce Protocol (UCP)
-
-Fufuni is one of the **first open-source frameworks** to implement [UCP](https://ucp.dev),
-allowing AI shopping agents (Claude, Gemini, ChatGPT) to interact with your store natively.
-
-```bash
-# Discover capabilities
-curl https://your-worker.workers.dev/.well-known/ucp
-
-# Browse catalog as an AI agent
-curl "https://your-worker.workers.dev/ucp/v1/products?limit=5&q=golf"
-
-# Create a checkout session (no UI needed)
-curl -X POST https://your-worker.workers.dev/ucp/v1/checkout-sessions \
-  -H "Content-Type: application/json" \
-  -d '{"currency":"EUR","line_items":[{"item":{"id":"SKU-001"},"quantity":1}]}'
-```
-
 ---
 
 ## Star the project
@@ -131,6 +113,25 @@ Visitors see an attractive landing page with a Log in button and direct links to
 ---
 
 ## Features
+
+### 🤖 AI-Native: Universal Commerce Protocol (UCP)
+
+Fufuni is one of the **first open-source frameworks** to implement [UCP](https://ucp.dev),
+allowing AI shopping agents (Claude, Gemini, ChatGPT) to interact with your store natively.
+
+```bash
+# Discover capabilities
+curl https://your-worker.workers.dev/.well-known/ucp
+
+# Browse catalog as an AI agent
+curl "https://your-worker.workers.dev/ucp/v1/products?limit=5&q=golf"
+
+# Create a checkout session (no UI needed)
+curl -X POST https://your-worker.workers.dev/ucp/v1/checkout-sessions \
+  -H "Content-Type: application/json" \
+  -d '{"currency":"EUR","line_items":[{"item":{"id":"SKU-001"},"quantity":1}]}'
+```
+
 
 ### 🛍 Products & Catalog
 - Product catalogue with variants, SKUs and **per-variant multi-currency pricing**
