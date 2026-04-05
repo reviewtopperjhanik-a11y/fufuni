@@ -1,33 +1,61 @@
-# Fufuni — E-Commerce Platform - Host Your Store for free on Cloudflare Workers
+<div align="center">
+  <h1>🛍️ Fufuni</h1>
+  <p><strong>The 100% free-tier, AI-native e-commerce framework.</strong><br/>
+  Built on Cloudflare Workers · Auth0 · Stripe · Mailgun · GitHub Pages</p>
 
-> **Cloudflare-native headless commerce** — Workers · Durable Objects · React · HeroUI
+  <a href="https://sctg-development.github.io/fufuni/">
+    <img src="https://img.shields.io/badge/LIVE%20DEMO-brightgreen?style=for-the-badge&logo=cloudflare" alt="Live Demo" />
+  </a>
+  <a href="https://github.com/sctg-development/fufuni/stargazers">
+    <img src="https://img.shields.io/github/stars/sctg-development/fufuni?style=for-the-badge" alt="Stars" />
+  </a>
+  <a href="https://github.com/sctg-development/fufuni/blob/main/LICENSE">
+    <img src="https://img.shields.io/badge/License-AGPL%203.0-blue?style=for-the-badge" alt="License" />
+  </a>
+  <a href="https://github.com/sctg-development/fufuni/actions/workflows/pages.yaml">
+    <img src="https://img.shields.io/github/actions/workflow/status/sctg-development/fufuni/pages.yaml?style=for-the-badge&label=DEPLOY" alt="Deploy" />
+  </a>
+  <br/>
+  <img src="https://tokeisrv.sctg.eu.org/b1/github.com/sctg-development/fufuni?type=TypeScript,TSX,html&category=code" alt="Code lines" />
+  <img src="https://tokeisrv.sctg.eu.org/b1/github.com/sctg-development/fufuni?type=TypeScript,TSX,html&category=comments" alt="Comment lines" />
+  <br/>
+  <a href="https://www.typescriptlang.org/"><img src="https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript" alt="TypeScript" /></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-19-61DAFB?logo=react" alt="React" /></a>
+  <a href="https://www.heroui.com/"><img src="https://img.shields.io/badge/HeroUI-v3-yellow" alt="HeroUI" /></a>
+  <a href="https://auth0.com/"><img src="https://img.shields.io/badge/Auth0-Secured-EB5424?logo=auth0" alt="Auth0" /></a>
+  <a href="https://modelcontextprotocol.io/"><img src="https://img.shields.io/badge/MCP-Available-6B46C1?logo=anthropic" alt="MCP Server" /></a>
+</div>
 
-![](https://tokeisrv.sctg.eu.org/b1/github.com/sctg-development/fufuni?type=TypeScript,TSX,html&category=code)
-![](https://tokeisrv.sctg.eu.org/b1/github.com/sctg-development/fufuni?type=TypeScript,TSX,html&category=comments)
-[![Deploy to Cloudflare](https://img.shields.io/badge/Deploy-Cloudflare-orange?logo=cloudflare)](https://workers.cloudflare.com)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript)](https://www.typescriptlang.org/)
-[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev/)
-[![HeroUI](https://img.shields.io/badge/HeroUI-v3-yellow)](https://www.heroui.com/)
-[![Auth0](https://img.shields.io/badge/Auth0-Secured-EB5424?logo=auth0)](https://auth0.com/)
-[![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL%203.0-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![MCP Server](https://img.shields.io/badge/MCP-Available-6B46C1?logo=anthropic)](https://modelcontextprotocol.io/)
+## 🚀 Deploy in 10 minutes, $0/month forever
 
-Fufuni is a **production-ready e-commerce engine** built entirely on Cloudflare primitives.
-A single Durable Object backed by SQLite holds your entire store state — no external database, no cold starts, globally consistent.
-
-### 💸 100 % free to run
-
-| Layer | Service | Price |
-|-------|---------|-------|
-| Backend API | Cloudflare Workers + Durable Objects | Free tier (100k req/day) |
-| Database | Durable Object SQLite | Included in Workers free tier |
-| Image storage | Cloudflare R2 | Free tier (10 GB / month) |
-| KV caching | Cloudflare KV | Free tier (100k reads / day) |
-| Identity & auth | Auth0 | Free tier (7500 MAU) |
-| Frontend | GitHub Pages (or Cloudflare Pages) | Free |
-| Transactional email | Mailgun | Free tier (3 000 emails / month) |
+| Service | Free Tier | Usage in Fufuni |
+|---|---|---|
+| **Cloudflare Workers** | 100k req/day | Backend API + Durable Objects SQLite |
+| **Cloudflare R2** | 10 GB storage | Product images & assets |
+| **Auth0** | 7,500 active users | Auth passwordless + social |
+| **Mailgun** | 1,000 emails/month | Order notifications |
+| **Stripe** | Pay-as-you-go | Payments (no monthly fee) |
+| **GitHub Pages** | Unlimited | SPA frontend hosting |
 
 The entire stack can be self-hosted for **€0 / month** within these generous free tiers. GitHub Actions automates deployment — push to `main` and everything deploys automatically.
+
+## 🤖 AI-Native: Universal Commerce Protocol (UCP)
+
+Fufuni is one of the **first open-source frameworks** to implement [UCP](https://ucp.dev),
+allowing AI shopping agents (Claude, Gemini, ChatGPT) to interact with your store natively.
+
+```bash
+# Discover capabilities
+curl https://your-worker.workers.dev/.well-known/ucp
+
+# Browse catalog as an AI agent
+curl "https://your-worker.workers.dev/ucp/v1/products?limit=5&q=golf"
+
+# Create a checkout session (no UI needed)
+curl -X POST https://your-worker.workers.dev/ucp/v1/checkout-sessions \
+  -H "Content-Type: application/json" \
+  -d '{"currency":"EUR","line_items":[{"item":{"id":"SKU-001"},"quantity":1}]}'
+```
 
 ---
 

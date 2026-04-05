@@ -526,11 +526,16 @@ export const UpdateOrderBody = z.object({
 /** Request body for POST /v1/orders/:id/refund. Omit `amount_cents` for a full refund. */
 export const RefundOrderBody = z.object({
   amount_cents: z.number().int().positive().optional().openapi({ description: 'Omit for full refund' }),
+  reason: z.enum(['duplicate', 'fraudulent', 'requested_by_customer']).optional().default('requested_by_customer'),
+  notes: z.string().max(500).optional().openapi({ description: 'Internal notes about the refund' }),
 }).openapi('RefundOrder');
 
 /** Response after successfully issuing a Stripe refund. */
 export const RefundResponse = z.object({
+  id: z.string(),
   stripe_refund_id: z.string(),
+  amount_cents: z.number(),
+  currency: z.string(),
   status: z.string(),
 }).openapi('RefundResult');
 

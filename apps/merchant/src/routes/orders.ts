@@ -293,7 +293,7 @@ const refundOrder = createRoute({
   path: '/{orderId}/refund',
   tags: ['Orders'],
   summary: 'Refund an order',
-  description: 'Full or partial refund via Stripe',
+  description: 'Full or partial refund via Stripe. Stores reason and notes for audit trail.',
   security: [{ bearerAuth: ["legacy sk_","admin:store"] }],
   middleware: [adminOnly] as const,
   request: {
@@ -310,7 +310,7 @@ const refundOrder = createRoute({
 
 adminApp.openapi(refundOrder, async (c) => {
   const { orderId } = c.req.valid('param');
-  const { amount_cents } = c.req.valid('json');
+  const { amount_cents, reason, notes } = c.req.valid('json');
 
   const stripeSecretKey = c.get('auth').stripeSecretKey;
   if (!stripeSecretKey) throw ApiError.invalidRequest('Stripe not connected');
@@ -320,6 +320,9 @@ adminApp.openapi(refundOrder, async (c) => {
   const [order] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
   if (!order) throw ApiError.notFound('Order not found');
   if (order.status === 'refunded') throw ApiError.conflict('Order already refunded');
+  if (!['paid', 'processing', 'shipped', 'delivered', 'partially_refunded'].includes(order.status)) {
+    throw ApiError.invalidRequest(`Order status "${order.status}" is not refundable`);
+  }
   if (!order.stripe_payment_intent_id) {
     throw ApiError.invalidRequest('Cannot refund test orders (no Stripe payment)');
   }
@@ -330,16 +333,22 @@ adminApp.openapi(refundOrder, async (c) => {
     const refund = await stripe.refunds.create({
       payment_intent: order.stripe_payment_intent_id,
       amount: amount_cents,
+      reason: (reason ?? 'requested_by_customer') as Stripe.RefundCreateParams.Reason,
     });
 
+    const refundId = uuid();
     await db.run(
-      `INSERT INTO refunds (id, order_id, stripe_refund_id, amount_cents, status) VALUES (?, ?, ?, ?, ?)`,
-      [uuid(), order.id, refund.id, refund.amount, refund.status ?? 'succeeded']
+      `INSERT INTO refunds (id, order_id, stripe_refund_id, amount_cents, currency, reason, notes, status, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [refundId, order.id, refund.id, refund.amount, order.currency ?? 'EUR',
+       reason ?? 'requested_by_customer', notes ?? null, refund.status ?? 'succeeded', now(), now()]
     );
 
-    if (!amount_cents || amount_cents >= order.total_cents) {
-      await db.run(`UPDATE orders SET status = 'refunded' WHERE id = ?`, [orderId]);
+    const isFullRefund = !amount_cents || amount_cents >= order.total_cents;
+    const newStatus = isFullRefund ? 'refunded' : 'partially_refunded';
+    await db.run(`UPDATE orders SET status = ?, updated_at = ? WHERE id = ?`, [newStatus, now(), orderId]);
 
+    if (isFullRefund) {
       const [refundedOrder] = await db.query<any>(`SELECT * FROM orders WHERE id = ?`, [orderId]);
       const orderItems = await db.query<any>(`SELECT * FROM order_items WHERE order_id = ?`, [orderId]);
 
@@ -353,10 +362,57 @@ adminApp.openapi(refundOrder, async (c) => {
       );
     }
 
-    return c.json({ stripe_refund_id: refund.id, status: refund.status ?? 'succeeded' }, 200);
+    return c.json({
+      id: refundId,
+      stripe_refund_id: refund.id,
+      amount_cents: refund.amount ?? amount_cents ?? order.total_cents,
+      currency: order.currency ?? 'EUR',
+      status: refund.status ?? 'succeeded',
+    }, 200);
   } catch (e: any) {
     throw ApiError.stripeError(e.message || 'Refund failed');
   }
+});
+
+const listRefunds = createRoute({
+  method: 'get',
+  path: '/{orderId}/refunds',
+  tags: ['Orders'],
+  summary: 'List refunds for an order',
+  security: [{ bearerAuth: ["legacy sk_","admin:store"] }],
+  middleware: [adminOnly] as const,
+  request: { params: OrderIdParam },
+  responses: {
+    200: {
+      content: { 'application/json': { schema: z.array(z.object({
+        id: z.string(),
+        stripe_refund_id: z.string(),
+        amount_cents: z.number(),
+        currency: z.string(),
+        reason: z.string().nullable(),
+        notes: z.string().nullable(),
+        status: z.string(),
+        created_at: z.string(),
+      })) } },
+      description: 'List of refunds',
+    },
+    404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Order not found' },
+  },
+});
+
+adminApp.openapi(listRefunds, async (c) => {
+  const { orderId } = c.req.valid('param');
+  const db = getDb(c.var.db);
+
+  const [order] = await db.query<{ id: string }>(`SELECT id FROM orders WHERE id = ?`, [orderId]);
+  if (!order) throw ApiError.notFound('Order not found');
+
+  const refunds = await db.query(
+    `SELECT id, stripe_refund_id, amount_cents, currency, reason, notes, status, created_at
+     FROM refunds WHERE order_id = ? ORDER BY created_at DESC`,
+    [orderId]
+  );
+  return c.json(refunds);
 });
 
 const createTestOrder = createRoute({

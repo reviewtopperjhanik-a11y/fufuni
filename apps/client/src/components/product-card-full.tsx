@@ -20,6 +20,7 @@ import React, { useRef, useState } from "react";
 import { StoreProduct } from "@/lib/store-api";
 import { useTranslation } from "react-i18next";
 import { useCart } from "@/hooks/use-cart";
+import { useCartDrawer } from "@/contexts/cart-drawer-context";
 import { formatMoney } from "@/utils/currency";
 import { resolveDescription, resolveTitle, resolveVendor, resolveTags, resolveHandle, getTaxNameForLocale } from "@/utils/description";
 import { Button } from "@heroui/react";
@@ -40,6 +41,7 @@ interface Props {
 export const ProductCardFull: React.FC<Props> = ({ product }) => {
   const { t, i18n } = useTranslation();
   const { addItem } = useCart();
+  const { open: openCartDrawer } = useCartDrawer();
   const reviewsRef = useRef<HTMLDivElement>(null);
 
   // Local state for managing variant selection
@@ -272,6 +274,7 @@ export const ProductCardFull: React.FC<Props> = ({ product }) => {
             image_url: variant.thumbnail_url ?? variant.image_url ?? product.image_url,
             qty: 1,
           });
+          openCartDrawer();
         }}
         variant="primary"
         className="rounded-md w-full"

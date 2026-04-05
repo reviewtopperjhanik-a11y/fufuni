@@ -81,27 +81,35 @@ export function CartDrawer({ isOpen, onClose }: CartDrawerProps) {
                         {formatMoney(item.price_cents, item.currency ?? "EUR")}
                       </p>
                       <div className="flex items-center gap-2 mt-3">
-                        <button
-                          className="w-6 h-6 flex items-center justify-center border border-border text-xs hover:bg-default transition-colors"
-                          onClick={() =>
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="bordered"
+                          radius="none"
+                          className="w-6 h-6 min-w-0 text-xs"
+                          aria-label="Diminuer la quantité"
+                          onPress={() =>
                             item.qty > 1
                               ? updateQuantity(item.sku, item.qty - 1)
                               : removeItem(item.sku)
                           }
                         >
                           −
-                        </button>
-                        <span className="font-sans text-sm w-4 text-center">
+                        </Button>
+                        <span className="font-sans text-sm w-4 text-center select-none">
                           {item.qty}
                         </span>
-                        <button
-                          className="w-6 h-6 flex items-center justify-center border border-border text-xs hover:bg-default transition-colors"
-                          onClick={() =>
-                            updateQuantity(item.sku, item.qty + 1)
-                          }
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="bordered"
+                          radius="none"
+                          className="w-6 h-6 min-w-0 text-xs"
+                          aria-label="Augmenter la quantité"
+                          onPress={() => updateQuantity(item.sku, item.qty + 1)}
                         >
                           +
-                        </button>
+                        </Button>
                       </div>
                     </div>
                     <p className="font-semibold text-sm shrink-0">

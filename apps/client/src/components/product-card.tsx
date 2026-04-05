@@ -23,6 +23,7 @@ import { Star } from "lucide-react";
 import { StoreProduct } from "@/lib/store-api";
 import { useTranslation } from "react-i18next";
 import { useCart } from "@/hooks/use-cart";
+import { useCartDrawer } from "@/contexts/cart-drawer-context";
 import { formatMoney } from "@/utils/currency";
 import { resolveTitle } from "@/utils/description";
 import { ProductImage } from "@/components/product-image";
@@ -44,6 +45,7 @@ export const ProductCard: React.FC<Props> = ({
 }) => {
   const { t, i18n } = useTranslation();
   const { addItem } = useCart();
+  const { open: openCartDrawer } = useCartDrawer();
   const navigate = useNavigate();
 
   const displayTitle = resolveTitle(product.title, i18n.language);
@@ -156,6 +158,7 @@ export const ProductCard: React.FC<Props> = ({
                 image_url: variant.thumbnail_url ?? variant.image_url ?? product.image_url,
                 qty: 1,
               });
+              openCartDrawer();
             }}
             variant="primary"
             className="rounded-md flex-1 text-sm"

@@ -380,8 +380,12 @@ CREATE TABLE IF NOT EXISTS refunds (
   order_id TEXT NOT NULL REFERENCES orders(id),
   stripe_refund_id TEXT NOT NULL,
   amount_cents INTEGER NOT NULL,
+  currency TEXT NOT NULL DEFAULT 'EUR',
+  reason TEXT CHECK(reason IN ('duplicate', 'fraudulent', 'requested_by_customer')),
+  notes TEXT,
   status TEXT NOT NULL,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE TABLE IF NOT EXISTS discount_usage (
@@ -1164,6 +1168,17 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
             INSERT INTO order_email_settings_new SELECT * FROM order_email_settings;
             DROP TABLE order_email_settings;
             ALTER TABLE order_email_settings_new RENAME TO order_email_settings;
+          `,
+        },
+        // ── Migration 034 ── Enrich refunds table ─────────────────────────────
+        {
+          name: '034_enrich_refunds',
+          sql: `
+            ALTER TABLE refunds ADD COLUMN currency TEXT NOT NULL DEFAULT 'EUR';
+            ALTER TABLE refunds ADD COLUMN reason TEXT CHECK(reason IN ('duplicate', 'fraudulent', 'requested_by_customer'));
+            ALTER TABLE refunds ADD COLUMN notes TEXT;
+            ALTER TABLE refunds ADD COLUMN updated_at TEXT NOT NULL DEFAULT (datetime('now'));
+            CREATE INDEX IF NOT EXISTS idx_refunds_order_id_created ON refunds(order_id, created_at DESC);
           `,
         },
       ];

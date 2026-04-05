@@ -796,6 +796,9 @@ const TOPICS: Topic[] = [
       'The frontend navbar items and their visibility are driven by siteConfig() in apps/client/src/config/site.ts — each navItem has a permissions[] array. Add a new page by adding an entry there.',
       'Fufuni is designed to run 100% free: Cloudflare Workers free tier (100k req/day), Durable Object SQLite (included), R2 free tier (10 GB/month), KV free tier (100k reads/day), Auth0 free tenant (7500 MAU), GitHub Pages for the frontend, and Mailgun 3000 emails/month. No credit card required.',
       'Three GitHub Actions workflows automate the full deployment: (1) deploy-cloudflare-worker.yaml (push to main → Worker deploy, needs CLOUDFLARE_API_TOKEN + CLOUDFLARE_ACCOUNT_ID secrets); (2) pages.yaml (push to main → GitHub Pages frontend deploy); (3) reset-demo.yaml (manual/scheduled → resets and re-seeds the live demo).',
+      'A fourth workflow ci.yml runs typecheck + ESLint on every pull-request targeting main or develop — it does NOT deploy anything.',
+      'The sitemap is generated dynamically at GET /sitemap.xml by the backend Worker (no auth required). It lists all active products and categories with lastmod. Cloudflare edge caches it for 1 hour.',
+      'UCP capabilities exposed: dev.ucp.shopping.checkout, dev.ucp.shopping.browse, dev.ucp.shopping.catalog, dev.ucp.common.identity_linking, dev.ucp.shopping.order. Browse and catalog endpoints: GET /ucp/v1/products, GET /ucp/v1/products/:id, GET /ucp/v1/categories. Shipping estimation: POST /ucp/v1/checkout-sessions/:id/estimate-shipping.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below is the root README and the Hono application entry point of the Fufuni framework.
@@ -833,6 +836,7 @@ Keep it under 600 words. Use Markdown headings level 2 (##) and 3 (###).
       'Fufuni does NOT use Drizzle ORM or any query builder. All queries are raw SQL strings passed to db.query<T>(sql, params) or db.run(sql, params) from the getDb() helper.',
       'Per-user theme is stored in Auth0 user_metadata (JWT custom claim), NOT in the store_themes DB table. The store_themes table holds merchant-level default theme configuration.',
       'getDb(c.var.db) returns a Database object with query<T>(sql, params?): Promise<T[]> and run(sql, params?): Promise<{changes}> — both proxy to the Durable Object via RPC.',
+      'Migration 034 added currency, reason (duplicate|fraudulent|requested_by_customer), notes, and updated_at to the existing refunds table. The refunds table now fully tracks partial refunds with audit trail.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below is the source of the Durable Object class (do.ts).  It contains the SCHEMA
@@ -870,7 +874,7 @@ Do not include any DDL code — summarise in tables and prose only.
 `,
     manualFacts: [
       'Every schema change MUST be applied in three places: (1) the SCHEMA constant in do.ts — full DDL with CREATE TABLE IF NOT EXISTS; (2) a migration block in ensureInitialized() in do.ts that uses a migrations table to track what has already been applied; (3) a numbered SQL file in apps/merchant/migrations/ for forward-compatibility tooling.',
-      'Migration files are named NNN-description.sql where NNN is a zero-padded 3-digit integer (e.g. 034-add-tags.sql). The current highest migration is 033.',
+      'Migration files are named NNN-description.sql where NNN is a zero-padded 3-digit integer (e.g. 034-add-tags.sql). The current highest migration is 034.',
       'The migration record name stored in the migrations table must match the SQL file stem exactly (e.g. "033-order-email-settings-add-pending-paid").',
       'ensureInitialized() is synchronous (no await) because Durable Object SQL is synchronous. Use this.sql.exec() directly, not db.run().',
       'Always use IF NOT EXISTS on CREATE TABLE and CREATE INDEX to make migrations idempotent.',
@@ -1135,7 +1139,9 @@ Include:
       'The LoginModal component handles both email/passwordless and social login. Show it instead of redirecting when you want the user to stay on the current page after login.',
       'Reusable display components (apps/client/src/components/): ProductCard (compact list card), ProductCardFull (detail view with variant selector, tax info), ProductImage (square image with fallback and variant-count badge), ProductReviews (review list + gated write form), CategoryBentoGrid (category landing 5-tile bento layout), ProductCarousel (horizontal snap-scroll product strip).',
       'ImageUploadInput (apps/client/src/components/image-upload-input.tsx) handles the full image upload flow: file picker, WebP conversion, auto-select base64 vs R2 based on size, preview, manual URL input, thumbnail generation. Use it for any admin image field.',
-      'apps/client/src/provider.tsx wraps the app with exactly three providers in order: StoreThemeProvider (custom theme) > Toast.Provider (HeroUI toasts) > CartProvider (cart context). Auth0Provider is NOT in provider.tsx — authentication is initialised in the auth feature module.',
+      'apps/client/src/provider.tsx wraps the app with exactly four providers in order: StoreThemeProvider (custom theme) > Toast.Provider (HeroUI toasts) > CartProvider (cart context) > CartDrawerProvider (global cart drawer open/close state). Auth0Provider is NOT in provider.tsx — authentication is initialised in the auth feature module.',
+      'CartDrawerProvider (apps/client/src/contexts/cart-drawer-context.tsx) exposes useCartDrawer() which returns { isOpen, open, close }. ProductCard and ProductCardFull call open() after addItem() to auto-open the cart drawer. DefaultLayout consumes isOpen/open/close to wire Navbar and CartDrawer.',
+      'useSeoMeta (apps/client/src/hooks/use-seo-meta.ts) dynamically sets <title> and Open Graph meta tags. Used in ProductPage and any page that needs per-route SEO without react-helmet.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are the React application entry files, site config, and navbar.
@@ -1299,6 +1305,9 @@ Include:
       'checkout.session.completed is the Stripe event that finalizes the order on the backend (/stripe route).',
       'Guest checkout does not require a JWT — only the order_token is needed to view the order afterwards.',
       'ucp_checkout_sessions stores the intermediate state between session creation and finalization.',
+      'UCP tax computation: computeTax() queries the default region tax rate (tax_rates JOIN regions WHERE is_default=1) and adds a tax line item to totals. grand_total = subtotal + taxAmount. Previously grand_total incorrectly equalled subtotal.',
+      'UCP browse capability (dev.ucp.shopping.browse): GET /ucp/v1/products supports limit, offset, category (handle), q (full-text search). GET /ucp/v1/products/:id returns single product with variants. GET /ucp/v1/categories returns all active categories with sort_order.',
+      'UCP shipping estimation: POST /ucp/v1/checkout-sessions/:id/estimate-shipping accepts {country_code} and returns shipping_options[] from the shipping_rates table for that country, ordered by price ASC.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are the checkout, UCP routes and schemas.
@@ -1332,6 +1341,8 @@ Include:
     manualFacts: [
       'Order statuses are defined in apps/client/src/config/order-status.ts on the frontend and in the 001-add-order-statuses.sql migration on the backend. The 7 statuses are: "pending" (warning), "paid" (success), "processing" (accent), "shipped" (accent), "delivered" (success), "refunded" (danger), "canceled" (danger). The colour is used by the status badge component.',
       'A refund goes through Stripe then updates the status in the DB — never modify the DB directly without going through the Stripe API.',
+      'Refund route: POST /v1/orders/:orderId/refund. Body: { amount_cents? (omit for full), reason? (duplicate|fraudulent|requested_by_customer, default requested_by_customer), notes? }. If amount_cents < total_cents → status becomes "partially_refunded"; otherwise → "refunded". Full refunds fire the order.refunded webhook and send a status email.',
+      'GET /v1/orders/:orderId/refunds lists all refunds for an order (admin auth required). Returns id, stripe_refund_id, amount_cents, currency, reason, notes, status, created_at.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are the files defining the orders lifecycle.

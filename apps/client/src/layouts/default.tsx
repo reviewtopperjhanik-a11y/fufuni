@@ -28,6 +28,7 @@ import { JWTPayload, jwtVerify } from "jose";
 import { getLocalJwkSet } from "@/features/auth/utils/jwks";
 import { Navbar } from "@/components/navbar";
 import { CartDrawer } from "@/components/cart-drawer";
+import { useCartDrawer } from "@/contexts/cart-drawer-context";
 import { ThemeSwitcher } from "@/components/ui/theme-switcher";
 import { UserTechnicalInfoModal } from "@/shared/ui/user-technical-info";
 import { LoginLogoutLink } from "@/authentication";
@@ -50,7 +51,7 @@ export default function DefaultLayout({
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [decodedToken, setDecodedToken] = useState<JWTPayload | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isCartOpen, setIsCartOpen] = useState(false);
+  const { isOpen: isCartOpen, open: openCart, close: closeCart } = useCartDrawer();
   const decodedTokenCacheRef = useRef<Map<string, JWTPayload>>(new Map());
   const accessTokenRef = useRef<string | null>(null);
 
@@ -163,8 +164,8 @@ export default function DefaultLayout({
 
   return (
     <div className="relative flex flex-col h-screen">
-      <Navbar onCartOpen={() => setIsCartOpen(true)} />
-      <CartDrawer isOpen={isCartOpen} onClose={setIsCartOpen} />
+      <Navbar onCartOpen={openCart} />
+      <CartDrawer isOpen={isCartOpen} onClose={(v) => { if (!v) closeCart(); }} />
       <main className="container mx-auto max-w-7xl px-6 grow pt-16">
         {children}
       </main>

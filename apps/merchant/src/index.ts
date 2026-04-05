@@ -54,6 +54,7 @@ import { adminTaxRates } from './routes/tax-rates';
 import { ApiError, type Env, type DOStub } from './types';
 import { MerchantDO } from './do';
 import { adminMails } from './routes/mails';
+import { sitemapRouter } from './routes/sitemap';
 
 export { MerchantDO };
 
@@ -100,6 +101,7 @@ app.use('/v1/products', kvInvalidateMiddleware);
 app.use('/v1/products/*', kvInvalidateMiddleware);
 
 // Mount public routes BEFORE authentication middleware
+app.route('/', sitemapRouter);         // /sitemap.xml — no auth
 app.route('/v1/orders', publicOrders);
 app.route('/v1/categories', publicCategories);
 

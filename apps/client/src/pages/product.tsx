@@ -33,6 +33,7 @@ import { getProduct, StoreProduct } from "@/lib/store-api";
 import { ProductCardFull } from "@/components/product-card-full";
 import { useCategories } from "@/hooks/use-categories";
 import { resolveTitle } from "@/utils/description";
+import { useSeoMeta } from "@/hooks/use-seo-meta";
 
 export default function ProductPage() {
   const { t, i18n } = useTranslation();
@@ -64,6 +65,20 @@ export default function ProductPage() {
     : "";
 
   const displayTitle = product ? resolveTitle(product.title, i18n.language) : "";
+
+  // Lowest-price variant for SEO structured data
+  const lowestVariant = product?.variants?.slice().sort(
+    (a, b) => (a.price_cents ?? 0) - (b.price_cents ?? 0)
+  )[0];
+
+  useSeoMeta({
+    title: displayTitle || 'Product',
+    description: product?.description?.replace(/<[^>]+>/g, '').slice(0, 160),
+    imageUrl: product?.image_url ?? undefined,
+    type: 'product',
+    priceCents: lowestVariant?.price_cents,
+    currency: lowestVariant?.currency ?? undefined,
+  });
 
   return (
     <DefaultLayout>

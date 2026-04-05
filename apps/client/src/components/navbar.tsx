@@ -235,6 +235,33 @@ export const Navbar = ({ onCartOpen }: NavbarProps = {}) => {
 
         {/* Mobile Menu Icon */}
         <div className="sm:hidden flex gap-4 items-center ml-auto">
+          {/* Cart icon — mirrors desktop behaviour */}
+          {onCartOpen ? (
+            <button
+              aria-label="Ouvrir le panier"
+              className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
+              onClick={onCartOpen}
+            >
+              <Badge.Anchor>
+                <ShoppingCart size={20} />
+                {cartCount > 0 && (
+                  <Badge size="sm" color="danger" variant="primary">{cartCount.toString()}</Badge>
+                )}
+              </Badge.Anchor>
+            </button>
+          ) : (
+            <RouterLink
+              to="/cart"
+              className="inline-flex items-center text-foreground hover:opacity-80 transition-opacity"
+            >
+              <Badge.Anchor>
+                <ShoppingCart size={20} />
+                {cartCount > 0 && (
+                  <Badge size="sm" color="danger" variant="primary">{cartCount.toString()}</Badge>
+                )}
+              </Badge.Anchor>
+            </RouterLink>
+          )}
           <button
             onClick={() => setIsLoginModalOpen(true)}
             className="text-foreground hover:opacity-80 transition-opacity"

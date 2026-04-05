@@ -152,6 +152,8 @@ function ucpEnvelope(capabilities: { name: string; version: string }[]) {
 function activeCapabilities(): { name: string; version: string }[] {
   return [
     { name: 'dev.ucp.shopping.checkout', version: UCP_VERSION },
+    { name: 'dev.ucp.shopping.browse', version: UCP_VERSION },
+    { name: 'dev.ucp.shopping.catalog', version: UCP_VERSION },
     { name: 'dev.ucp.common.identity_linking', version: UCP_VERSION },
     { name: 'dev.ucp.shopping.order', version: UCP_VERSION },
   ];
@@ -178,6 +180,36 @@ async function getStripeConfig(db: Database): Promise<{ secretKey: string | null
   } catch {
     return { secretKey: null, webhookSecret: null };
   }
+}
+
+interface TaxResult {
+  taxAmount: number;
+  taxRate: number;
+  taxLabel: string;
+}
+
+/**
+ * Looks up the default region tax rate and computes the tax amount.
+ * Returns { taxAmount: 0 } if no default region or tax rate configured.
+ */
+async function computeTax(db: Database, subtotal: number): Promise<TaxResult> {
+  const [defaultTax] = await db.query<{ rate: number; name: string }>(
+    `SELECT tr.rate, tr.name
+     FROM tax_rates tr
+     JOIN regions r ON r.id = tr.region_id
+     WHERE r.is_default = 1
+     LIMIT 1`,
+    []
+  );
+  if (!defaultTax || defaultTax.rate === 0) {
+    return { taxAmount: 0, taxRate: 0, taxLabel: '' };
+  }
+  const taxAmount = Math.round(subtotal * (defaultTax.rate / 100));
+  return {
+    taxAmount,
+    taxRate: defaultTax.rate,
+    taxLabel: defaultTax.name || `TVA ${defaultTax.rate}%`,
+  };
 }
 
 // ============================================================
@@ -389,6 +421,14 @@ ucp.post('/ucp/v1/checkout-sessions', async (c) => {
   }
   
   // Store session
+  const { taxAmount, taxLabel } = await computeTax(db, subtotal);
+  const grandTotal = subtotal + taxAmount;
+  const totalsForStore: UCPTotal[] = [
+    { type: 'subtotal', amount: subtotal, currency: currency.toUpperCase() },
+    ...(taxAmount > 0 ? [{ type: 'tax' as const, amount: taxAmount, currency: currency.toUpperCase(), label: taxLabel }] : []),
+    { type: 'grand_total', amount: grandTotal, currency: currency.toUpperCase() },
+  ];
+
   await db.run(
     `INSERT INTO ucp_checkout_sessions (id, status, currency, line_items, buyer, totals, messages, expires_at, created_at, updated_at)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -398,10 +438,7 @@ ucp.post('/ucp/v1/checkout-sessions', async (c) => {
       currency.toUpperCase(),
       JSON.stringify(resolvedItems),
       JSON.stringify(buyer || null),
-      JSON.stringify([
-        { type: 'subtotal', amount: subtotal, currency: currency.toUpperCase() },
-        { type: 'grand_total', amount: subtotal, currency: currency.toUpperCase() },
-      ]),
+      JSON.stringify(totalsForStore),
       JSON.stringify(messages),
       expiresAt,
       now(),
@@ -433,10 +470,7 @@ ucp.post('/ucp/v1/checkout-sessions', async (c) => {
     currency: currency.toUpperCase(),
     line_items: resolvedItems,
     buyer: buyer || undefined,
-    totals: [
-      { type: 'subtotal', amount: subtotal, currency: currency.toUpperCase() },
-      { type: 'grand_total', amount: subtotal, currency: currency.toUpperCase() },
-    ],
+    totals: totalsForStore,
     messages,
     links: [
       { rel: 'privacy_policy', href: `${baseUrl}/privacy`, title: 'Privacy Policy' },
@@ -612,9 +646,12 @@ ucp.put('/ucp/v1/checkout-sessions/:id', async (c) => {
     status = 'ready_for_complete';
   }
   
+  const { taxAmount: updatedTaxAmount, taxLabel: updatedTaxLabel } = await computeTax(db, subtotal);
+  const updatedGrandTotal = subtotal + updatedTaxAmount;
   const totals = [
     { type: 'subtotal', amount: subtotal, currency: activeCurrency },
-    { type: 'grand_total', amount: subtotal, currency: activeCurrency },
+    ...(updatedTaxAmount > 0 ? [{ type: 'tax' as const, amount: updatedTaxAmount, currency: activeCurrency, label: updatedTaxLabel }] : []),
+    { type: 'grand_total', amount: updatedGrandTotal, currency: activeCurrency },
   ];
   
   await db.run(
@@ -823,6 +860,144 @@ ucp.delete('/ucp/v1/checkout-sessions/:id', async (c) => {
       { rel: 'terms_of_service', href: `${baseUrl}/terms`, title: 'Terms of Service' },
     ],
     payment: { handlers: [] },
+  });
+});
+
+// ============================================================
+// UCP BROWSE CAPABILITY — catalog &amp; product browsing for AI agents
+// ============================================================
+
+ucp.get('/ucp/v1/products', async (c) => {
+  const db = getDb(c.var.db);
+  const { limit = '20', offset = '0', category, q } = c.req.query();
+  const lim = Math.min(parseInt(limit, 10) || 20, 100);
+  const off = Math.max(parseInt(offset, 10) || 0, 0);
+
+  let sql = `
+    SELECT p.id, p.title, p.description, p.thumbnail_url, p.image_url,
+           MIN(vp.price_cents) as min_price_cents,
+           cur.code as currency_code
+    FROM products p
+    LEFT JOIN variants v ON v.product_id = p.id
+    LEFT JOIN variant_prices vp ON vp.variant_id = v.id
+    LEFT JOIN currencies cur ON cur.id = vp.currency_id
+    WHERE p.active = 1
+  `;
+  const params: unknown[] = [];
+
+  if (q) {
+    sql += ` AND (p.title LIKE ? OR p.description LIKE ?)`;
+    params.push(`%${q}%`, `%${q}%`);
+  }
+  if (category) {
+    sql += `
+      AND EXISTS (
+        SELECT 1 FROM product_categories pc
+        JOIN categories cat ON cat.id = pc.category_id
+        WHERE pc.product_id = p.id AND cat.handle = ?
+      )`;
+    params.push(category);
+  }
+
+  sql += ` GROUP BY p.id LIMIT ? OFFSET ?`;
+  params.push(lim, off);
+
+  const items = await db.query(sql, params);
+
+  return c.json({
+    ucp: ucpEnvelope([
+      { name: 'dev.ucp.shopping.browse', version: UCP_VERSION },
+      { name: 'dev.ucp.shopping.catalog', version: UCP_VERSION },
+    ]),
+    items,
+    pagination: { limit: lim, offset: off, count: items.length },
+  });
+});
+
+ucp.get('/ucp/v1/products/:id', async (c) => {
+  const productId = c.req.param('id');
+  const db = getDb(c.var.db);
+
+  const [product] = await db.query<Record<string, unknown>>(
+    `SELECT * FROM products WHERE id = ? AND active = 1`,
+    [productId]
+  );
+  if (!product) throw ApiError.notFound('Product not found');
+
+  const variants = await db.query(
+    `SELECT v.id, v.sku, v.title, v.image_url,
+            vp.price_cents, cur.code as currency
+     FROM variants v
+     LEFT JOIN variant_prices vp ON vp.variant_id = v.id
+     LEFT JOIN currencies cur ON cur.id = vp.currency_id
+     WHERE v.product_id = ? AND v.active = 1`,
+    [productId]
+  );
+
+  return c.json({
+    ucp: ucpEnvelope([
+      { name: 'dev.ucp.shopping.browse', version: UCP_VERSION },
+    ]),
+    product: { ...product, variants },
+  });
+});
+
+ucp.get('/ucp/v1/categories', async (c) => {
+  const db = getDb(c.var.db);
+  const categories = await db.query(
+    `SELECT id, handle, name, parent_id, image_url
+     FROM categories WHERE active = 1 ORDER BY sort_order ASC, name ASC`,
+    []
+  );
+  return c.json({
+    ucp: ucpEnvelope([{ name: 'dev.ucp.shopping.catalog', version: UCP_VERSION }]),
+    categories,
+  });
+});
+
+// ============================================================
+// UCP SHIPPING ESTIMATION
+// ============================================================
+
+ucp.post('/ucp/v1/checkout-sessions/:id/estimate-shipping', async (c) => {
+  const sessionId = c.req.param('id');
+  const body = await c.req.json();
+  const countryCode: string = body.country_code;
+  if (!countryCode) throw ApiError.invalidRequest('country_code is required');
+
+  const db = getDb(c.var.db);
+
+  const [session] = await db.query<{ id: string; currency: string; status: string }>(
+    `SELECT id, currency, status FROM ucp_checkout_sessions WHERE id = ?`,
+    [sessionId]
+  );
+  if (!session) throw ApiError.notFound('Checkout session not found');
+  if (['completed', 'canceled'].includes(session.status)) {
+    throw ApiError.invalidRequest(`Cannot estimate shipping for ${session.status} session`);
+  }
+
+  const rates = await db.query<{
+    id: string; name: string | null; price_cents: number; estimated_days: number | null;
+  }>(
+    `SELECT sr.id, sr.name, sr.price_cents, sr.estimated_days
+     FROM shipping_rates sr
+     JOIN regions r ON r.id = sr.region_id
+     JOIN region_countries rc ON rc.region_id = r.id
+     JOIN countries c ON c.id = rc.country_id
+     WHERE c.iso_code = ? AND sr.active = 1
+     ORDER BY sr.price_cents ASC`,
+    [countryCode.toUpperCase()]
+  );
+
+  return c.json({
+    ucp: ucpEnvelope([{ name: 'dev.ucp.shopping.checkout', version: UCP_VERSION }]),
+    shipping_options: rates.map(rate => ({
+      id: rate.id,
+      name: rate.name ?? 'Standard Shipping',
+      price_cents: rate.price_cents,
+      currency: session.currency,
+      estimated_days: rate.estimated_days ?? null,
+    })),
   });
 });
 
