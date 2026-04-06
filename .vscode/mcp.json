@@ -28,6 +28,9 @@
         "-y",
         "@heroui/react-mcp@latest"
       ]
+    },
+    "onshape": {
+      "command": "/Users/rlemeill/Library/Application Support/Claude/mcp/onshape-mcp"
     }
   },
 }

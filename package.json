@@ -8,7 +8,8 @@
     "apps/merchant/example",
     "apps/client",
     "apps/cloudflare-worker",
-    "apps/mcp"
+    "apps/mcp",
+    "e2e"
   ],
   "devDependencies": {
     "@auth0/auth0-mcp-server": "^0.1.0-beta.10",

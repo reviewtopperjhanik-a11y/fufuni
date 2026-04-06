@@ -1,0 +1,24 @@
+{
+  "name": "@fufuni/e2e",
+  "private": true,
+  "scripts": {
+    "postinstall": "npx playwright install --with-deps chromium firefox",
+    "install:browsers": "npx playwright install --with-deps chromium firefox",
+    "test": "playwright test",
+    "test:public": "playwright test --project=public-chromium",
+    "test:auth": "playwright test --project=auth-user",
+    "test:admin": "playwright test --project=auth-admin",
+    "test:dev": "PLAYWRIGHT_ENV=local playwright test",
+    "test:dev:public": "PLAYWRIGHT_ENV=local playwright test --project=public-chromium",
+    "test:dev:auth": "PLAYWRIGHT_ENV=local playwright test --project=auth-user",
+    "test:dev:admin": "PLAYWRIGHT_ENV=local playwright test --project=auth-admin",
+    "test:demo": "PLAYWRIGHT_BASE_URL=https://sctg-development.github.io/fufuni/ playwright test",
+    "test:url": "playwright test",
+    "report": "playwright show-report ../playwright-report",
+    "codegen": "playwright codegen",
+    "codegen:dev": "PLAYWRIGHT_ENV=local playwright codegen http://localhost:5173"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.59.1"
+  }
+}
