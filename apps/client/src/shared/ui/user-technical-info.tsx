@@ -25,6 +25,7 @@ import { Separator } from "@heroui/react";
 import { ScrollShadow } from "@heroui/react";
 import { Button } from "@heroui/react";
 import { Tooltip } from "@heroui/react";
+import { Download } from "lucide-react";
 import { JWTPayload } from "jose";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router-dom";
@@ -33,6 +34,9 @@ import { CopyButton } from "@/shared/ui/buttons/copy-button";
 import { AuthenticationGuardWithPermission } from "@/authentication";
 import { useTokenRefresh } from "@/hooks/use-token-refresh";
 
+/**
+ * Props for the technical information modal displayed to authenticated users.
+ */
 interface UserTechnicalInfoModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -42,6 +46,11 @@ interface UserTechnicalInfoModalProps {
   onTokenRefreshed?: (newToken: string) => Promise<void>;
 }
 
+/**
+ * Format an Auth0 expiry timestamp as a localized French date string.
+ * @param exp Unix timestamp in seconds
+ * @returns Localized formatted expiration date string
+ */
 function formatExpiry(exp: number): string {
   return new Date(exp * 1000).toLocaleString("fr-FR", {
     day: "2-digit",
@@ -52,10 +61,21 @@ function formatExpiry(exp: number): string {
   });
 }
 
+/**
+ * Compute how many seconds remain until the token expires.
+ * @param exp Expiration timestamp in seconds
+ * @returns Remaining seconds until expiry, or 0 if already expired
+ */
 function getSecondsLeft(exp: number): number {
   return Math.max(0, Math.floor(exp - Date.now() / 1000));
 }
 
+/**
+ * Format a duration from seconds into a human-readable string.
+ * @param seconds Duration in seconds
+ * @param t Translation function used for day pluralization
+ * @returns Formatted duration string in HH:mm:ss or D days HH:mm:ss
+ */
 function formatDuration(seconds: number, t: any): string {
   const days = Math.floor(seconds / (24 * 3600));
   const hours = Math.floor((seconds % (24 * 3600)) / 3600);
@@ -74,10 +94,118 @@ function formatDuration(seconds: number, t: any): string {
 }
 
 /**
- * Developer / support modal that displays Auth0 profile info, JWT claims, and
- * token expiry for a logged-in user. Also exposes a manual token-refresh button.
- * Intended for admin / debug use only; guard rendering with an appropriate
- * permission check.
+ * Export the current Auth0 browser session into a Playwright storage state ZIP.
+ * @param userEmail The email of the authenticated user
+ * @param permissions Auth0 permission claims from the current token payload
+ */
+async function exportAuth0PlaywrightSession(
+  userEmail: string,
+  permissions: string[],
+): Promise<void> {
+  const localStorageEntries: { name: string; value: string }[] = [];
+
+  for (let i = 0; i < localStorage.length; i += 1) {
+    const key = localStorage.key(i);
+    if (!key) continue;
+    if (key.startsWith("@@auth0spajs@@") || key.startsWith("auth0.")) {
+      const value = localStorage.getItem(key);
+      if (value !== null) {
+        localStorageEntries.push({ name: key, value });
+      }
+    }
+  }
+
+  const cookieEntries = document.cookie
+    .split(";")
+    .map((cookie) => cookie.trim())
+    .filter(Boolean)
+    .map((cookie) => {
+      const separatorIndex = cookie.indexOf("=");
+      if (separatorIndex === -1) {
+        return {
+          name: cookie,
+          value: "",
+          domain: window.location.hostname,
+          path: "/",
+          secure: window.location.protocol === "https:",
+          httpOnly: false,
+          sameSite: "Lax" as const,
+        };
+      }
+
+      return {
+        name: cookie.substring(0, separatorIndex),
+        value: cookie.substring(separatorIndex + 1),
+        domain: window.location.hostname,
+        path: "/",
+        secure: window.location.protocol === "https:",
+        httpOnly: false,
+        sameSite: "Lax" as const,
+      };
+    });
+
+  const storageState = {
+    cookies: cookieEntries,
+    origins: [
+      {
+        origin: window.location.origin,
+        localStorage: localStorageEntries,
+      },
+    ],
+  };
+
+  const role = permissions.includes(
+    import.meta.env.ADMIN_AUTH0_PERMISSION as string,
+  )
+    ? "admin"
+    : "user";
+
+  const readme = [
+    "# Auth0 Playwright Session",
+    "",
+    `**Email :** ${userEmail}`,
+    `**Role :** ${role}`,
+    `**Permissions :** ${permissions.join(", ") || "none"}`,
+    `**Exported on :** ${new Date().toISOString()}`,
+    "",
+    "## Usage in Playwright",
+    "",
+    "```typescript",
+    "// playwright.config.ts",
+    "use: {",
+    `  storageState: './e2e/fixtures/storage-state-${role}.json',`,
+    "},",
+    "```",
+    "",
+    "```typescript",
+    "// In a specific test",
+    `test.use({ storageState: './e2e/fixtures/storage-state-${role}.json' });`,
+    "```",
+    "",
+    "> ⚠️  This file contains authentication tokens.",
+    "> Do not commit this file to the repository.",
+    "> Add `e2e/fixtures/storage-state-*.json` to `.gitignore`.",
+  ].join("\n");
+
+  const JSZip = (await import("jszip")).default;
+  const zip = new JSZip();
+  zip.file("storage-state.json", JSON.stringify(storageState, null, 2));
+  zip.file("README.md", readme);
+
+  const blob = await zip.generateAsync({ type: "blob" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  const safeEmail = userEmail.replace(/[^a-z0-9]/gi, "-").toLowerCase();
+  a.href = url;
+  a.download = `auth0-session-${safeEmail}-${role}.zip`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Modal component exposing user technical info, token status, and E2E export utilities.
+ * It displays Auth0 profile info, JWT claims, token expiry, and an E2E export action.
+ * Intended for admin / debug use only; render only with the appropriate permission guard.
  */
 export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
   ({ isOpen, onClose, user, accessToken, tokenPayload, onTokenRefreshed }) => {
@@ -279,6 +407,41 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                         </div>
                       </>
                     )}
+
+                    <Separator className="my-2" />
+
+                    {/* Playwright session export for E2E debugging */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-default-400 uppercase tracking-wider font-bold">
+                          Playwright
+                        </p>
+                        <Tooltip>
+                          <Tooltip.Trigger>
+                            <Button
+                              isIconOnly
+                              className="h-7 w-7 min-w-7 rounded-full bg-warning/10 text-warning-600 hover:bg-warning-soft-hover"
+                              size="sm"
+                              onPress={() =>
+                                exportAuth0PlaywrightSession(
+                                  user.email ?? "",
+                                  permissions,
+                                )
+                              }
+                            >
+                              <Download className="w-4 h-4" />
+                            </Button>
+                          </Tooltip.Trigger>
+                          <Tooltip.Content>
+                            Export Playwright session (.zip)
+                          </Tooltip.Content>
+                        </Tooltip>
+                      </div>
+                      <p className="text-xs text-default-400 leading-relaxed">
+                        Exporte les tokens Auth0 au format <code>storageState</code> Playwright.
+                        Réservé aux tests E2E — ne jamais committer.
+                      </p>
+                    </div>
 
                     <Separator className="my-2" />
 
