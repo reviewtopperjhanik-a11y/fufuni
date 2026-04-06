@@ -270,6 +270,18 @@ ucp.get('/.well-known/ucp', async (c) => {
           schema: 'https://ucp.dev/schemas/shopping/checkout.json',
         },
         {
+          name: 'dev.ucp.shopping.browse',
+          version: UCP_VERSION,
+          spec: 'https://ucp.dev/specification/browse',
+          schema: 'https://ucp.dev/schemas/shopping/browse.json',
+        },
+        {
+          name: 'dev.ucp.shopping.catalog',
+          version: UCP_VERSION,
+          spec: 'https://ucp.dev/specification/catalog',
+          schema: 'https://ucp.dev/schemas/shopping/catalog.json',
+        },
+        {
           name: 'dev.ucp.common.identity_linking',
           version: UCP_VERSION,
           spec: 'https://ucp.dev/specification/identity-linking',
@@ -730,22 +742,20 @@ ucp.post('/ucp/v1/checkout-sessions/:id/complete', async (c) => {
     throw ApiError.invalidRequest(`Cannot complete checkout in ${session.status} state`);
   }
   
-  // Mark as in progress
-  await db.run(
-    `UPDATE ucp_checkout_sessions SET status = 'complete_in_progress', updated_at = ? WHERE id = ?`,
-    [now(), sessionId]
-  );
-  
   const lineItems = JSON.parse(session.line_items || '[]');
   const buyer = JSON.parse(session.buyer || '{}');
   const totals = JSON.parse(session.totals || '[]');
-  const grandTotal = totals.find((t: any) => t.type === 'grand_total')?.amount || 0;
-  
+
   const stripeConfig = await getStripeConfig(db);
-  
+
   // For UCP, we use Stripe Checkout redirect flow
   // The payment_data should indicate the handler being used
   if (stripeConfig.secretKey && payment_data?.handler_id === 'stripe_checkout') {
+    // Mark as in progress only after confirming the handler is valid
+    await db.run(
+      `UPDATE ucp_checkout_sessions SET status = 'complete_in_progress', updated_at = ? WHERE id = ?`,
+      [now(), sessionId]
+    );
     const stripe = new Stripe(stripeConfig.secretKey);
     
     // Create Stripe Checkout Session
@@ -814,8 +824,34 @@ ucp.post('/ucp/v1/checkout-sessions/:id/complete', async (c) => {
     });
   }
   
-  // If no valid payment handler, return error
-  throw ApiError.invalidRequest('No valid payment handler specified');
+  // No valid payment handler — graceful escalation to web checkout
+  const continueUrl = `${baseUrl}/checkout/${sessionId}`;
+  await db.run(
+    `UPDATE ucp_checkout_sessions SET status = 'requires_escalation', updated_at = ? WHERE id = ?`,
+    [now(), sessionId]
+  );
+  return c.json({
+    ucp: ucpEnvelope(activeCapabilities()),
+    id: sessionId,
+    status: 'requires_escalation' as const,
+    currency: session.currency,
+    line_items: lineItems,
+    buyer: buyer || undefined,
+    totals,
+    messages: [{
+      type: 'warning' as const,
+      code: 'no_payment_handler',
+      content: 'No automated payment handler available. Please complete via web checkout.',
+      severity: 'requires_buyer_review',
+    }],
+    links: [
+      { rel: 'privacy_policy', href: `${baseUrl}/privacy`, title: 'Privacy Policy' },
+      { rel: 'terms_of_service', href: `${baseUrl}/terms`, title: 'Terms of Service' },
+    ],
+    payment: { handlers: [] },
+    continue_url: continueUrl,
+    expires_at: session.expires_at,
+  });
 });
 
 // DELETE /ucp/v1/checkout-sessions/:id - Cancel Checkout
@@ -861,6 +897,69 @@ ucp.delete('/ucp/v1/checkout-sessions/:id', async (c) => {
     ],
     payment: { handlers: [] },
   });
+});
+
+// PATCH /ucp/v1/checkout-sessions/:id - Partial update (buyer or quantities)
+ucp.patch('/ucp/v1/checkout-sessions/:id', async (c) => {
+  const sessionId = c.req.param('id');
+  const body = await c.req.json();
+  const db = getDb(c.var.db);
+
+  const [session] = await db.query<any>(
+    `SELECT * FROM ucp_checkout_sessions WHERE id = ?`, [sessionId]
+  );
+  if (!session) throw ApiError.notFound('Checkout session not found');
+  if (['completed', 'canceled'].includes(session.status)) {
+    throw ApiError.invalidRequest(`Cannot update ${session.status} session`);
+  }
+
+  const updates: Record<string, string> = {};
+  const values: unknown[] = [];
+
+  if (body.buyer !== undefined) {
+    const currentBuyer = JSON.parse(session.buyer || 'null') || {};
+    const mergedBuyer  = { ...currentBuyer, ...body.buyer };
+    updates['buyer']   = '?';
+    values.push(JSON.stringify(mergedBuyer));
+  }
+
+  if (body.line_items !== undefined) {
+    const currentItems: UCPLineItem[] = JSON.parse(session.line_items || '[]');
+    const patchedItems = currentItems.map((item: UCPLineItem) => {
+      const patch = body.line_items.find((li: any) => li.id === item.id);
+      if (!patch) return item;
+      const qty = patch.quantity;
+      return {
+        ...item,
+        quantity: qty,
+        total_price: { ...item.unit_price, amount: item.unit_price.amount * qty },
+      };
+    });
+    const newSubtotal = patchedItems.reduce((s: number, i: UCPLineItem) => s + i.total_price.amount, 0);
+    const { taxAmount, taxLabel } = await computeTax(db, newSubtotal);
+    const newGrandTotal = newSubtotal + taxAmount;
+    const newTotals: UCPTotal[] = [
+      { type: 'subtotal', amount: newSubtotal, currency: session.currency },
+      ...(taxAmount > 0 ? [{ type: 'tax' as const, amount: taxAmount, currency: session.currency, label: taxLabel }] : []),
+      { type: 'grand_total', amount: newGrandTotal, currency: session.currency },
+    ];
+    updates['line_items'] = '?';
+    values.push(JSON.stringify(patchedItems));
+    updates['totals'] = '?';
+    values.push(JSON.stringify(newTotals));
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return c.json({ message: 'No fields to update' }, 400);
+  }
+
+  updates['updated_at'] = '?';
+  values.push(now(), sessionId);
+
+  const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+  await db.run(`UPDATE ucp_checkout_sessions SET ${setClauses} WHERE id = ?`, values);
+
+  return c.redirect(`/ucp/v1/checkout-sessions/${sessionId}`, 303);
 });
 
 // ============================================================
@@ -1038,12 +1137,15 @@ export async function handleUCPStripeWebhook(
   const lineItems = JSON.parse(session.line_items || '[]');
   const buyer = JSON.parse(session.buyer || '{}');
   const totals = JSON.parse(session.totals || '[]');
-  const grandTotal = totals.find((t: any) => t.type === 'grand_total')?.amount || 0;
-  
+  const subtotalAmount = totals.find((t: any) => t.type === 'subtotal')?.amount || 0;
+  const taxAmount      = totals.find((t: any) => t.type === 'tax')?.amount      || 0;
+  const shippingAmount = totals.find((t: any) => t.type === 'shipping')?.amount || 0;
+  const grandTotal     = totals.find((t: any) => t.type === 'grand_total')?.amount || 0;
+
   // Get next order number
   const [orderCount] = await db.query<{ cnt: number }>(`SELECT COUNT(*) as cnt FROM orders`, []);
   const orderNumber = `ORD-${String((orderCount?.cnt || 0) + 1).padStart(5, '0')}`;
-  
+
   // Insert order
   await db.run(
     `INSERT INTO orders (id, number, status, customer_email, subtotal_cents, tax_cents, shipping_cents, total_cents, currency, stripe_session_id, items, created_at, updated_at)
@@ -1053,9 +1155,9 @@ export async function handleUCPStripeWebhook(
       orderNumber,
       'paid',
       buyer.email || stripeSession.customer_email,
-      grandTotal,
-      0,
-      0,
+      subtotalAmount,
+      taxAmount,
+      shippingAmount,
       grandTotal,
       session.currency,
       stripeSessionId,
