@@ -1357,13 +1357,34 @@ Include:
 -->
 `,
     manualFacts: [
-      'The endpoint /ucp/v1/checkout-sessions is the unique entry point for checkout; it creates both a CartSession and a Stripe PaymentIntent.',
-      'checkout.session.completed is the Stripe event that finalizes the order on the backend (/stripe route).',
+      // ── Session lifecycle ───────────────────────────────────────────────────
+      'POST /ucp/v1/checkout-sessions creates the session; PUT replaces it fully (re-prices, recomputes tax); PATCH updates it partially (buyer fields or item quantities only, no full re-resolution). GET returns current state. DELETE cancels. All five endpoints are registered via createRoute() + ucp.openapi().',
+      'PATCH /ucp/v1/checkout-sessions/{id}: accepts { buyer?, line_items?: [{id, quantity}] }. Merges buyer fields into the existing JSON blob. For line_items, updates quantities and total_price in place then recomputes totals (subtotal + computeTax). Returns 303 → GET. Rejects completed/canceled sessions with 400.',
+      'ucp_checkout_sessions stores the full intermediate state (line_items, totals, buyer, status) between creation and Stripe finalization.',
+      'UCP checkout statuses: incomplete → ready_for_complete → complete_in_progress → completed. Also: requires_escalation (no handler) and canceled.',
+      // ── Tax, totals & webhook ───────────────────────────────────────────────
+      'UCP tax computation: computeTax() queries the default region tax rate (tax_rates JOIN regions WHERE is_default=1). grand_total = subtotal + taxAmount. The tax line item is omitted from totals[] when taxAmount = 0.',
+      'handleUCPStripeWebhook() (checkout.session.completed): extracts subtotalAmount, taxAmount, shippingAmount independently from session.totals so that orders.subtotal_cents, orders.tax_cents, and orders.shipping_cents are all persisted correctly. Previously tax_cents was always 0.',
+      // ── Stripe / POST /complete fallback ────────────────────────────────────
+      'POST /ucp/v1/checkout-sessions/{id}/complete: if Stripe is configured and handler_id = "stripe_checkout", sets status = complete_in_progress then redirects buyer to Stripe Checkout. If no handler matches (Stripe not configured, unknown handler_id), returns 200 with status = "requires_escalation", continue_url = "{baseUrl}/checkout/{id}", and a warning UCP message — session is NOT set to complete_in_progress so it stays usable.',
+      'checkout.session.completed is the Stripe webhook that finalises the order on the backend. It creates the order row, decrements inventory, and sets session status = completed.',
+      // ── Discovery / capabilities ────────────────────────────────────────────
+      'GET /.well-known/ucp returns 5 capabilities: dev.ucp.shopping.checkout, dev.ucp.shopping.browse, dev.ucp.shopping.catalog, dev.ucp.identity.identity_linking, dev.ucp.shopping.order. These match the output of activeCapabilities() exactly.',
+      // ── Browse & catalog ────────────────────────────────────────────────────
+      'GET /ucp/v1/products: supports limit, offset, category (handle), q (full-text LIKE search on title/description). SQL uses status = \'active\' (not active = 1). Images are resolved as COALESCE(v.thumbnail_url, v.image_url, p.image_url) for thumbnail and COALESCE(v.image_url, p.image_url) for full image — products table has no thumbnail_url column.',
+      'GET /ucp/v1/products/{id}: accepts any of product UUID, product handle, variant UUID, or variant SKU. Resolved via OR compound WHERE with EXISTS sub-select on variants. Returns 404 if no active product matches.',
+      'GET /ucp/v1/categories: returns all active categories ordered by position ASC (column is named position, not sort_order).',
+      // ── Shipping estimation ──────────────────────────────────────────────────
+      'POST /ucp/v1/checkout-sessions/{id}/estimate-shipping accepts { country_code } and returns shipping_options[] from shipping_rates filtered by country, ordered by price ASC.',
+      // ── OpenAPI & schema ─────────────────────────────────────────────────────
+      'All UCP Zod schemas live in apps/merchant/src/routes/ucp-schemas.ts (UCPCheckoutSessionSchema, UCPLineItemSchema, UCPBuyerSchema, UCPTotalSchema, UCPMessageSchema, UCPPaymentHandlerSchema, UCPShippingOptionSchema, etc.). The UCP router is an OpenAPIHono instance so all 11 routes appear automatically in /openapi.json.',
+      'createRoute() path syntax uses OpenAPI braces {id}, not Hono colon :id. @hono/zod-openapi converts {id} → /:id for Hono routing internally but keeps {id} in the generated spec. Using :id produces /:id literally in openapi.json.',
+      'The ucp router is mounted with app.route(\'/\', ucp) (not app.route(\'\', ucp)). The empty-string base causes mergePath to produce double-slash paths (//ucp/v1/...) in the generated openapi.json.',
+      // ── KV cache ─────────────────────────────────────────────────────────────
+      'kvCacheMiddleware is applied to UCP public GET routes: /.well-known/ucp, /ucp/v1/products, /ucp/v1/products/*, /ucp/v1/categories. Only unauthenticated requests or Bearer pk_… tokens are cached; admin JWTs bypass the cache. kvInvalidateMiddleware purges these prefixes on successful product/category mutations.',
+      'X-KV-Cache: HIT is set on the response when it is served from KV. No header is added on a cache miss or bypass — absence of the header means the response was computed live.',
+      // ── Auth ──────────────────────────────────────────────────────────────────
       'Guest checkout does not require a JWT — only the order_token is needed to view the order afterwards.',
-      'ucp_checkout_sessions stores the intermediate state between session creation and finalization.',
-      'UCP tax computation: computeTax() queries the default region tax rate (tax_rates JOIN regions WHERE is_default=1) and adds a tax line item to totals. grand_total = subtotal + taxAmount. Previously grand_total incorrectly equalled subtotal.',
-      'UCP browse capability (dev.ucp.shopping.browse): GET /ucp/v1/products supports limit, offset, category (handle), q (full-text search). GET /ucp/v1/products/:id returns single product with variants. GET /ucp/v1/categories returns all active categories with sort_order.',
-      'UCP shipping estimation: POST /ucp/v1/checkout-sessions/:id/estimate-shipping accepts {country_code} and returns shipping_options[] from the shipping_rates table for that country, ordered by price ASC.',
     ],
     buildPrompt: (src) => appendFacts(`
 Below are the checkout, UCP routes and schemas.
@@ -1372,10 +1393,13 @@ ${src}
 
 Task: Write a "Checkout and UCP Flow" reference.
 Include:
-1. Architecture: How UCP (Universal Checkout Page) sessions relate to Stripe PaymentIntents.
-2. Step-by-step flow from cart to completed order.
-3. Differences between guest checkout and authenticated user checkout.
-4. Handling the Stripe webhook (checkout.session.completed) to finalize the order.
+1. Architecture: How UCP (Universal Checkout Protocol) sessions relate to Stripe PaymentIntents.
+2. Full endpoint inventory: POST, GET, PUT, PATCH, DELETE on sessions + /complete + /estimate-shipping + /.well-known/ucp + browse endpoints.
+3. Step-by-step flow from cart to completed order, including the Stripe webhook finalisation.
+4. Graceful fallback when no payment handler is configured (requires_escalation + continue_url).
+5. Browse capability: how products and categories are queried (status column, image resolution from variants, position ordering).
+6. OpenAPI integration: createRoute() path syntax, OpenAPIHono, ucp-schemas.ts.
+7. KV caching strategy for UCP public routes and the X-KV-Cache header.
 `),
   },
 

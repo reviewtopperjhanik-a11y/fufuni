@@ -95,6 +95,10 @@ app.use('/v1/products', kvCacheMiddleware);
 app.use('/v1/products/*', kvCacheMiddleware);
 app.use('/openapi.json', kvCacheMiddleware);
 app.use('/openapi/*', kvCacheMiddleware);
+app.use('/.well-known/ucp', kvCacheMiddleware);
+app.use('/ucp/v1/products', kvCacheMiddleware);
+app.use('/ucp/v1/products/*', kvCacheMiddleware);
+app.use('/ucp/v1/categories', kvCacheMiddleware);
 app.use('/v1/categories', kvInvalidateMiddleware);
 app.use('/v1/categories/*', kvInvalidateMiddleware);
 app.use('/v1/products', kvInvalidateMiddleware);
@@ -158,7 +162,7 @@ app.route('/v1', adminUserPreferencesRouter);
 app.route('/v1', adminSavedCartsRouter);
 app.route('/oauth', oauth);
 app.route('', oauth);
-app.route('', ucp);
+app.route('/', ucp);
 app.route('/v1/__auth0', adminAuth0);
 
 app.doc31('/openapi.json', {

@@ -23,11 +23,27 @@
  * SOFTWARE.
  */
 
-import { Hono } from 'hono';
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { z } from '@hono/zod-openapi';
 import Stripe from 'stripe';
 import { getDb, type Database } from '../db';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { resolveVariantPrice, getCurrencyIdFromCode } from '../lib/pricing';
+import { ErrorResponse } from '../schemas';
+import {
+  UCPCheckoutSessionSchema,
+  CreateCheckoutBodySchema,
+  UpdateCheckoutBodySchema,
+  PatchCheckoutBodySchema,
+  CompleteCheckoutBodySchema,
+  EstimateShippingBodySchema,
+  SessionIdParamSchema,
+  ProductsQuerySchema,
+  ProductIdParamSchema,
+  UCPShippingOptionSchema,
+  UCPEnvelopeSchema,
+  UCPPaymentHandlerSchema,
+} from './ucp-schemas';
 
 // ============================================================
 // UCP - UNIVERSAL COMMERCE PROTOCOL
@@ -45,7 +61,7 @@ import { resolveVariantPrice, getCurrencyIdFromCode } from '../lib/pricing';
 
 const UCP_VERSION = '2026-01-11';
 
-export const ucp = new Hono<HonoEnv>();
+export const ucp = new OpenAPIHono<HonoEnv>();
 
 // ============================================================
 // TYPES
@@ -216,7 +232,36 @@ async function computeTax(db: Database, subtotal: number): Promise<TaxResult> {
 // /.well-known/ucp - UCP PROFILE ENDPOINT
 // ============================================================
 
-ucp.get('/.well-known/ucp', async (c) => {
+const routeGetUCPProfile = createRoute({
+  method: 'get',
+  path: '/.well-known/ucp',
+  tags: ['UCP'],
+  summary: 'UCP discovery profile',
+  description: 'Returns the UCP capabilities, services, and payment handlers for this merchant.',
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            ucp: z.object({
+              version: z.string(),
+              services: z.record(z.string(), z.unknown()),
+              capabilities: z.array(z.object({
+                name: z.string(),
+                version: z.string(),
+                spec: z.string(),
+                schema: z.string(),
+              })),
+            }),
+            payment: z.object({ handlers: z.array(UCPPaymentHandlerSchema) }),
+          }),
+        },
+      },
+      description: 'UCP profile',
+    },
+  },
+});
+ucp.openapi(routeGetUCPProfile, async (c) => {
   const baseUrl = new URL(c.req.url).origin;
   const db = getDb(c.var.db);
   const stripeConfig = await getStripeConfig(db);
@@ -310,17 +355,24 @@ ucp.get('/.well-known/ucp', async (c) => {
 // ============================================================
 
 // POST /ucp/v1/checkout-sessions - Create Checkout
-ucp.post('/ucp/v1/checkout-sessions', async (c) => {
+const routePostCheckoutSession = createRoute({
+  method: 'post',
+  path: '/ucp/v1/checkout-sessions',
+  tags: ['UCP'],
+  summary: 'Create checkout session',
+  description: 'Creates a UCP checkout session from a list of line items.',
+  request: {
+    body: { content: { 'application/json': { schema: CreateCheckoutBodySchema } } },
+  },
+  responses: {
+    201: { content: { 'application/json': { schema: UCPCheckoutSessionSchema } }, description: 'Checkout session created' },
+    400: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Invalid request' },
+  },
+});
+ucp.openapi(routePostCheckoutSession, async (c) => {
   const ucpAgent = parseUCPAgentHeader(c.req.header('UCP-Agent') || null);
-  const body = await c.req.json();
+  const body = c.req.valid('json');
   const { line_items, buyer, currency, payment } = body;
-  
-  if (!line_items || !Array.isArray(line_items) || line_items.length === 0) {
-    throw ApiError.invalidRequest('line_items is required and must not be empty');
-  }
-  if (!currency) {
-    throw ApiError.invalidRequest('currency is required');
-  }
   
   const db = getDb(c.var.db);
   const baseUrl = new URL(c.req.url).origin;
@@ -497,7 +549,19 @@ ucp.post('/ucp/v1/checkout-sessions', async (c) => {
 });
 
 // GET /ucp/v1/checkout-sessions/:id - Get Checkout
-ucp.get('/ucp/v1/checkout-sessions/:id', async (c) => {
+const routeGetCheckoutSession = createRoute({
+  method: 'get',
+  path: '/ucp/v1/checkout-sessions/{id}',
+  tags: ['UCP'],
+  summary: 'Get checkout session',
+  request: { params: SessionIdParamSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: UCPCheckoutSessionSchema } }, description: 'Checkout session' },
+    404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' },
+  },
+});
+// @ts-expect-error handler returns DB-sourced data whose shape matches the schema at runtime
+ucp.openapi(routeGetCheckoutSession, async (c) => {
   const sessionId = c.req.param('id');
   const db = getDb(c.var.db);
   const baseUrl = new URL(c.req.url).origin;
@@ -561,9 +625,26 @@ ucp.get('/ucp/v1/checkout-sessions/:id', async (c) => {
 });
 
 // PUT /ucp/v1/checkout-sessions/:id - Update Checkout (full replacement)
-ucp.put('/ucp/v1/checkout-sessions/:id', async (c) => {
+const routePutCheckoutSession = createRoute({
+  method: 'put',
+  path: '/ucp/v1/checkout-sessions/{id}',
+  tags: ['UCP'],
+  summary: 'Update checkout session',
+  description: 'Full replacement of line items, buyer, and currency with price re-resolution.',
+  request: {
+    params: SessionIdParamSchema,
+    body: { content: { 'application/json': { schema: UpdateCheckoutBodySchema } } },
+  },
+  responses: {
+    200: { content: { 'application/json': { schema: UCPCheckoutSessionSchema } }, description: 'Updated session' },
+    400: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Invalid request' },
+    404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' },
+  },
+});
+// @ts-expect-error handler returns DB-sourced data whose shape matches the schema at runtime
+ucp.openapi(routePutCheckoutSession, async (c) => {
   const sessionId = c.req.param('id');
-  const body = await c.req.json();
+  const body = c.req.valid('json');
   const db = getDb(c.var.db);
   const baseUrl = new URL(c.req.url).origin;
   
@@ -639,7 +720,7 @@ ucp.put('/ucp/v1/checkout-sessions/:id', async (c) => {
     subtotal += totalPrice;
     
     resolvedItems.push({
-      id: item.id || uuid(),
+      id: uuid(),
       item: {
         id: variant.sku,
         title: variant.title || variant.product_title,
@@ -715,9 +796,26 @@ ucp.put('/ucp/v1/checkout-sessions/:id', async (c) => {
 });
 
 // POST /ucp/v1/checkout-sessions/:id/complete - Complete Checkout
-ucp.post('/ucp/v1/checkout-sessions/:id/complete', async (c) => {
+const routePostComplete = createRoute({
+  method: 'post',
+  path: '/ucp/v1/checkout-sessions/{id}/complete',
+  tags: ['UCP'],
+  summary: 'Complete checkout session',
+  description: 'Initiates payment via the specified handler. Returns requires_escalation with a redirect URL if Stripe is used, or a graceful fallback if no handler is available.',
+  request: {
+    params: SessionIdParamSchema,
+    body: { content: { 'application/json': { schema: CompleteCheckoutBodySchema } } },
+  },
+  responses: {
+    200: { content: { 'application/json': { schema: UCPCheckoutSessionSchema } }, description: 'Session escalated or completed' },
+    400: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Invalid state' },
+    404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' },
+  },
+});
+// @ts-expect-error handler returns DB-sourced data whose shape matches the schema at runtime
+ucp.openapi(routePostComplete, async (c) => {
   const sessionId = c.req.param('id');
-  const body = await c.req.json();
+  const body = c.req.valid('json');
   const { payment_data, risk_signals } = body;
   
   const db = getDb(c.var.db);
@@ -855,7 +953,20 @@ ucp.post('/ucp/v1/checkout-sessions/:id/complete', async (c) => {
 });
 
 // DELETE /ucp/v1/checkout-sessions/:id - Cancel Checkout
-ucp.delete('/ucp/v1/checkout-sessions/:id', async (c) => {
+const routeDeleteCheckoutSession = createRoute({
+  method: 'delete',
+  path: '/ucp/v1/checkout-sessions/{id}',
+  tags: ['UCP'],
+  summary: 'Cancel checkout session',
+  request: { params: SessionIdParamSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: UCPCheckoutSessionSchema } }, description: 'Session canceled' },
+    400: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Cannot cancel completed session' },
+    404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' },
+  },
+});
+// @ts-expect-error handler returns DB-sourced data whose shape matches the schema at runtime
+ucp.openapi(routeDeleteCheckoutSession, async (c) => {
   const sessionId = c.req.param('id');
   const db = getDb(c.var.db);
   const baseUrl = new URL(c.req.url).origin;
@@ -900,9 +1011,25 @@ ucp.delete('/ucp/v1/checkout-sessions/:id', async (c) => {
 });
 
 // PATCH /ucp/v1/checkout-sessions/:id - Partial update (buyer or quantities)
-ucp.patch('/ucp/v1/checkout-sessions/:id', async (c) => {
+const routePatchCheckoutSession = createRoute({
+  method: 'patch',
+  path: '/ucp/v1/checkout-sessions/{id}',
+  tags: ['UCP'],
+  summary: 'Partial update of checkout session',
+  description: 'Updates buyer info and/or item quantities without full re-resolution. Taxes are recalculated if quantities change.',
+  request: {
+    params: SessionIdParamSchema,
+    body: { content: { 'application/json': { schema: PatchCheckoutBodySchema } } },
+  },
+  responses: {
+    303: { description: 'Redirect to updated session' },
+    400: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Invalid request' },
+    404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' },
+  },
+});
+ucp.openapi(routePatchCheckoutSession, async (c) => {
   const sessionId = c.req.param('id');
-  const body = await c.req.json();
+  const body = c.req.valid('json');
   const db = getDb(c.var.db);
 
   const [session] = await db.query<any>(
@@ -924,9 +1051,10 @@ ucp.patch('/ucp/v1/checkout-sessions/:id', async (c) => {
   }
 
   if (body.line_items !== undefined) {
+    const lineItemsToUpdate = body.line_items;
     const currentItems: UCPLineItem[] = JSON.parse(session.line_items || '[]');
     const patchedItems = currentItems.map((item: UCPLineItem) => {
-      const patch = body.line_items.find((li: any) => li.id === item.id);
+      const patch = lineItemsToUpdate.find((li) => li.id === item.id);
       if (!patch) return item;
       const qty = patch.quantity;
       return {
@@ -966,21 +1094,45 @@ ucp.patch('/ucp/v1/checkout-sessions/:id', async (c) => {
 // UCP BROWSE CAPABILITY — catalog &amp; product browsing for AI agents
 // ============================================================
 
-ucp.get('/ucp/v1/products', async (c) => {
+const routeGetProducts = createRoute({
+  method: 'get',
+  path: '/ucp/v1/products',
+  tags: ['UCP'],
+  summary: 'Browse products',
+  request: { query: ProductsQuerySchema },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            ucp: UCPEnvelopeSchema,
+            items: z.array(z.record(z.string(), z.unknown())),
+            pagination: z.object({ limit: z.number(), offset: z.number(), count: z.number() }),
+          }),
+        },
+      },
+      description: 'Product list',
+    },
+  },
+});
+// @ts-expect-error handler returns DB-sourced data whose shape matches the schema at runtime
+ucp.openapi(routeGetProducts, async (c) => {
   const db = getDb(c.var.db);
   const { limit = '20', offset = '0', category, q } = c.req.query();
   const lim = Math.min(parseInt(limit, 10) || 20, 100);
   const off = Math.max(parseInt(offset, 10) || 0, 0);
 
   let sql = `
-    SELECT p.id, p.title, p.description, p.thumbnail_url, p.image_url,
+    SELECT p.id, p.title, p.description,
+           COALESCE(v.thumbnail_url, v.image_url, p.image_url) as thumbnail_url,
+           COALESCE(v.image_url, p.image_url) as image_url,
            MIN(vp.price_cents) as min_price_cents,
            cur.code as currency_code
     FROM products p
-    LEFT JOIN variants v ON v.product_id = p.id
+    LEFT JOIN variants v ON v.product_id = p.id AND v.status = 'active'
     LEFT JOIN variant_prices vp ON vp.variant_id = v.id
     LEFT JOIN currencies cur ON cur.id = vp.currency_id
-    WHERE p.active = 1
+    WHERE p.status = 'active'
   `;
   const params: unknown[] = [];
 
@@ -1013,24 +1165,41 @@ ucp.get('/ucp/v1/products', async (c) => {
   });
 });
 
-ucp.get('/ucp/v1/products/:id', async (c) => {
+const routeGetProductById = createRoute({
+  method: 'get',
+  path: '/ucp/v1/products/{id}',
+  tags: ['UCP'],
+  summary: 'Get product',
+  request: { params: ProductIdParamSchema },
+  responses: {
+    200: { content: { 'application/json': { schema: z.object({ ucp: UCPEnvelopeSchema, product: z.record(z.string(), z.unknown()) }) } }, description: 'Product detail' },
+    404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' },
+  },
+});
+// @ts-expect-error handler returns DB-sourced data whose shape matches the schema at runtime
+ucp.openapi(routeGetProductById, async (c) => {
   const productId = c.req.param('id');
   const db = getDb(c.var.db);
 
+  // Accept product id, product handle, variant id, or variant sku
   const [product] = await db.query<Record<string, unknown>>(
-    `SELECT * FROM products WHERE id = ? AND active = 1`,
-    [productId]
+    `SELECT p.* FROM products p
+     WHERE p.status = 'active'
+       AND (p.id = ? OR p.handle = ?
+            OR EXISTS (SELECT 1 FROM variants v WHERE v.product_id = p.id AND (v.id = ? OR v.sku = ?)))
+     LIMIT 1`,
+    [productId, productId, productId, productId]
   );
   if (!product) throw ApiError.notFound('Product not found');
 
   const variants = await db.query(
-    `SELECT v.id, v.sku, v.title, v.image_url,
+    `SELECT v.id, v.sku, v.title, v.image_url, v.thumbnail_url,
             vp.price_cents, cur.code as currency
      FROM variants v
      LEFT JOIN variant_prices vp ON vp.variant_id = v.id
      LEFT JOIN currencies cur ON cur.id = vp.currency_id
-     WHERE v.product_id = ? AND v.active = 1`,
-    [productId]
+     WHERE v.product_id = ? AND v.status = 'active'`,
+    [product.id]
   );
 
   return c.json({
@@ -1041,11 +1210,31 @@ ucp.get('/ucp/v1/products/:id', async (c) => {
   });
 });
 
-ucp.get('/ucp/v1/categories', async (c) => {
+const routeGetCategories = createRoute({
+  method: 'get',
+  path: '/ucp/v1/categories',
+  tags: ['UCP'],
+  summary: 'Browse categories',
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            ucp: UCPEnvelopeSchema,
+            categories: z.array(z.record(z.string(), z.unknown())),
+          }),
+        },
+      },
+      description: 'Category list',
+    },
+  },
+});
+// @ts-expect-error handler returns DB-sourced data whose shape matches the schema at runtime
+ucp.openapi(routeGetCategories, async (c) => {
   const db = getDb(c.var.db);
   const categories = await db.query(
     `SELECT id, handle, name, parent_id, image_url
-     FROM categories WHERE active = 1 ORDER BY sort_order ASC, name ASC`,
+     FROM categories WHERE status = 'active' ORDER BY position ASC, name ASC`,
     []
   );
   return c.json({
@@ -1058,11 +1247,37 @@ ucp.get('/ucp/v1/categories', async (c) => {
 // UCP SHIPPING ESTIMATION
 // ============================================================
 
-ucp.post('/ucp/v1/checkout-sessions/:id/estimate-shipping', async (c) => {
+const routePostEstimateShipping = createRoute({
+  method: 'post',
+  path: '/ucp/v1/checkout-sessions/{id}/estimate-shipping',
+  tags: ['UCP'],
+  summary: 'Estimate shipping options',
+  description: 'Returns available shipping rates for the given country code.',
+  request: {
+    params: SessionIdParamSchema,
+    body: { content: { 'application/json': { schema: EstimateShippingBodySchema } } },
+  },
+  responses: {
+    200: {
+      content: {
+        'application/json': {
+          schema: z.object({
+            ucp: UCPEnvelopeSchema,
+            shipping_options: z.array(UCPShippingOptionSchema),
+          }),
+        },
+      },
+      description: 'Available shipping options',
+    },
+    400: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Invalid request' },
+    404: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Not found' },
+  },
+});
+// @ts-expect-error handler returns DB-sourced data whose shape matches the schema at runtime
+ucp.openapi(routePostEstimateShipping, async (c) => {
   const sessionId = c.req.param('id');
-  const body = await c.req.json();
+  const body = c.req.valid('json');
   const countryCode: string = body.country_code;
-  if (!countryCode) throw ApiError.invalidRequest('country_code is required');
 
   const db = getDb(c.var.db);
 
@@ -1083,7 +1298,7 @@ ucp.post('/ucp/v1/checkout-sessions/:id/estimate-shipping', async (c) => {
      JOIN regions r ON r.id = sr.region_id
      JOIN region_countries rc ON rc.region_id = r.id
      JOIN countries c ON c.id = rc.country_id
-     WHERE c.iso_code = ? AND sr.active = 1
+     WHERE c.iso_code = ? AND sr.status = 'active'
      ORDER BY sr.price_cents ASC`,
     [countryCode.toUpperCase()]
   );

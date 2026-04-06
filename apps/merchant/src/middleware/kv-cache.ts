@@ -134,6 +134,9 @@ export const kvInvalidateMiddleware = async (c: HonoCtx, next: Next) => {
       Promise.all([
         purgeByPrefix(kv, `cache:${origin}/v1/products`),
         purgeByPrefix(kv, `cache:${origin}/v1/categories`),
+        purgeByPrefix(kv, `cache:${origin}/ucp/v1/products`),
+        purgeByPrefix(kv, `cache:${origin}/ucp/v1/categories`),
+        purgeByPrefix(kv, `cache:${origin}/.well-known/ucp`),
       ])
     );
   }

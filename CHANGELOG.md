@@ -5,6 +5,60 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ---
 
+## [Unreleased] — 2026-04-06
+
+### Added
+
+#### UCP — Phase 4 post-audit
+
+- **`PATCH /ucp/v1/checkout-sessions/{id}`** (P3): new endpoint for partial session updates.
+  - `{ buyer }` — merges buyer fields into the existing record without touching line items or prices.
+  - `{ line_items: [{ id, quantity }] }` — adjusts quantities, recalculates `total_price` per item, recomputes subtotal + tax via `computeTax()`, and rebuilds the `totals` array.
+  - Returns `303 See Other` redirecting to `GET /ucp/v1/checkout-sessions/{id}` for the consolidated response.
+  - Rejects updates on `completed` or `canceled` sessions with `400`.
+
+#### UCP — OpenAPI integration
+
+- **`apps/merchant/src/routes/ucp-schemas.ts`**: new file centralising all UCP Zod schemas used by `@hono/zod-openapi`:
+  `UCPEnvelopeSchema`, `UCPLineItemSchema`, `UCPBuyerSchema`, `UCPTotalSchema`, `UCPMessageSchema`,
+  `UCPLinkSchema`, `UCPPaymentHandlerSchema`, `UCPPaymentResponseSchema`, `UCPOrderConfirmationSchema`,
+  `UCPCheckoutSessionSchema`, `UCPShippingOptionSchema`, `CreateCheckoutBodySchema`,
+  `UpdateCheckoutBodySchema`, `PatchCheckoutBodySchema`, `CompleteCheckoutBodySchema`,
+  `EstimateShippingBodySchema`, `SessionIdParamSchema`, `ProductsQuerySchema`, `ProductIdParamSchema`.
+- All 11 UCP routes migrated from anonymous Hono handlers to `createRoute()` + `ucp.openapi()` so they appear automatically in `/openapi.json` without manual YAML maintenance.
+- UCP router type changed from `new Hono<HonoEnv>()` to `new OpenAPIHono<HonoEnv>()`.
+
+#### KV cache — UCP public routes
+
+- `kvCacheMiddleware` now applied to UCP public GET routes in `apps/merchant/src/index.ts`:
+  - `/.well-known/ucp`
+  - `/ucp/v1/products` and `/ucp/v1/products/*`
+  - `/ucp/v1/categories`
+- `kvInvalidateMiddleware` extended to purge `cache:${origin}/ucp/v1/products`, `cache:${origin}/ucp/v1/categories`, and `cache:${origin}/.well-known/ucp` on successful product or category mutations.
+
+### Changed
+
+- **`apps/merchant/src/index.ts`**: `app.route('', ucp)` changed to `app.route('/', ucp)`. The empty-string base caused `mergePath` to produce double-slash paths (`//ucp/v1/...`, `//.well-known/ucp`) in the generated `openapi.json`.
+- **`apps/merchant/src/middleware/kv-cache.ts`**: `X-KV-Cache` header is now only set to `HIT` when a response is served from KV. The `MISS` value was removed — no header is added on a cache miss or bypass, simplifying client-side detection.
+
+### Fixed
+
+#### UCP — Phase 4 post-audit (P1/P2)
+
+- **`tax_cents` always `0` in UCP Stripe webhook orders** (`handleUCPStripeWebhook`): the function previously used only the `grand_total` entry to fill all order amount fields. It now independently extracts `subtotalAmount`, `taxAmount`, and `shippingAmount` from the session's `totals` array so `subtotal_cents`, `tax_cents`, and `shipping_cents` are persisted correctly on the created order.
+- **Missing Browse + Catalog capabilities in `GET /.well-known/ucp`**: the discovery profile declared only 3 capabilities while `/ucp/v1/products` and `/ucp/v1/categories` were fully implemented. Added `dev.ucp.shopping.browse` and `dev.ucp.shopping.catalog` to the capabilities array, matching the output of `activeCapabilities()` (5 total: checkout, browse, catalog, identity_linking, order).
+- **`POST /ucp/v1/checkout-sessions/{id}/complete` — session stuck in `complete_in_progress`** (P2): the `complete_in_progress` status update was applied before handler validation, leaving sessions permanently blocked when Stripe was not configured or `handler_id` was unknown. The update now only happens inside the Stripe branch. When no handler matches, the endpoint returns `200` with `status: "requires_escalation"`, a `continue_url` pointing to the web checkout, and a `warning` UCP message instead of throwing a `400`.
+
+#### UCP — SQL and schema bugs
+
+- **`no such column: active`**: `WHERE active = 1` replaced with `WHERE status = 'active'` in product list, product detail, and category queries. The schema uses a `status TEXT` column, not a boolean `active INTEGER`.
+- **`no such column: p.thumbnail_url`**: `products` table has only `image_url`; `thumbnail_url` lives on `variants`. Product list query now uses `COALESCE(v.thumbnail_url, v.image_url, p.image_url)` for thumbnail and `COALESCE(v.image_url, p.image_url)` for full image, joining the first active variant.
+- **`no such column: sort_order`** in `categories`: column is named `position`. Fixed in `ORDER BY`.
+- **Product detail `GET /ucp/v1/products/{id}` returning 404**: the endpoint now accepts any of product UUID, product handle, variant UUID, or variant SKU via an `OR`-compound `WHERE` clause with an `EXISTS` sub-select on `variants`.
+- **`:id` path syntax in generated `openapi.json`**: `createRoute` `path` fields use OpenAPI brace syntax (`{id}`) instead of Hono colon syntax (`:id`). `@hono/zod-openapi` converts `{id}` → `:id` internally for routing but preserves the OpenAPI form in the spec output.
+
+---
+
 ## [Unreleased] — 2026-04-05
 
 ### Added
