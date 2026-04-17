@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'db-schema',
-  description: 'Durable Object SQL schema — all tables and columns',
+  description: 'Complete Durable Object SQL schema — every table, column, index and foreign key used by the Fufuni backend.',
+  tags: ["database","durable-object","schema"],
   sources: [
     'apps/merchant/src/do.ts',
   ],

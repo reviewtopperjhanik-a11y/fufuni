@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'conventions-and-anti-patterns',
-  description: 'Project conventions, naming rules, forbidden patterns, AI agent guidelines',
+  description: 'Fufuni coding conventions and forbidden patterns — naming rules, no c.req.json, no Drizzle, Zod-in-createRoute, plus AI-agent contributor guidelines.',
+  tags: ["ai-agents","frontend","react","ucp","ui"],
   sources: [],
   systemPrompt: BASE_SYSTEM,
   manualFacts: [

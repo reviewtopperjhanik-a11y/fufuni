@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'customer-account-patterns',
-  description: 'Customer profile, address book, order history, me-routes, customerAuthMiddleware',
+  description: 'Customer account surface: /me routes, customerAuthMiddleware, address book, order history, and profile-update flows for logged-in shoppers.',
+  tags: ["account","api","auth","auth0","backend","cloudflare","commerce","hono","images","orders","security","storage","user"],
   sources: [
     'apps/merchant/src/routes/me.ts',
     'apps/merchant/src/middleware/customer-auth.ts',

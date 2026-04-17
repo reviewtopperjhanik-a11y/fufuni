@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'how-to-add-hono-route',
-  description: 'Pattern for adding a new OpenAPIHono route with Zod validation',
+  description: 'Step-by-step pattern for adding a new OpenAPIHono route — Zod schemas, public vs admin split (publicApp + adminApp export), and RBAC guards.',
+  tags: ["api","backend","hono"],
   sources: [
     'apps/merchant/src/routes/categories.ts',
     'apps/merchant/src/types.ts',

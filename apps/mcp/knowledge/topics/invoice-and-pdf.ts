@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'invoice-and-pdf',
-  description: 'Client-side PDF invoice generation with jsPDF, order-view tokens',
+  description: 'Client-side PDF invoice generation with jsPDF — invoice layout, order-view tokens for public access, and the download entry point.',
+  tags: ["commerce","documents","invoicing","orders"],
   sources: [
     'apps/client/src/lib/invoice-generator.ts',
     'apps/client/src/utils/invoice-pdf.ts',

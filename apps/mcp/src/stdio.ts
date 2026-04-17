@@ -15,14 +15,72 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { KNOWLEDGE } from "./knowledge.js";
+import { MANIFEST } from "./manifest.js";
 import { registerFufuniTools } from "./tools.js";
+
+const VERBOSE_LOGGING = true; // set to true for debugging MCP server issues
+
+class LoggingStdioServerTransport {
+  readonly transport = new StdioServerTransport();
+
+  get onmessage() {
+    return this.transport.onmessage;
+  }
+  set onmessage(handler) {
+    if (!handler) {
+      this.transport.onmessage = handler;
+      return;
+    }
+    this.transport.onmessage = (message) => {
+      if (VERBOSE_LOGGING) {
+        console.log('[MCP] recv', JSON.stringify(message));
+      }
+      return handler(message);
+    };
+  }
+
+  get onerror() {
+    return this.transport.onerror;
+  }
+  set onerror(handler) {
+    this.transport.onerror = handler;
+  }
+
+  get onclose() {
+    return this.transport.onclose;
+  }
+  set onclose(handler) {
+    this.transport.onclose = handler;
+  }
+
+  async start() {
+    if (VERBOSE_LOGGING) {
+      console.log('[MCP] transport start');
+    }
+    return this.transport.start();
+  }
+
+  async close() {
+    if (VERBOSE_LOGGING) {
+      console.log('[MCP] transport close');
+    }
+    return this.transport.close();
+  }
+
+  async send(message: any) {
+    if (VERBOSE_LOGGING) {
+      console.log('[MCP] send', JSON.stringify(message));
+    }
+    return this.transport.send(message);
+  }
+}
 
 const server = new McpServer({
   name: "Fufuni Knowledge Base",
-  version: "1.0.0",
+  version: "2.0.0",
 });
 
-registerFufuniTools(server, KNOWLEDGE);
+registerFufuniTools(server, { manifest: MANIFEST, knowledge: KNOWLEDGE });
 
-const transport = new StdioServerTransport();
+const transport = new LoggingStdioServerTransport();
 await server.connect(transport);

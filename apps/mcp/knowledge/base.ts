@@ -25,7 +25,10 @@
  */
 export type Topic = {
   name: string;
+  /** One-sentence description used VERBATIM by MCP tool list. Max 200 chars. */
   description: string;
+  /** Curated tags for retrieval filtering (lowercase, kebab-case, min 2). */
+  tags: string[];
   sources: string[];
   systemPrompt: string;
   buildPrompt: (sources: string) => string;

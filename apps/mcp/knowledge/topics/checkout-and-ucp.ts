@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'checkout-and-ucp',
-  description: 'Checkout flow, UCP (Universal Cart Protocol) endpoints, Stripe integration',
+  description: 'Checkout flow and the Universal Commerce Protocol (UCP) — Stripe Checkout integration, UCP sessions, browse/catalog endpoints consumed by AI shopping agents.',
+  tags: ["ai-agents","api","checkout","integration","payments","stripe","ucp"],
   sources: [
     'apps/merchant/src/routes/checkout.ts',
     'apps/merchant/src/routes/ucp.ts',

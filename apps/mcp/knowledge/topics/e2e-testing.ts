@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'e2e-testing',
-  description: 'Playwright E2E tests: fixtures, storage state, specs, setup scripts',
+  description: 'Playwright end-to-end setup — fixtures, storage-state auth reuse, test specs under e2e/, and helper scripts that seed a temporary store.',
+  tags: ["ci","cloudflare","data","images","storage","testing"],
   sources: [
     'e2e/playwright.config.ts',
     'e2e/tests/public/navigation.spec.ts',

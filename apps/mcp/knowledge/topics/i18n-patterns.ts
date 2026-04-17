@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'i18n-patterns',
-  description: 'react-i18next usage, adding translations in all 6 locales',
+  description: 'react-i18next usage across the six supported locales — locale files layout, useTranslation hook, and fallback-language behaviour.',
+  tags: ["frontend","i18n","localization","react","ui"],
   sources: [
     'apps/client/src/i18n.ts',
     'apps/client/src/locales/base/en-US.json',

@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'order-view-tokens',
-  description: 'Signed order-view tokens for public invoice access without login',
+  description: 'Signed order-view tokens — how they are generated, how the public invoice route validates them, and when to use them instead of JWT auth.',
+  tags: ["commerce","documents","invoicing","orders"],
   sources: [
     'apps/merchant/src/lib/order-token.ts',
   ],

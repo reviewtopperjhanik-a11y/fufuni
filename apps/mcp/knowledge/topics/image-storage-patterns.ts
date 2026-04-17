@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'image-storage-patterns',
-  description: 'Image upload: base64 vs R2, ImageUploadInput component, uploadImageFile utility',
+  description: 'Image upload and display — base64-in-SQL vs R2-hosted trade-off, ImageUploadInput component, uploadImageFile utility, and URL resolution.',
+  tags: ["cloudflare","frontend","images","react","storage","ui"],
   sources: [
     'apps/client/src/utils/image-upload.ts',
     'apps/client/src/components/image-upload-input.tsx',

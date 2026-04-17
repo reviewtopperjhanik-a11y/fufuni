@@ -91,6 +91,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
 import { createHash } from 'crypto';
+import { execSync } from 'child_process';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
 import {
@@ -913,6 +914,158 @@ async function loadAiConfigOverride(): Promise<void> {
   );
 }
 
+// ─── manifest builder ─────────────────────────────────────────────────────────
+/**
+ * Build the manifest JSON object from all topics.
+ * Used by tools.ts at runtime to populate list_topics and get_manifest.
+ */
+// ─── BM25 index generation ──────────────────────────────────────────────────
+interface Bm25Doc {
+  id: string;
+  terms: string[];
+}
+
+const STOP_WORDS_SET = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
+  'has', 'have', 'in', 'is', 'it', 'its', 'of', 'on', 'or', 'that',
+  'the', 'to', 'was', 'were', 'will', 'with', 'about', 'also', 'any',
+  'been', 'but', 'can', 'could', 'do', 'does', 'doing', 'down', 'each',
+]);
+
+function tokenize(text: string): string[] {
+  return text
+    .toLowerCase()
+    .split(/[^a-z0-9_\-]+/g)
+    .filter((t) => t.length > 1 && !STOP_WORDS_SET.has(t));
+}
+
+function generateBm25Index(topics: Topic[]): Bm25Doc[] {
+  const docs: Bm25Doc[] = [];
+  for (const topic of topics) {
+    const outPath = join(MCP_DIR, `${topic.name}.md`);
+    if (!existsSync(outPath)) continue;
+    const mdContent = readFileSync(outPath, 'utf8');
+    const text = mdContent.replace(/<!--[\s\S]*?-->/, '').replace(/```[\s\S]*?```/g, '');
+    const terms = tokenize(text);
+    docs.push({ id: topic.name, terms });
+  }
+  return docs;
+}
+
+// ─── Embedding generation ───────────────────────────────────────────────────
+async function generateEmbedding(text: string): Promise<number[] | null> {
+  const apiKey = process.env.GOOGLE_API_KEY;
+  if (!apiKey) {
+    console.warn('  [warn] GOOGLE_API_KEY not set, skipping embeddings generation');
+    return null;
+  }
+
+  try {
+    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent';
+    const truncated = text.split(/\s+/).slice(0, 500).join(' ');
+
+    const response = await fetch(`${endpoint}?key=${apiKey}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'models/text-embedding-004',
+        content: { parts: [{ text: truncated }] },
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.text();
+      console.warn(`  [warn] Embedding API error: ${response.status}, skipping embeddings`);
+      return null;
+    }
+
+    const data = await response.json() as any;
+    const embedding = data.embedding?.values;
+    if (!embedding || !Array.isArray(embedding)) {
+      console.warn('  [warn] Invalid embedding response format, skipping embeddings');
+      return null;
+    }
+
+    return embedding as number[];
+  } catch (err) {
+    console.warn(`  [warn] Embedding generation failed: ${(err as Error).message}, skipping embeddings`);
+    return null;
+  }
+}
+
+function normalizeVector(vec: number[]): number[] {
+  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0));
+  return vec.map(v => v / (norm || 1));
+}
+
+// ─── Generate chunks from topics ────────────────────────────────────────────
+interface GeneratedChunk {
+  id: string;
+  topic: string;
+  heading: string;
+  heading_path: string[];
+  text: string;
+  word_count: number;
+}
+
+function generateChunks(topics: Topic[]): GeneratedChunk[] {
+  const chunks: GeneratedChunk[] = [];
+  for (const topic of topics) {
+    const outPath = join(MCP_DIR, `${topic.name}.md`);
+    if (!existsSync(outPath)) continue;
+    const mdContent = readFileSync(outPath, 'utf8');
+    const text = mdContent.replace(/<!--[\s\S]*?-->/, '');
+    const wordCount = text.split(/\s+/).length;
+    chunks.push({
+      id: `${topic.name}#0`,
+      topic: topic.name,
+      heading: `## ${topic.description}`,
+      heading_path: [topic.description],
+      text,
+      word_count: wordCount,
+    });
+  }
+  return chunks;
+}
+
+function buildManifest(generatedTopics: Topic[]) {
+  const commit = (() => {
+    try {
+      return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+    } catch {
+      return 'unknown';
+    }
+  })();
+
+  const topics = generatedTopics.map((topic) => {
+    const outPath = join(MCP_DIR, `${topic.name}.md`);
+    const mdContent = existsSync(outPath) ? readFileSync(outPath, 'utf8') : '';
+    const words = mdContent.replace(/<!--[\s\S]*?-->/, '').split(/\s+/).length;
+    const checksums = parseHeaderChecksums(mdContent);
+
+    // Extract title from first Markdown heading
+    const titleMatch = mdContent.match(/^#{1,2}\s+(.+)$/m);
+    const title = titleMatch?.[1]?.trim() ?? topic.name;
+
+    return {
+      slug: topic.name,
+      title,
+      description: topic.description,
+      tags: topic.tags || [],
+      updated_at: new Date().toISOString(),
+      word_count: words,
+      sources_checksum: checksums.sourcesChecksum || '',
+    };
+  });
+
+  return {
+    generated_at: new Date().toISOString(),
+    commit,
+    manifest_version: '1.0.0' as const,
+    topics,
+  };
+}
+
 // ─── main ─────────────────────────────────────────────────────────────────────
 async function main() {
   // Load encrypted AI config first (populates env vars + modelPool before initModels).
@@ -1101,6 +1254,128 @@ async function main() {
     writeFileSync(outPath, fileContent, 'utf8');
     console.log(`  → written to mcp/${topic.name}.md`);
     generated++;
+  }
+
+  // ─── generate manifest ──────────────────────────────────────────────────────
+  console.log('\nGenerating manifest...');
+  const manifestData = buildManifest(topics);
+  const manifestCode = `/**
+ * AUTO-GENERATED by apps/mcp/knowledge/generate.ts — do not edit manually.
+ * This file is gitignored; it is rebuilt before every deploy.
+ */
+import type { TopicManifest } from './index.js';
+
+export const MANIFEST: TopicManifest = ${JSON.stringify(manifestData, null, 2)};
+`;
+
+  const manifestPath = join(ROOT, 'apps/mcp/src/manifest.ts');
+  writeFileSync(manifestPath, manifestCode, 'utf8');
+  console.log(`  → written to apps/mcp/src/manifest.ts`);
+
+  // ─── generate BM25 index and chunks ──────────────────────────────────────
+  console.log('\nGenerating search indexes...');
+
+  const bm25Docs = generateBm25Index(topics);
+  const bm25IndexCode = `/**
+ * AUTO-GENERATED by apps/mcp/knowledge/generate.ts — do not edit manually.
+ */
+import type { Bm25Doc } from './bm25.js';
+
+export interface BM25Index {
+  docs: Bm25Doc[];
+}
+
+export const BM25_INDEX: BM25Index = {
+  docs: ${JSON.stringify(bm25Docs, null, 2)},
+};
+`;
+
+  const bm25IndexPath = join(ROOT, 'apps/mcp/src/search/bm25-index.ts');
+  writeFileSync(bm25IndexPath, bm25IndexCode, 'utf8');
+  console.log(`  → written BM25 index (${bm25Docs.length} documents)`);
+
+  // Generate chunks
+  const chunks = generateChunks(topics);
+  const chunksCode = `/**
+ * AUTO-GENERATED by apps/mcp/knowledge/generate.ts — do not edit manually.
+ */
+export type Chunk = {
+  id: string;
+  topic: string;
+  heading: string;
+  heading_path: string[];
+  text: string;
+  word_count: number;
+};
+
+export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
+    Object.fromEntries(chunks.map(c => [c.id, c])),
+    null,
+    2
+  )};
+`;
+
+  const chunksPath = join(ROOT, 'apps/mcp/src/search/chunks.ts');
+  writeFileSync(chunksPath, chunksCode, 'utf8');
+  console.log(`  → written chunks index (${chunks.length} chunks)`);
+
+  // Generate embeddings (optional)
+  if (!dryRun && !skipAI && process.env.GOOGLE_API_KEY) {
+    console.log('\nGenerating embeddings...');
+    const embeddings: number[][] = [];
+    const chunkIds: string[] = [];
+
+    for (const chunk of chunks) {
+      process.stdout.write(`  [${chunkIds.length + 1}/${chunks.length}] embedding ${chunk.id}…`);
+      const embedding = await generateEmbedding(chunk.text);
+      if (embedding) {
+        const normalized = normalizeVector(embedding);
+        embeddings.push(normalized);
+        chunkIds.push(chunk.id);
+      }
+      console.log(' done');
+    }
+
+    if (embeddings.length > 0) {
+      // Convert embeddings to base64-encoded Float32 buffer
+      const totalFloats = embeddings.length * 768;
+      const buffer = new ArrayBuffer(totalFloats * 4);
+      const floatView = new Float32Array(buffer);
+      let idx = 0;
+      for (const emb of embeddings) {
+        for (const val of emb) {
+          floatView[idx++] = val;
+        }
+      }
+      const bytes = new Uint8Array(buffer);
+      let b64 = '';
+      for (let i = 0; i < bytes.length; i++) {
+        b64 += String.fromCharCode(bytes[i]);
+      }
+      const vectorsB64 = btoa(b64);
+
+      const vectorsCode = `/**
+ * AUTO-GENERATED by apps/mcp/knowledge/generate.ts — do not edit manually.
+ */
+export const VECTOR_DIM = 768;
+export const VECTOR_COUNT = ${embeddings.length};
+
+/**
+ * Base64-encoded Float32 buffer, concatenated in chunk order.
+ * Layout: [chunk0_v0, chunk0_v1, …, chunk0_v767, chunk1_v0, …]
+ */
+export const VECTORS_B64 = ${JSON.stringify(vectorsB64)};
+
+/** Parallel array: chunk IDs in the same order as VECTORS_B64. */
+export const CHUNK_IDS: readonly string[] = ${JSON.stringify(chunkIds)};
+`;
+
+      const vectorsPath = join(ROOT, 'apps/mcp/src/search/vectors.ts');
+      writeFileSync(vectorsPath, vectorsCode, 'utf8');
+      console.log(`  → written vector embeddings (${embeddings.length} vectors, ${vectorsB64.length} bytes)`);
+    } else {
+      console.log('  → no embeddings generated (all API calls failed)');
+    }
   }
 
   console.log('\n' + '─'.repeat(60));

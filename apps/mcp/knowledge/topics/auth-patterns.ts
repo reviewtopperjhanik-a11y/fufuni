@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'auth-patterns',
-  description: 'Backend auth middleware, RBAC guards, roles — backend + frontend',
+  description: 'Backend authMiddleware, RBAC guards (adminOnly, superAdminOnly, databaseAdminOnly…), and the frontend AuthenticationGuardWithPermission wrapper used to gate admin pages.',
+  tags: ["auth","auth0","frontend","react","security","ui"],
   sources: [
     'apps/merchant/src/middleware/auth.ts',
     'apps/merchant/src/middleware/customer-auth.ts',

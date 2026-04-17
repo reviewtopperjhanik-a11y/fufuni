@@ -1,0 +1,162 @@
+[
+  {
+    "query": "How do I add a new database migration?",
+    "relevant_topics": ["how-to-add-migration", "db-schema", "migrations-reference"]
+  },
+  {
+    "query": "What is the BM25 algorithm and how does it work?",
+    "relevant_topics": ["framework-overview", "mcp-server-quickstart"]
+  },
+  {
+    "query": "How to use useSecuredApi for authenticated API calls",
+    "relevant_topics": ["use-secured-api", "auth-patterns", "frontend-react-patterns"]
+  },
+  {
+    "query": "Explain the checkout flow and payment integration",
+    "relevant_topics": ["checkout-and-ucp", "orders-and-refunds"]
+  },
+  {
+    "query": "How do I configure Auth0 for the Fufuni store?",
+    "relevant_topics": ["auth0-tenant-setup", "auth-patterns", "setup-and-initialization"]
+  },
+  {
+    "query": "What are the best practices for product reviews and moderation?",
+    "relevant_topics": ["product-reviews", "ai-assisted-features"]
+  },
+  {
+    "query": "How to manage inventory across multiple warehouses",
+    "relevant_topics": ["inventory-and-warehouses", "db-schema"]
+  },
+  {
+    "query": "Explain the order lifecycle and refund process",
+    "relevant_topics": ["orders-and-refunds", "checkout-and-ucp"]
+  },
+  {
+    "query": "How do I create a new admin CRUD interface?",
+    "relevant_topics": ["admin-crud-pattern", "frontend-react-patterns"]
+  },
+  {
+    "query": "What Cloudflare Worker patterns does Fufuni use?",
+    "relevant_topics": ["cloudflare-worker-patterns", "framework-overview"]
+  },
+  {
+    "query": "How to handle discounts and tiered pricing",
+    "relevant_topics": ["discounts-and-pricing", "checkout-and-ucp"]
+  },
+  {
+    "query": "Explain the JWT user metadata pattern",
+    "relevant_topics": ["jwt-user-metadata-patterns", "auth-patterns"]
+  },
+  {
+    "query": "How to add a new Hono API route?",
+    "relevant_topics": ["how-to-add-hono-route", "api-error-patterns"]
+  },
+  {
+    "query": "What is the DurableObject pattern in Fufuni?",
+    "relevant_topics": ["cloudflare-worker-patterns", "db-schema"]
+  },
+  {
+    "query": "How to send transactional emails?",
+    "relevant_topics": ["email-templates", "orders-and-refunds"]
+  },
+  {
+    "query": "Explain the product catalog and localization system",
+    "relevant_topics": ["product-catalog-and-localization", "localized-content-patterns"]
+  },
+  {
+    "query": "How to implement customer account features?",
+    "relevant_topics": ["customer-account-patterns", "auth-patterns"]
+  },
+  {
+    "query": "What are the code conventions and anti-patterns?",
+    "relevant_topics": ["conventions-and-anti-patterns"]
+  },
+  {
+    "query": "How to generate PDF invoices for orders?",
+    "relevant_topics": ["invoice-and-pdf", "orders-and-refunds"]
+  },
+  {
+    "query": "Explain shipping zones and tax calculation",
+    "relevant_topics": ["regions-taxes-shipping", "checkout-and-ucp"]
+  },
+  {
+    "query": "How to use image uploads and R2 storage?",
+    "relevant_topics": ["image-storage-patterns", "cloudflare-worker-patterns"]
+  },
+  {
+    "query": "What is the webhook system in Fufuni?",
+    "relevant_topics": ["webhooks-outbound", "api-error-patterns"]
+  },
+  {
+    "query": "How to setup and initialize a new store?",
+    "relevant_topics": ["setup-and-initialization", "auth0-tenant-setup"]
+  },
+  {
+    "query": "Explain the theme and layout system",
+    "relevant_topics": ["theming-and-layouts", "frontend-react-patterns"]
+  },
+  {
+    "query": "How to use internationalization (i18n) in Fufuni?",
+    "relevant_topics": ["i18n-patterns", "localized-content-patterns"]
+  },
+  {
+    "query": "What is the seed data pattern for demo content?",
+    "relevant_topics": ["seed-data-patterns", "db-schema"]
+  },
+  {
+    "query": "How to implement AI-assisted features like translation?",
+    "relevant_topics": ["ai-assisted-features", "frontend-react-patterns"]
+  },
+  {
+    "query": "Explain the analytics dashboard and metrics",
+    "relevant_topics": ["analytics-dashboard"]
+  },
+  {
+    "query": "How to create order view tokens for public access?",
+    "relevant_topics": ["order-view-tokens", "orders-and-refunds"]
+  },
+  {
+    "query": "What is the embedded OAuth2 server for integrations?",
+    "relevant_topics": ["oauth-embedded", "auth-patterns"]
+  },
+  {
+    "query": "How to write end-to-end tests with Playwright?",
+    "relevant_topics": ["e2e-testing"]
+  },
+  {
+    "query": "Explain the API error handling and validation patterns",
+    "relevant_topics": ["api-error-patterns", "how-to-add-hono-route"]
+  },
+  {
+    "query": "How to manage user wishlists and saved carts?",
+    "relevant_topics": ["user-preferences-and-wishlist", "customer-account-patterns"]
+  },
+  {
+    "query": "What is the MCP server and how is it structured?",
+    "relevant_topics": ["mcp-server-quickstart", "framework-overview"]
+  },
+  {
+    "query": "How to handle customer authentication and permissions?",
+    "relevant_topics": ["auth-patterns", "customer-account-patterns"]
+  },
+  {
+    "query": "Explain the Universal Commerce Protocol (UCP)",
+    "relevant_topics": ["checkout-and-ucp"]
+  },
+  {
+    "query": "How to run a Playwright E2E test suite?",
+    "relevant_topics": ["e2e-testing"]
+  },
+  {
+    "query": "What database schema tables exist in Fufuni?",
+    "relevant_topics": ["db-schema", "migrations-reference"]
+  },
+  {
+    "query": "How to use React Query and fetch hooks?",
+    "relevant_topics": ["frontend-react-patterns", "use-secured-api"]
+  },
+  {
+    "query": "Explain the rate limiting and security middleware",
+    "relevant_topics": ["cloudflare-worker-patterns", "auth-patterns"]
+  }
+]

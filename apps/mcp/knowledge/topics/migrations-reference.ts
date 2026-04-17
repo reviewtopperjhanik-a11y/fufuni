@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'migrations-reference',
-  description: 'Full list of SQL migrations, table creation order, schema evolution history',
+  description: 'Enumeration of every numbered SQL migration — applied order, schema changes introduced, and a mini changelog per migration file.',
+  tags: ["commerce","database","durable-object","migrations","orders","schema"],
   sources: [
     'apps/merchant/src/do.ts',
     'apps/merchant/migrations/001-add-order-statuses.sql',

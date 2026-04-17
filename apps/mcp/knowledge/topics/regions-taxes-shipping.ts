@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'regions-taxes-shipping',
-  description: 'Regions, tax rates, shipping zones, lib/tax.ts and lib/shipping.ts helpers',
+  description: 'Regions, tax rates, and shipping zones — lib/tax.ts and lib/shipping.ts helpers, rate tables, and region → shipping-zone mapping.',
+  tags: ["commerce","pricing"],
   sources: [
     'apps/merchant/src/routes/regions.ts',
     'apps/merchant/src/routes/tax-rates.ts',

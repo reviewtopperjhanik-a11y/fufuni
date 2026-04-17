@@ -7,7 +7,8 @@ import { BASE_SYSTEM } from '../base.js';
 
 const topic: Topic = {
   name: 'api-error-patterns',
-  description: 'ApiError class, static helpers, error response format',
+  description: 'ApiError class and static helpers (notFound, unauthorized, invalidRequest, conflict…), Hono-to-JSON conversion, and frontend error-handling patterns.',
+  tags: ["general"],
   sources: [
     'apps/merchant/src/types.ts',
   ],

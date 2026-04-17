@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'inventory-and-warehouses',
-  description: 'Stock management, warehouse locations, inventory adjustment endpoints',
+  description: 'Stock tracking per variant × warehouse — inventory table, reserveStock/releaseStock/deductStock helpers in lib/inventory.ts, and the admin adjustment UI.',
+  tags: ["inventory","warehouse"],
   sources: [
     'apps/merchant/src/lib/inventory.ts',
     'apps/merchant/src/routes/inventory.ts',

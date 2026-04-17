@@ -7,7 +7,8 @@ import { BASE_SYSTEM } from '../base.js';
 
 const topic: Topic = {
   name: 'seed-data-patterns',
-  description: 'How the seed script works, how to add new seed data',
+  description: 'Seed script structure — how demo data is inserted, how to add new seed records, and the reset-demo GitHub Action that triggers it on a schedule.',
+  tags: ["data","testing"],
   sources: [
     'apps/merchant/scripts/seed.ts',
   ],

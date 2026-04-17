@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'how-to-add-migration',
-  description: 'Step-by-step guide: add a DB migration to do.ts + SQL file',
+  description: 'Step-by-step pattern for changing the DB schema — update SCHEMA constant, append to ensureInitialized, add numbered SQL file under apps/merchant/migrations/.',
+  tags: ["cloudflare","database","frontend","images","migrations","react","schema","storage","ui"],
   sources: [
     'apps/merchant/src/do.ts',
     'apps/merchant/migrations/027-categories.sql',

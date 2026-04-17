@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'email-templates',
-  description: 'Transactional emails with Mailgun: templates, order confirmation, triggers',
+  description: 'Transactional email delivery via Mailgun — Handlebars templates (order confirmation, password reset, refund), sending helpers, and trigger points.',
+  tags: ["commerce","email","mailgun","orders"],
   sources: [
     'apps/merchant/src/lib/email-templates.ts',
     'apps/merchant/src/lib/order-email.ts',

@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'use-secured-api',
-  description: 'Frontend hook: getJson, postJson, patchJson, deleteJson, postForm, putJson',
+  description: 'useSecuredApi React hook for authenticated calls — getJson, postJson, putJson, patchJson, deleteJson, postForm, plus Auth0 bearer injection.',
+  tags: ["frontend","react","ui"],
   sources: [
     'apps/client/src/features/auth/components/auth-components.tsx',
   ],

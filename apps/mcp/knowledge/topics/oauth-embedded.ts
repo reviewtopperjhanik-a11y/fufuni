@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'oauth-embedded',
-  description: 'Embedded OAuth2 authorization server: clients, tokens, scopes management',
+  description: 'Embedded OAuth2 authorization server — client registration, token issuance, scopes, introspection endpoint, and integration with external apps.',
+  tags: ["api","auth","auth0","integration","security"],
   sources: [
     'apps/merchant/src/routes/oauth.ts',
   ],

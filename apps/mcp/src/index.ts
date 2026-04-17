@@ -14,7 +14,25 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { McpAgent } from "agents/mcp";
 import { KNOWLEDGE } from "./knowledge.js";
+import { MANIFEST } from "./manifest.js";
 import { registerFufuniTools } from "./tools.js";
+
+export interface TopicMeta {
+  slug: string;
+  title: string;
+  description: string;
+  tags: string[];
+  updated_at: string;
+  word_count: number;
+  sources_checksum: string;
+}
+
+export interface TopicManifest {
+  generated_at: string;
+  commit: string;
+  manifest_version: string;
+  topics: TopicMeta[];
+}
 
 async function checkRateLimit(request: Request, env: Env): Promise<Response | null> {
   const limiter = env.MCP_RATE_LIMITER;
@@ -43,11 +61,11 @@ async function checkRateLimit(request: Request, env: Env): Promise<Response | nu
 export class FufuniMCP extends McpAgent {
   server = new McpServer({
     name: "Fufuni Knowledge Base",
-    version: "1.0.0",
+    version: "2.0.0",
   });
 
   async init() {
-    registerFufuniTools(this.server, KNOWLEDGE);
+    registerFufuniTools(this.server, { manifest: MANIFEST, knowledge: KNOWLEDGE });
   }
 }
 

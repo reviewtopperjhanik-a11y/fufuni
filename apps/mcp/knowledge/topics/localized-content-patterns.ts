@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'localized-content-patterns',
-  description: 'LocalizedText type, useLocalizedTextInput hook, description rendering utils',
+  description: 'Multilingual content model — LocalizedText type, useLocalizedTextInput hook, and the renderLocalized utility used across product and category surfaces.',
+  tags: ["general"],
   sources: [
     'apps/client/src/utils/description.ts',
     'apps/client/src/hooks/use-localized-text-input.ts',

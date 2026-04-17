@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'framework-overview',
-  description: 'High-level architecture, file tree, stack summary',
+  description: 'High-level Fufuni architecture — stack (CF Workers + Durable Objects + React), monorepo layout, request lifecycle, and core conventions. Start here.',
+  tags: ["cloudflare","images","storage"],
   sources: [
     'README.md',
     'apps/merchant/src/index.ts',

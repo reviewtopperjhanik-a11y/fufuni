@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'product-reviews',
-  description: 'Product review submission, moderation, AI moderation, admin review management',
+  description: 'Product review system — customer submission, rating aggregation, AI-assisted moderation, and the admin review management page.',
+  tags: ["ai","catalog","moderation","products","reviews"],
   sources: [
     'apps/merchant/src/routes/reviews.ts',
     'apps/client/src/pages/admin/reviews.tsx',

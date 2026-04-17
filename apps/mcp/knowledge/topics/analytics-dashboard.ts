@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'analytics-dashboard',
-  description: 'Analytics endpoints, dashboard charts, revenue metrics, admin analytics page',
+  description: 'Merchant analytics surface — revenue, orders and traffic endpoints plus the chart wrappers rendered on the admin analytics page.',
+  tags: ["metrics","observability"],
   sources: [
     'apps/merchant/src/routes/analytics.ts',
     'apps/client/src/pages/admin/analytics.tsx',

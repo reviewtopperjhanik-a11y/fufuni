@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'mcp-server-quickstart',
-  description: 'MCP server setup, adding new topics, running gen-knowledge, configuration',
+  description: 'Setup and extension of the Fufuni MCP server itself — generate.ts pipeline, adding a new topic, running gen-knowledge, and deploying to Cloudflare.',
+  tags: ["frontend","react","ui"],
   sources: [],
   systemPrompt: BASE_SYSTEM,
   manualFacts: [

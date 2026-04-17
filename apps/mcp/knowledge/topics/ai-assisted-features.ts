@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'ai-assisted-features',
-  description: 'AI review moderation, auto-translation, ai-client.ts, backend AI routes',
+  description: 'AI-assisted features (review moderation, auto-translation) — GET /v1/ai/parameters endpoint, ai-client.ts helpers, and the browser-side inference pattern.',
+  tags: ["ai","api","backend","hono","i18n","localization","moderation","reviews"],
   sources: [
     'apps/client/src/utils/ai-client.ts',
     'apps/merchant/src/routes/ai.ts',

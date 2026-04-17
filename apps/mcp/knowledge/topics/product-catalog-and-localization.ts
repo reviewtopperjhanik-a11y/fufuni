@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'product-catalog-and-localization',
-  description: 'Product CRUD, variant management, category tree, localized names/descriptions',
+  description: 'Product catalogue — CRUD endpoints, variant management, category tree, and how product names and descriptions are localized per store locale.',
+  tags: ["catalog","products"],
   sources: [
     'apps/merchant/src/routes/catalog.ts',
     'apps/merchant/src/schemas.ts',

@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'frontend-react-patterns',
-  description: 'React 19 patterns: React Query, HeroUI v3, routing, hooks, navbar, theme',
+  description: 'React 19 patterns on the merchant UI — React Query defaults, HeroUI v3 components, client routing, custom hooks, navbar wiring, and theme integration.',
+  tags: ["design","frontend","react","theming","ui"],
   sources: [
     'apps/client/src/app.tsx',
     'apps/client/src/provider.tsx',

@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'discounts-and-pricing',
-  description: 'Discount codes, pricing tiers, lib/pricing.ts, promotions endpoints',
+  description: 'Discount codes and tiered pricing — lib/pricing.ts helpers, promotion endpoints, and the discount-application order for cart totals.',
+  tags: ["ci","commerce","pricing","testing"],
   sources: [
     'apps/merchant/src/routes/discounts.ts',
     'apps/merchant/src/lib/pricing.ts',

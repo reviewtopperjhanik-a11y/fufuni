@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'auth0-tenant-setup',
-  description: 'Auth0 tenant deployment script, resource server scopes, social connections',
+  description: 'Auth0 tenant deployment — auto-install script, resource-server scopes, RBAC roles, social connections, and the Auth0 Deploy CLI workflow.',
+  tags: ["auth","auth0","ci","security","testing"],
   sources: [
     'scripts/auth0/deploy-tenant-resources.ts',
   ],

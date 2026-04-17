@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'orders-and-refunds',
-  description: 'Order lifecycle, status machine, refund endpoints, order CSV export',
+  description: 'Order lifecycle (pending → paid → fulfilled → refunded), partial-refund audit trail from migration 034, and the CSV export endpoint.',
+  tags: ["checkout","commerce","orders","payments","stripe"],
   sources: [
     'apps/merchant/src/routes/orders.ts',
     'apps/merchant/src/types.ts',

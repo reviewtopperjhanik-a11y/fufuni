@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'user-preferences-and-wishlist',
-  description: 'Wishlist via Auth0 user_metadata, saved carts, user preference hooks',
+  description: 'Per-user state — wishlist stored in Auth0 user_metadata, saved carts, and the custom hooks that wrap the metadata updates.',
+  tags: ["account","auth","auth0","security","user"],
   sources: [
     'apps/client/src/hooks/use-wishlist.ts',
   ],

@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'jwt-user-metadata-patterns',
-  description: 'Auth0 JWT claims, user_metadata storage, useTokenUserData, store-metadata',
+  description: 'Auth0 JWT custom claims — user_metadata vs app_metadata, useTokenUserData hook, store-metadata propagation, and per-user theme storage.',
+  tags: ["auth","auth0","cloudflare","images","security","storage"],
   sources: [
     'apps/client/src/hooks/use-token-user-data.ts',
     'apps/client/src/lib/store-metadata.ts',

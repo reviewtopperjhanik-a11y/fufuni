@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'admin-crud-pattern',
-  description: 'AdminCrudLayout, useAdminCrud hook, RowActions pattern for admin pages',
+  description: 'Standardized admin list/edit architecture built from AdminCrudLayout, useAdminCrud hook, and RowActions — the three-part composition every admin page uses.',
+  tags: ["design","theming"],
   sources: [
     'apps/client/src/shared/ui/admin/admin-crud-layout.tsx',
     'apps/client/src/shared/ui/admin/row-actions.tsx',

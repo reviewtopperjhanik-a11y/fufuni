@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'theming-and-layouts',
-  description: 'Theme system, layout components (Default, Luxury), CMS-driven content, ThemeProvider',
+  description: 'Theme and layout system — ThemeProvider, the Default and Luxury layouts, CMS-driven content blocks, and siteConfig integration.',
+  tags: ["design","frontend","react","theming","ui"],
   sources: [
     'apps/client/src/layouts/default.tsx',
     'apps/client/src/layouts/luxury.tsx',

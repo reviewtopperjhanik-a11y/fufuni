@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'cloudflare-worker-patterns',
-  description: 'Worker bindings, Durable Objects, KV, R2, Wrangler config, CI secrets',
+  description: 'Cloudflare Worker building blocks: Durable Objects with SQLite, KV, R2, Rate Limiter bindings, wrangler.jsonc layout, and CI secrets handling.',
+  tags: ["ci","cloudflare","database","durable-object","images","schema","storage","testing"],
   sources: [
     'apps/merchant/wrangler.jsonc',
     'apps/merchant/worker-configuration.d.ts',

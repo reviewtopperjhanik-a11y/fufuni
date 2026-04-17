@@ -7,7 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'webhooks-outbound',
-  description: 'Outbound webhooks: registration, delivery, retry, HMAC signature',
+  description: 'Outbound webhooks — endpoint registration, delivery retry logic, and the HMAC signature scheme used by consumers to verify authenticity.',
+  tags: ["events","webhooks"],
   sources: [
     'apps/merchant/src/routes/webhooks-outbound.ts',
     'apps/merchant/src/lib/webhooks.ts',
