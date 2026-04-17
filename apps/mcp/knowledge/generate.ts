@@ -145,6 +145,15 @@ const skipAI = argv.includes('--skip-ai');
 const force = argv.includes('--force');
 const autoRefresh = argv.includes('--auto-refresh');
 const discoverModels = argv.includes('--discover-models');
+const noModelFallback = argv.includes('--no-model-fallback');
+const fetchTimeoutMs = (() => {
+  const f = argv.find(a => a.startsWith('--fetch-timeout='));
+  return f ? parseInt(f.split('=')[1], 10) * 1_000 : 90_000;
+})();
+const maxTokenOverride = (() => {
+  const f = argv.find(a => a.startsWith('--max-token-override='));
+  return f ? parseInt(f.split('=')[1], 10) : null;
+})();
 const verbose = argv.includes('--verbose');
 const showHelp = argv.includes('--help') || argv.includes('-h');
 
@@ -160,6 +169,9 @@ const VALID_FLAGS = new Set([
   '--ai-json-enc',
   '--show-key-owner',
   '--key-usage-summary',
+  '--no-model-fallback',
+  '--fetch-timeout',
+  '--max-token-override',
   '--provider',
 ]);
 
@@ -178,7 +190,10 @@ Options:
   --force              Overwrite existing mcp/*.md files
   --auto-refresh       Only regenerate topics whose source/manualFacts checksum changed
   --discover-models    Ignore AI_MODEL and force discovery via GET /models
-  --verbose            Show additional debug logs
+  --no-model-fallback  Never switch to another model on error; retry transient failures on the same model only
+  --fetch-timeout=<s>       Abort a stalled AI request after this many seconds and retry (default: 90)
+  --max-token-override=<n>  Override the per-request token cap (like MAX_TOKENS_PER_REQUEST env var)
+  --verbose                 Show additional debug logs
 
 Environment variables:
   AI_API_KEY           Comma-separated list of Groq API keys
@@ -204,7 +219,9 @@ const unknownFlags = argv.filter(arg =>
   !VALID_FLAGS.has(arg) &&
   !arg.startsWith('--topic=') &&
   !arg.startsWith('--ai-json-enc=') &&
-  !arg.startsWith('--provider='),
+  !arg.startsWith('--provider=') &&
+  !arg.startsWith('--fetch-timeout=') &&
+  !arg.startsWith('--max-token-override='),
 );
 
 if (showHelp) {
@@ -252,7 +269,7 @@ for (const [k, v] of Object.entries(dotenv)) {
 
 // ─── AI configuration ────────────────────────────────────────────────────────
 
-/** Maximum number of automatic retries on HTTP 429 rate-limit responses. */
+/** Maximum number of automatic retries on HTTP 429 (rate-limit) and 503 (service unavailable) responses. */
 const MAX_429_RETRIES = 5;
 
 /**
@@ -389,11 +406,12 @@ function nextModel(): string {
 //   MAX_TOKENS_PER_REQUEST=11000   # Groq free llama-3.3-70b  (TPM=12k, safety margin)
 //   MAX_TOKENS_PER_REQUEST=5500    # Groq free llama-3.1-8b-instant (TPM=6k)
 
-/** Per-request cap: from MAX_TOKENS_PER_REQUEST env var, or learned from first 413. */
+/** Per-request cap: from --max-token-override flag, MAX_TOKENS_PER_REQUEST env var, or learned from first 413. */
 let learnedRequestTokensCap: number | null =
-  process.env.MAX_TOKENS_PER_REQUEST
+  maxTokenOverride ??
+  (process.env.MAX_TOKENS_PER_REQUEST
     ? parseInt(process.env.MAX_TOKENS_PER_REQUEST, 10)
-    : null;
+    : null);
 
 /**
  * Try to extract the provider's hard per-request token limit from a 413 body.
@@ -546,6 +564,9 @@ async function callAI(
       console.log(`  → using key owned by [${apiKeyOwner || 'unknown'}]`);
     }
 
+    const abortCtrl = new AbortController();
+    const abortTimer = setTimeout(() => abortCtrl.abort(), fetchTimeoutMs);
+
     try {
       let response: Response;
 
@@ -563,6 +584,7 @@ async function callAI(
             system: systemPrompt,
             messages: [{ role: 'user', content: userPrompt }],
           }),
+          signal: abortCtrl.signal,
         });
       } else if (isGemini) {
         response = await fetch(`${AI_API_URL}/models/${model}:generateContent?key=${apiKey}`, {
@@ -573,6 +595,7 @@ async function callAI(
             contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
             generationConfig: { maxOutputTokens: maxTokens },
           }),
+          signal: abortCtrl.signal,
         });
       } else {
         // OpenAI / Groq / Together / any OAI-compatible endpoint
@@ -590,16 +613,19 @@ async function callAI(
               { role: 'user', content: userPrompt },
             ],
           }),
+          signal: abortCtrl.signal,
         });
       }
+      clearTimeout(abortTimer);
 
-      // ── 429 handling: wait then retry ────────────────────────────────────────
-      if (response.status === 429 && attempt < MAX_429_RETRIES) {
+      // ── 429 / 503 handling: transient errors — wait then retry same model ──────
+      if ((response.status === 429 || response.status === 503) && attempt < MAX_429_RETRIES) {
         keySummary.failure++;
         const errorText = await response.text();
         const waitMs = parseRetryAfterMs(errorText, response.headers.get('retry-after'), attempt);
+        const statusLabel = response.status === 429 ? '429 rate-limit' : '503 service unavailable';
         console.log(
-          `  [retry] 429 rate-limit (attempt ${attempt + 1}/${MAX_429_RETRIES}). ` +
+          `  [retry] ${statusLabel} (attempt ${attempt + 1}/${MAX_429_RETRIES}). ` +
           `Waiting ${(waitMs / 1_000).toFixed(1)} s before next attempt…`,
         );
         await new Promise(r => setTimeout(r, waitMs));
@@ -647,7 +673,17 @@ async function callAI(
       if (verbose) console.log(`  [ai] output tokens ≈ ${tokensOut}`);
       return { content, tokensIn, tokensOut };
     } catch (err) {
+      clearTimeout(abortTimer);
       keySummary.failure++;
+      if ((err as Error).name === 'AbortError' && attempt < MAX_429_RETRIES) {
+        const waitMs = parseRetryAfterMs('', null, attempt);
+        console.log(
+          `  [retry] fetch timeout after ${(fetchTimeoutMs / 1_000).toFixed(0)}s ` +
+          `(attempt ${attempt + 1}/${MAX_429_RETRIES}). Waiting ${(waitMs / 1_000).toFixed(1)} s…`,
+        );
+        await new Promise(r => setTimeout(r, waitMs));
+        continue;
+      }
       throw err;
     }
   }
@@ -821,7 +857,11 @@ async function loadAiConfigOverride(): Promise<void> {
 
   const best = candidates[0]; // lowest priority number = most preferred
 
-  if (!process.env.AI_API_KEY?.trim()) {
+  // When --provider is explicitly requested, always apply the provider's config,
+  // overriding any env vars that may have been loaded from .env (e.g. Groq defaults).
+  const forceOverride = !!providerArg;
+
+  if (forceOverride || !process.env.AI_API_KEY?.trim()) {
     const allKeys = collectKeys(config, providerArg ? { providerKey: providerArg } : {});
     const validKeys = allKeys.filter(k => !expiredApiKeys.has(k));
     if (validKeys.length === 0) {
@@ -830,10 +870,10 @@ async function loadAiConfigOverride(): Promise<void> {
     }
     process.env.AI_API_KEY = validKeys.join(',');
   }
-  if (!process.env.AI_MODEL?.trim()) {
+  if (forceOverride || !process.env.AI_MODEL?.trim()) {
     process.env.AI_MODEL = best.model.id;
   }
-  if (!process.env.AI_API_URL?.trim()) {
+  if (forceOverride || !process.env.AI_API_URL?.trim()) {
     AI_API_URL = best.provider.endpoint;
   }
 
@@ -1022,9 +1062,11 @@ async function main() {
                   console.warn(`  [warn] ${chosenModel} still too large after max halvings, trying next model…`);
                   continue;
                 }
-              } else if (attempt < modelsToTry.length - 1) {
+              } else if (!noModelFallback && attempt < modelsToTry.length - 1) {
                 console.warn(`  [warn] ${chosenModel} failed (${msg.slice(0, 80)}), trying next model…`);
                 continue;
+              } else if (noModelFallback && attempt < modelsToTry.length - 1) {
+                console.warn(`  [warn] ${chosenModel} failed (${msg.slice(0, 80)}). --no-model-fallback active, not switching model.`);
               }
               throw innerErr;
             }
