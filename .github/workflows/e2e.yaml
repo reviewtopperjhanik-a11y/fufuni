@@ -1,0 +1,113 @@
+name: E2E Playwright Tests
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Exécution quotidienne à 3h00 UTC pour détecter les régressions de la démo
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      target_url:
+        description: "URL cible des tests (laisser vide = démo GitHub Pages)"
+        required: false
+        default: "https://sctg-development.github.io/fufuni/"
+        type: string
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    name: Playwright E2E
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install E2E dependencies
+        working-directory: e2e
+        run: npm ci
+
+      - name: Install Playwright browsers
+        working-directory: e2e
+        # WebKit requis pour le projet public-mobile (devices["iPhone 14"])
+        run: npx playwright install --with-deps chromium firefox webkit
+
+      - name: Restore user storage state
+        # Le secret contient le JSON de storage-state-user.json encodé en base64
+        # Générer avec : base64 -i storage-state-user.json | tr -d '\n'  (macOS)
+        #            ou : base64 -w 0 storage-state-user.json             (Linux)
+        if: ${{ secrets.PLAYWRIGHT_STORAGE_USER != '' }}
+        env:
+          PLAYWRIGHT_STORAGE_USER: ${{ secrets.PLAYWRIGHT_STORAGE_USER }}
+        run: |
+          mkdir -p e2e/fixtures
+          echo "$PLAYWRIGHT_STORAGE_USER" | base64 -d > e2e/fixtures/storage-state-user.json
+
+      - name: Restore admin storage state
+        if: ${{ secrets.PLAYWRIGHT_STORAGE_ADMIN != '' }}
+        env:
+          PLAYWRIGHT_STORAGE_ADMIN: ${{ secrets.PLAYWRIGHT_STORAGE_ADMIN }}
+        run: |
+          mkdir -p e2e/fixtures
+          echo "$PLAYWRIGHT_STORAGE_ADMIN" | base64 -d > e2e/fixtures/storage-state.json
+
+      - name: Set target URL
+        id: target
+        run: |
+          TARGET="${{ inputs.target_url }}"
+          if [ -z "$TARGET" ]; then
+            TARGET="https://sctg-development.github.io/fufuni/"
+          fi
+          echo "url=$TARGET" >> $GITHUB_OUTPUT
+          echo "▶ Tests ciblent : $TARGET"
+
+      - name: Run public tests (no auth required)
+        working-directory: e2e
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ steps.target.outputs.url }}
+          # URL du Worker Cloudflare pour les tests API (port distinct du SPA)
+          PLAYWRIGHT_API_BASE_URL: ${{ secrets.CLOUDFLARE_WORKER_URL }}
+        run: npx playwright test --project=public-chromium --project=public-firefox --project=public-mobile
+
+      - name: Run auth tests (requires user fixture)
+        if: ${{ secrets.PLAYWRIGHT_STORAGE_USER != '' }}
+        working-directory: e2e
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ steps.target.outputs.url }}
+        run: npx playwright test --project=auth-user
+
+      - name: Run admin tests (requires admin fixture)
+        if: ${{ secrets.PLAYWRIGHT_STORAGE_ADMIN != '' }}
+        working-directory: e2e
+        env:
+          PLAYWRIGHT_BASE_URL: ${{ steps.target.outputs.url }}
+        run: npx playwright test --project=auth-admin
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-${{ github.run_id }}
+          path: playwright-report/
+          retention-days: 14
+
+      - name: Upload test results (failures only)
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-results-${{ github.run_id }}
+          path: e2e/test-results/
+          retention-days: 7

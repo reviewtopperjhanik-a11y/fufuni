@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(PLAYWRIGHT_ENV=local npx playwright test --project=auth-admin --grep \"Créer\")",
+      "Bash(curl -s http://localhost:8787/v1/categories)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); cats = d if isinstance\\(d, list\\) else d.get\\('categories', []\\); [print\\('FOUND:', c\\) for c in cats if 'playwright' in str\\(c\\).lower\\(\\)]\")"
+    ]
+  }
+}

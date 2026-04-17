@@ -39,7 +39,8 @@ export default defineConfig({
     },
     {
       name: "public-mobile",
-      use: { ...devices["iPhone 14"] },
+      // postinstall only installs chromium + firefox — override webkit default for iPhone 14
+      use: { ...devices["iPhone 14"], defaultBrowserType: "chromium" },
       testMatch: "**/public/**/*.spec.ts",
     },
     {

@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+/// <reference types="node" />
 // Copyright (c) 2024-2026 Ronan LE MEILLAT
 // License: AGPL-3.0-or-later
 //
@@ -32,6 +33,7 @@ if (!existsSync(mcpDir)) {
     [
       "// AUTO-GENERATED — no knowledge files found.",
       "// Run the MCP generate script first: npm run mcp:generate",
+      "// If user creeated an ai.json.enc file and setup the mcp:auto sript, the MCP generate script will be more efficient by using the provier choosen in mcp:auto (gemini, azure, openai...) to generate knowledge files from the ai.json.enc configuration.",
       "",
       "export const KNOWLEDGE: Record<string, string> = {};",
       "",

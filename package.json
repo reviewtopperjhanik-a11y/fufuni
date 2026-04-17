@@ -12,12 +12,12 @@
     "e2e"
   ],
   "devDependencies": {
-    "@auth0/auth0-mcp-server": "^0.1.0-beta.10",
+    "@auth0/auth0-mcp-server": "^0.1.0-beta.11",
     "@heroui/react-mcp": "^1.1.0",
     "fast-glob": "^3.3.3",
     "jose": "^6.2.2",
-    "turbo": "^2.9.3",
-    "typedoc": "^0.28.18",
+    "turbo": "^2.9.6",
+    "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.11.0",
     "vitepress": "^1.6.4"
   },
