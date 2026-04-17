@@ -1,13 +1,13 @@
 name: E2E Playwright Tests
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
-  schedule:
-    # Exécution quotidienne à 3h00 UTC pour détecter les régressions de la démo
-    - cron: "0 3 * * *"
+  # push:
+  #   branches: [main]
+  # pull_request:
+  #   branches: [main]
+  # schedule:
+  #   # Exécution quotidienne à 3h00 UTC pour détecter les régressions de la démo
+  #   - cron: "0 3 * * *"
   workflow_dispatch:
     inputs:
       target_url:
