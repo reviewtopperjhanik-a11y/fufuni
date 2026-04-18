@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+/// <reference types="node" />
 /**
  * Evaluate recall@5 on the Phase 2 eval-queries.json test set.
  *

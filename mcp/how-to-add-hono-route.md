@@ -5,7 +5,7 @@
   description:  Call this when adding a Hono route, middleware, or sub-router to the Fufuni backend.
   model:        gemini-3-flash-preview
   tokens_in:    12094
-  tokens_out:   2353
+  tokens_out:   2564
   api_endpoint: https://generativelanguage.googleapis.com/v1beta
   manual_facts_checksum: 4779a69a6cfb57e3d078a39bd18d8face49ec898842b79ff17fa352789dcc2ad
   sources_checksum: fdd0178e846e43d73fa0dc3dee8208b99e1b82e5b3596d3946d7fb99cfd5dfe4
@@ -16,56 +16,193 @@
     apps/merchant/src/index.ts: 9ecd5ad24f8e059b0124c97b47ae275c0b326b116cf31127db8cdf4fd3f85960
 -->
 
-## Architecture of a Fufuni Route
+## File Structure and Boilerplate
 
-Fufuni utilizes `Hono` with the `@hono/zod-openapi` extension to provide a type-safe, self-documenting API. Every route definition is a combination of a Zod schema (for request/response validation) and a handler function. 
+When adding a new feature to the Fufuni backend, you must create a dedicated route file in `apps/merchant/src/routes/`. The convention is to use a plural noun (e.g., `tags.ts`, `collections.ts`). 
 
-In the Fufuni framework, routes are typically divided into two categories:
-1.  **Public Routes**: Accessible by storefronts using a public key (`pk_...`) or no authentication at all.
-2.  **Admin Routes**: Accessible by store managers using a secret key (`sk_...`) or an Auth0 JWT with specific permissions.
-
-To maintain this separation, every route file in `apps/merchant/src/routes/` follows a specific export pattern using two separate `OpenAPIHono` instances.
-
-## Step 1: Create the Route File
-
-Navigate to `apps/merchant/src/routes/` and create your feature file, for example, `tags.ts`.
-
-### Minimal Boilerplate
-The boilerplate requires importing the framework's core types and database utilities. You must initialize both a `publicApp` and an `adminApp`.
+Fufuni uses `@hono/zod-openapi` to ensure that every endpoint is type-safe and automatically documented in the Swagger UI. You must never use standard Hono `app.get` or `app.post` calls; instead, use `createRoute` to define the contract first.
 
 ```typescript
-// apps/merchant/src/routes/tags.ts
+// apps/merchant/src/routes/my-feature.ts
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { getDb } from '../db';
 import { authMiddleware, adminOnly } from '../middleware/auth';
-// Import your schemas from the central schema registry
-import { ErrorResponse, TagResponse, CreateTagBody } from '../schemas';
+// Note: Real schemas must be imported from ../schemas
+import { ErrorResponse } from '../schemas'; 
 
-// Instance for public access (no auth middleware by default)
 const publicApp = new OpenAPIHono<HonoEnv>();
-
-// Instance for admin access (authMiddleware applied to all routes)
 const adminApp = new OpenAPIHono<HonoEnv>();
+
+// Apply auth middleware to all admin routes
 adminApp.use('*', authMiddleware);
 
+export { publicApp as publicMyFeature, adminApp as adminMyFeature };
+```
+
+## Splitting Public and Admin Endpoints
+
+Fufuni strictly separates public access (storefront visitors) from admin access (merchant dashboard). This is achieved by exporting two separate `OpenAPIHono` instances.
+
+1.  **Public Router (`publicApp`)**: Used for routes that require no authentication or accept public API keys (`pk_...`). These are registered before the global auth checks in `index.ts`.
+2.  **Admin Router (`adminApp`)**: Used for routes requiring a secret key (`sk_...`) or an Auth0 JWT. These routes typically use `authMiddleware` and specific RBAC guards.
+
+### Pattern for Router Export
+```typescript
+// Define routes here...
+
+// Export using this specific naming convention
 export { publicApp as publicTags, adminApp as adminTags };
 ```
 
-## Step 2: Define and Implement Routes
+## Database Interaction with getDb()
 
-Never declare Zod schemas inline within the route file; they belong in `apps/merchant/src/schemas/`. Use `createRoute` to define the OpenAPI metadata.
+The Fufuni backend runs on Cloudflare Durable Objects using SQLite. You do not access the database directly; instead, you use the `getDb` helper which wraps the Durable Object's RPC methods.
 
-### Data Access with getDb()
-Fufuni runs on Cloudflare Durable Objects using an embedded SQLite database. The database is accessed via a stub injected into the Hono context.
-- Use `db.query<T>(sql, params)` for `SELECT` statements.
-- Use `db.run(sql, params)` for `INSERT`, `UPDATE`, or `DELETE`.
+-   **`db.query<T>(sql, params)`**: Used for `SELECT` statements. Always returns an array.
+-   **`db.run(sql, params)`**: Used for `INSERT`, `UPDATE`, and `DELETE`. Returns an object containing the number of changes.
 
-### Error Handling with ApiError
-Instead of returning manual JSON objects for errors, throw an `ApiError`. This ensures the error matches the standard Fufuni error envelope: `{ error: { code, message, details } }`.
+### Example Query and Mutation
+```typescript
+const handler = async (c: any) => {
+  const db = getDb(c.var.db);
+  
+  // Reading data
+  const rows = await db.query<{ id: string; name: string }>(
+    'SELECT id, name FROM tags WHERE status = ?',
+    ['active']
+  );
+
+  // Writing data
+  const result = await db.run(
+    'INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)',
+    [uuid(), 'New Tag', now()]
+  );
+
+  return c.json({ items: rows, created: result.changes > 0 });
+};
+```
+
+## Handling Errors with ApiError
+
+Never return manual JSON error objects. Fufuni uses a centralized `ApiError` class that ensures error responses follow the standard envelope format: `{ error: { code, message, details } }`. 
+
+Throwing an `ApiError` automatically triggers the global error handler in `index.ts`, which sets the correct HTTP status code.
+
+### Standard Error Usage
+```typescript
+// Inside a route handler
+const [item] = await db.query('SELECT * FROM items WHERE id = ?', [id]);
+
+if (!item) {
+  throw ApiError.notFound(`Item with ID ${id} not found`);
+}
+
+if (somethingIsWrong) {
+  throw ApiError.badRequest('Invalid configuration', { field: 'config_set' });
+}
+
+try {
+  // logic
+} catch (err) {
+  throw ApiError.internalServerError(err instanceof Error ? err.message : 'Database failure');
+}
+```
+
+## Available RBAC Guards
+
+When defining admin routes, you must use middleware to restrict access based on permissions. These guards are imported from `../middleware/auth` and should be placed in the `middleware` array of the `createRoute` configuration.
+
+| Guard | Requirement |
+| :--- | :--- |
+| `adminOnly` | Requires `admin:store` permission (Standard Merchant) |
+| `superAdminOnly` | Requires highest level privileges |
+| `databaseAdminOnly` | Requires `admin:database` for raw SQL/DB operations |
+| `aiAccessOnly` | Requires `ai:api` for AI translation or config |
+| `mailAccessOnly` | Requires `mail:api` for sending/configuring emails |
+| `validJwtAuthOnly` | Validates that a token is present but doesn't check specific roles |
+
+### Implementation in createRoute
+```typescript
+const secureRoute = createRoute({
+  method: 'post',
+  path: '/',
+  middleware: [adminOnly] as const, // Use 'as const' for Hono type inference
+  // ... rest of config
+});
+```
+
+## Registering Routes in index.ts
+
+New routes must be mounted in `apps/merchant/src/index.ts`. The order of registration is critical because Hono matches routes sequentially and middleware application depends on placement.
+
+1.  **Public Routes**: Register these **before** any global authentication middleware.
+2.  **Admin Routes**: Register these towards the end of the file.
+3.  **Cache Invalidation**: If your resource is cached (like products or categories), ensure the `kvInvalidateMiddleware` is applied to the prefix.
 
 ```typescript
+// apps/merchant/src/index.ts
+
+// 1. Import your routers
+import { publicTags, adminTags } from './routes/tags';
+
+// 2. (Optional) Register Cache Middleware if high traffic
+app.use('/v1/tags', kvCacheMiddleware);
+app.use('/v1/tags/*', kvCacheMiddleware);
+
+// 3. Register public routes (before auth)
+app.route('/v1/tags', publicTags);
+
+// ... other routes ...
+
+// 4. Register admin routes
+app.route('/v1/tags', adminTags);
+```
+
+## Complete Worked Example: Tags API
+
+This example demonstrates a complete `tags.ts` file implementing a public list and an admin-only creation endpoint.
+
+### Step 1: Define Schemas (apps/merchant/src/schemas/tags.ts)
+*Note: In a real scenario, you would add these to the central schemas directory.*
+
+```typescript
+import { z } from '@hono/zod-openapi';
+
+export const TagSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  slug: z.string(),
+  created_at: z.string().datetime(),
+}).openapi('Tag');
+
+export const CreateTagBody = z.object({
+  name: z.string().min(1),
+  slug: z.string().min(1),
+}).openapi('CreateTagBody');
+
+export const TagListResponse = z.object({
+  items: z.array(TagSchema),
+}).openapi('TagListResponse');
+```
+
+### Step 2: Implement the Route (apps/merchant/src/routes/tags.ts)
+
+```typescript
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { z } from 'zod';
+import { ApiError, uuid, now, type HonoEnv } from '../types';
+import { getDb } from '../db';
+import { authMiddleware, adminOnly } from '../middleware/auth';
+import { ErrorResponse } from '../schemas';
+// Simulated imports from step 1
+import { TagSchema, CreateTagBody, TagListResponse } from '../schemas';
+
+const publicApp = new OpenAPIHono<HonoEnv>();
+const adminApp = new OpenAPIHono<HonoEnv>();
+
+// --- Public: List Tags ---
 const listTagsRoute = createRoute({
   method: 'get',
   path: '/',
@@ -73,176 +210,89 @@ const listTagsRoute = createRoute({
   summary: 'List all tags',
   responses: {
     200: {
-      content: { 'application/json': { schema: z.array(TagResponse) } },
+      content: { 'application/json': { schema: TagListResponse } },
       description: 'List of tags',
+    },
+    500: {
+      content: { 'application/json': { schema: ErrorResponse } },
+      description: 'Server error',
     },
   },
 });
 
 publicApp.openapi(listTagsRoute, async (c) => {
-  // c.var.db is the DO stub; getDb() provides the query/run helpers
   const db = getDb(c.var.db);
   try {
-    const tags = await db.query<any>('SELECT * FROM tags ORDER BY name ASC');
-    return c.json(tags, 200);
-  } catch (e) {
+    const rows = await db.query<any>('SELECT * FROM tags ORDER BY name ASC');
+    return c.json({ items: rows }, 200);
+  } catch (error) {
     throw ApiError.internalServerError('Failed to fetch tags');
   }
 });
-```
-
-## Step 3: Available RBAC Guards
-
-When defining `adminApp` routes, you can apply granular permissions using middleware imported from `../middleware/auth`. These are applied via the `middleware` array in `createRoute`.
-
-| Middleware | Permission Required | Use Case |
-| :--- | :--- | :--- |
-| `adminOnly` | `admin:store` | Standard CRUD for products, categories, tags. |
-| `superAdminOnly` | N/A (Role-based) | Destructive operations or global settings. |
-| `databaseAdminOnly` | `admin:database` | Raw SQL execution or migrations. |
-| `aiAccessOnly` | `ai:api` | Configuring LLM parameters or translations. |
-| `mailAccessOnly` | `mail:api` | Testing or sending transactional emails. |
-| `validJwtAuthOnly` | N/A | Any valid Auth0 user (e.g., for "My Profile" routes). |
-
-## Step 4: Registration in index.ts
-
-The order of registration in `apps/merchant/src/index.ts` is critical. Public routes must be registered **before** the global rate limiter or any catch-all authentication logic.
-
-```typescript
-// apps/merchant/src/index.ts
-import { publicTags, adminTags } from './routes/tags';
-
-// 1. Mount Public Routes (No auth required)
-app.route('/v1/tags', publicTags);
-
-// 2. Register global middleware (Rate limiting, etc.)
-app.use('/v1/*', rateLimitMiddleware());
-
-// 3. Mount Admin Routes (Auth middleware inside)
-app.route('/v1/tags', adminTags);
-```
-
-## Worked Example: Product Tags Feature
-
-This example demonstrates a complete implementation of a "Tags" system, allowing public listing and admin-only creation.
-
-### 1. Route Definition File
-```typescript
-// apps/merchant/src/routes/tags.ts
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { z } from 'zod';
-import { ApiError, uuid, now, type HonoEnv } from '../types';
-import { getDb } from '../db';
-import { authMiddleware, adminOnly } from '../middleware/auth';
-import { TagResponse, CreateTagSchema, ErrorResponse } from '../schemas';
-
-const publicApp = new OpenAPIHono<HonoEnv>();
-const adminApp = new OpenAPIHono<HonoEnv>();
-
-// Admin routes need authentication
-adminApp.use('*', authMiddleware);
-
-// --- Public: List Tags ---
-const listTags = createRoute({
-  method: 'get',
-  path: '/',
-  tags: ['Tags'],
-  responses: {
-    200: {
-      content: { 'application/json': { schema: z.array(TagResponse) } },
-      description: 'Successful retrieval',
-    },
-  },
-});
-
-publicApp.openapi(listTags, async (c) => {
-  const db = getDb(c.var.db);
-  const rows = await db.query<any>('SELECT * FROM tags');
-  return c.json(rows, 200);
-});
 
 // --- Admin: Create Tag ---
-const createTag = createRoute({
+adminApp.use('*', authMiddleware);
+
+const createTagRoute = createRoute({
   method: 'post',
   path: '/',
   tags: ['Tags'],
+  summary: 'Create a new tag',
   security: [{ bearerAuth: [] }],
-  middleware: [adminOnly] as const, // Apply RBAC
+  middleware: [adminOnly] as const,
   request: {
     body: {
-      content: { 'application/json': { schema: CreateTagSchema } },
+      content: { 'application/json': { schema: CreateTagBody } },
     },
   },
   responses: {
     201: {
-      content: { 'application/json': { schema: TagResponse } },
+      content: { 'application/json': { schema: TagSchema } },
       description: 'Tag created',
     },
     409: {
       content: { 'application/json': { schema: ErrorResponse } },
-      description: 'Tag name already exists',
+      description: 'Slug already exists',
     },
   },
 });
 
-adminApp.openapi(createTag, async (c) => {
-  // Use c.req.valid('json') - NEVER use c.req.json()
-  const { name } = c.req.valid('json');
+adminApp.openapi(createTagRoute, async (c) => {
+  const { name, slug } = c.req.valid('json');
   const db = getDb(c.var.db);
 
-  // Check for existing tag
-  const [existing] = await db.query<{id: string}>('SELECT id FROM tags WHERE name = ?', [name]);
+  const [existing] = await db.query('SELECT id FROM tags WHERE slug = ?', [slug]);
   if (existing) {
-    throw ApiError.conflict(`Tag "${name}" already exists`);
+    throw ApiError.conflict(`Tag with slug "${slug}" already exists`);
   }
 
   const id = uuid();
+  const timestamp = now();
+
   await db.run(
-    'INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)',
-    [id, name, now()]
+    'INSERT INTO tags (id, name, slug, created_at) VALUES (?, ?, ?, ?)',
+    [id, name, slug, timestamp]
   );
 
-  return c.json({ id, name, created_at: now() }, 201);
+  return c.json({
+    id,
+    name,
+    slug,
+    created_at: timestamp,
+  }, 201);
 });
 
 export { publicApp as publicTags, adminApp as adminTags };
 ```
 
-### 2. Registering in index.ts
-Ensure the imports and routes are added to the main entry point.
-
-```typescript
-// apps/merchant/src/index.ts
-// ... imports
-import { publicTags, adminTags } from './routes/tags';
-
-// ... existing code
-
-// Public mount
-app.route('/v1/tags', publicTags);
-
-// ... middlewares
-
-// Admin mount
-app.route('/v1/tags', adminTags);
-```
-
-### 3. Database Schema (Context)
-For this example to work, the corresponding table must exist in the Durable Object SQLite database (usually handled in `do.ts` or a migration file).
+### Step 3: Database Schema update
+Ensure your Durable Object migrations (or initial setup) include the new table.
 
 ```sql
 CREATE TABLE IF NOT EXISTS tags (
   id TEXT PRIMARY KEY,
-  name TEXT UNIQUE NOT NULL,
+  name TEXT NOT NULL,
+  slug TEXT UNIQUE NOT NULL,
   created_at TEXT NOT NULL
 );
 ```
-
-## Best Practices Checklist
-
-- **Strict Typing**: Always provide a generic type to `db.query<T>` to ensure the returned rows are typed correctly.
-- **Payload Validation**: Always use `c.req.valid('json')` or `c.req.valid('param')`. This ensures that if the request reaches your handler, it has already passed Zod validation.
-- **UUID Generation**: Use the exported `uuid()` utility which leverages `crypto.randomUUID()` for consistency.
-- **Date Handling**: Use the `now()` utility to generate ISO strings for `created_at` and `updated_at` fields.
-- **KV Caching**: If your new route returns high-traffic public data (like products), register the path in `index.ts` under the `kvCacheMiddleware` section.
-- **Documentation**: Provide a `summary` and `description` in `createRoute` so the Swagger UI at `/docs` remains useful for the frontend team.
