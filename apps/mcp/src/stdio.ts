@@ -19,7 +19,12 @@ import { KNOWLEDGE } from "./knowledge.js";
 import { MANIFEST } from "./manifest.js";
 import { registerFufuniTools } from "./tools.js";
 import process from "node:process";
-import aiJsonEnc from "./config/ai.json.enc" with { type:"text" };
+import { readFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const aiJsonEnc = readFileSync(join(__dirname, "config/ai.json.enc"), "utf-8");
 
 const VERBOSE_LOGGING = true; // set to true for debugging MCP server issues
 
@@ -36,7 +41,7 @@ class LoggingStdioServerTransport {
     }
     this.transport.onmessage = (message) => {
       if (VERBOSE_LOGGING) {
-        console.log('[MCP] recv', JSON.stringify(message));
+        console.error('[MCP] recv', JSON.stringify(message));
       }
       return handler(message);
     };
@@ -58,21 +63,21 @@ class LoggingStdioServerTransport {
 
   async start() {
     if (VERBOSE_LOGGING) {
-      console.log('[MCP] transport start');
+      console.error('[MCP] transport start');
     }
     return this.transport.start();
   }
 
   async close() {
     if (VERBOSE_LOGGING) {
-      console.log('[MCP] transport close');
+      console.error('[MCP] transport close');
     }
     return this.transport.close();
   }
 
   async send(message: any) {
     if (VERBOSE_LOGGING) {
-      console.log('[MCP] send', JSON.stringify(message));
+      console.error('[MCP] send', JSON.stringify(message));
     }
     return this.transport.send(message);
   }

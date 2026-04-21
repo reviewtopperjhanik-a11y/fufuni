@@ -9,7 +9,8 @@
     "build": "npm run gen-knowledge && wrangler deploy --dry-run",
     "deploy": "npm run gen-knowledge && wrangler deploy",
     "gen-knowledge": "tsx scripts/gen-knowledge.ts",
-    "stdio": "npm run gen-knowledge && tsx src/stdio.ts",
+    "stdio": "bash -c 'source ../../.env && npx tsx src/stdio.ts'",
+    "dev:stdio": "bash -c 'source ../../.env && npx @modelcontextprotocol/inspector tsx --watch src/stdio.ts'",
     "typegen": "bash -c 'source ../../.env && npx wrangler types'"
   },
   "dependencies": {
@@ -18,7 +19,8 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260317.1",
+    "@cloudflare/workers-types": "^4.20260421.1",
+    "@modelcontextprotocol/inspector": "^0.21.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
     "wrangler": "^4.84.0"

@@ -199,9 +199,19 @@ export function registerFufuniTools(
             const values = data?.embedding?.values;
             if (values && values.length === VECTOR_DIM) {
               const queryVec = new Float32Array(values);
-              const vectorIndex = { VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS };
-              vecHits = cosineTopK(vectorIndex, queryVec, 20);
-              usingVectors = true;
+              let norm = 0;
+              for (let i = 0; i < queryVec.length; i++) {
+                norm += queryVec[i] * queryVec[i];
+              }
+              norm = Math.sqrt(norm);
+              if (norm > 0) {
+                for (let i = 0; i < queryVec.length; i++) {
+                  queryVec[i] /= norm;
+                }
+                const vectorIndex: VectorIndex = { VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS };
+                vecHits = cosineTopK(vectorIndex, queryVec, 20);
+                usingVectors = true;
+              }
             }
           } else {
             console.warn(`[MCP] Gemini embedding API error: ${response.status}`);
