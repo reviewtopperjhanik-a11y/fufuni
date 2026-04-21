@@ -18,6 +18,11 @@ import { CHUNKS } from "./search/chunks.js";
 import { VECTOR_MODEL, VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS } from "./search/vectors.js";
 import { decryptAiConfig } from "./lib/ai-enc.js";
 import { generateEmbedding, buildApiKeyPool, normalizeVector, maskApiKey } from "./lib/generate-knowledge.js";
+import { SOURCES, SOURCE_COMMITS } from "./sources.js";
+import { READABLE_SOURCES } from "./sources-whitelist.js";
+import { parseSchema } from "./lib/schema-parser.js";
+import { ROUTES } from "./search/routes.js";
+import { extractMigrations } from "./lib/migration-parser.js";
 
 export type ToolDeps = {
   manifest: TopicManifest;
@@ -64,13 +69,15 @@ export function registerFufuniTools(
   server.registerTool("get_topic", {
     title: "Get a Fufuni knowledge topic by slug",
     description:
-      "Return the full Markdown of a Fufuni topic. " +
+      "Return the full Markdown of a Fufuni topic, or a single section if `section` is provided. " +
       "Use this when you already know the topic slug (e.g. 'db-schema', 'how-to-add-hono-route'). " +
-      "Prefer `list_topics` to discover slugs.",
-    inputSchema: {
+      "Prefer `retrieve_knowledge` to search by question; use `get_topic` only when you know the slug.",
+    inputSchema: z.object({
       slug: z.string().describe("Topic slug (e.g. 'db-schema', 'api-error-patterns')"),
-    },
-  }, async ({ slug }) => {
+      section: z.string().optional()
+        .describe('Optional heading to narrow the response (e.g. "Refund flow"). Matches on the trimmed heading text.'),
+    }),
+  }, async ({ slug, section }) => {
     const content = knowledge[slug];
     if (!content) {
       const available = manifest.topics.map((t: any) => t.slug).join(", ");
@@ -84,7 +91,32 @@ export function registerFufuniTools(
         isError: true,
       };
     }
-    return { content: [{ type: "text", text: content }] };
+    
+    // If no section specified, return full topic
+    if (!section) {
+      return { content: [{ type: "text", text: content }] };
+    }
+
+    // Find chunk matching the section heading
+    const chunks = Object.values(CHUNKS).filter((c) => c.topic === slug);
+    const hit = chunks.find((c) =>
+      c.heading.toLowerCase().includes(section.toLowerCase()),
+    );
+
+    if (!hit) {
+      const available = chunks.map((c) => c.heading.trim()).join(", ");
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Section "${section}" not found in "${slug}". Available sections: ${available}`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    return { content: [{ type: "text", text: hit.text }] };
   });
 
   // ── Tool 3: search_topics ────────────────────────────────────────────────
@@ -162,7 +194,7 @@ export function registerFufuniTools(
       "Combines lexical (BM25) and semantic (cosine similarity) scoring. " +
       "Prefer this over `get_topic` when the user asks a question.",
     inputSchema: {
-      query: z.string().min(3).describe("Question in natural language, in English or French."),
+      query: z.string().min(3).describe("Question in natural language only in English."),
       k: z.int().min(1).max(10).optional()
         .describe("Number of chunks to return (default 5)."),
       topic_filter: z.array(z.string()).optional()
@@ -251,7 +283,159 @@ export function registerFufuniTools(
     };
   });
 
-  // ── Tools 6-8: Reserved for Phase 3-4 (chunking refinement, read_source, etc.) ──
-  // TODO Phase 3: Enhanced chunking with fine-grained retrieval
-  // TODO Phase 4: read_source, inspect_schema, list_routes
+  // ── Tool 6: read_source ─────────────────────────────────────────────────
+  server.registerTool("read_source", {
+    title: "Read a Fufuni source file",
+    description:
+      "Read a whitelisted source file from the Fufuni monorepo. " +
+      "Use this when the user asks for the *current* implementation of a route, schema, or migration. " +
+      "Prefer `retrieve_knowledge` for conceptual questions.",
+    inputSchema: z.object({
+      path: z.string().describe("Repo-relative path (e.g. apps/merchant/src/do.ts)."),
+      start_line: z.number().int().min(1).optional().describe("Start line number (1-based)."),
+      end_line: z.number().int().min(1).optional().describe("End line number (1-based, inclusive)."),
+    }),
+  }, async ({ path, start_line, end_line }) => {
+    if (!READABLE_SOURCES.includes(path)) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Path "${path}" is not in the read-source whitelist. Available paths: ${READABLE_SOURCES.slice(0, 5).join(", ")} ...`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const content = SOURCES[path];
+    if (content === undefined) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: `Source "${path}" not found in bundle. Rebuild required: npm run build:sources`,
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    const lines = content.split("\n");
+    const from = Math.max(0, (start_line ?? 1) - 1);
+    const to = Math.min(lines.length, end_line ?? lines.length);
+    const slice = lines.slice(from, to).join("\n");
+    const commit = SOURCE_COMMITS[path] ?? "unknown";
+    const header = `// File: ${path} (commit ${commit}), lines ${from + 1}-${to}\n`;
+
+    return { content: [{ type: "text", text: header + slice }] };
+  });
+
+  // ── Tool 7: inspect_schema ──────────────────────────────────────────────
+  const schemaSource = SOURCES["apps/merchant/src/do.ts"] ?? "";
+  const schema = parseSchema(schemaSource);
+
+  server.registerTool("inspect_schema", {
+    title: "Inspect the Fufuni SQL schema",
+    description:
+      "Return the Durable Object SQL schema — every table, column and type — parsed live from apps/merchant/src/do.ts. " +
+      "Always reflects the current build; prefer this over db-schema documentation when accuracy matters.",
+    inputSchema: z.object({
+      table: z.string().optional().describe("Optional table name; when omitted, returns every table."),
+    }),
+  }, async ({ table }) => {
+    if (table) {
+      const t = schema[table];
+      if (!t) {
+        const available = Object.keys(schema).join(", ");
+        return {
+          content: [{ type: "text", text: `Table "${table}" not found. Available: ${available}` }],
+          isError: true,
+        };
+      }
+      return { content: [{ type: "text", text: JSON.stringify(t, null, 2) }] };
+    }
+    return { content: [{ type: "text", text: JSON.stringify(schema, null, 2) }] };
+  });
+
+  // ── Tool 8: list_routes ────────────────────────────────────────────────
+  // ROUTES is pre-built from openapi.json at build time (npm run build:sources).
+  // It contains the complete API surface — all routes registered by OpenAPIHono.doc31.
+
+  server.registerTool("list_routes", {
+    title: "List Fufuni API routes",
+    description:
+      "Return all API routes from the Fufuni OpenAPI 3.1 specification (generated by OpenAPIHono). " +
+      "Includes HTTP method, path, summary, tags and operationId for every endpoint. " +
+      "Use this when the user asks 'what endpoints are available?' or 'which routes handle X?'",
+    inputSchema: z.object({
+      method_filter: z.enum(["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]).optional()
+        .describe("Optional HTTP method filter (e.g. POST)."),
+      tag_filter: z.string().optional()
+        .describe("Optional tag filter (e.g. 'orders', 'products')."),
+    }),
+  }, async ({ method_filter, tag_filter }) => {
+    let filtered = ROUTES;
+
+    if (method_filter) {
+      filtered = filtered.filter((r) => r.method === method_filter);
+    }
+    if (tag_filter) {
+      filtered = filtered.filter((r) => r.tags?.includes(tag_filter));
+    }
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              count: filtered.length,
+              routes: filtered,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  });
+
+  // ── Tool 9: list_migrations ────────────────────────────────────────────
+  const migrationFiles = READABLE_SOURCES
+    .filter((p) => p.match(/migrations\/\d{3}-.+\.sql$/))
+    .map((path) => ({
+      path,
+      content: SOURCES[path] ?? "",
+    }))
+    .filter((f) => f.content.length > 0);
+  const migrations = extractMigrations(migrationFiles);
+
+  server.registerTool("list_migrations", {
+    title: "List database migrations",
+    description:
+      "Return all database migrations in chronological order (newest first). " +
+      "Use this when the user asks 'what migrations have been applied?' or 'what changed in the schema recently?'",
+    inputSchema: z.object({}),
+  }, async () => {
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              count: migrations.length,
+              migrations,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  });
+
+  // ── Reserved: Phase 5+ (caching, observability, etc.) ──────────────────
+  // TODO Phase 5: KV cache + prompt caching
+  // TODO Phase 7: Observability + telemetry
 }

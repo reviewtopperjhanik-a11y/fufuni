@@ -10,6 +10,7 @@
     "preview:env": "bash ./dev-env.sh \"$@\"",
     "stripe:listen": "bash -c 'source ../../.env && stripe --api-key $STRIPE_SECRET_KEY listen --load-from-webhooks-api --forward-to http://localhost:8787'",
     "deploy": "wrangler deploy",
+    "gen:openapi": "bash -c 'source ../../.env && wrangler dev --port 8787 & PID=$! && for i in $(seq 1 30); do sleep 1 && curl -sf http://localhost:8787/openapi.json > ../../openapi.json && echo \"\\n✓ Generated openapi.json\" && kill $PID && exit 0; done; echo \"\\n✗ wrangler did not respond\" && kill $PID && exit 1'",
     "db:init": "wrangler d1 execute DB --file=schema-d1.sql --local",
     "db:seed": "npx tsx scripts/seed.ts",
     "test": "vitest --config vitest.config.ts --run",

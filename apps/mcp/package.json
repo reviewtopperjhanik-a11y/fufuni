@@ -4,11 +4,12 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "npm run gen-knowledge && (trap 'kill 0' EXIT; npx wrangler dev --port 8788 --inspector-port 9230 & sleep 2 && npx @modelcontextprotocol/inspector http://localhost:8788/mcp; wait)",
-    "dev:env": "npm run gen-knowledge && (trap 'kill 0' EXIT; npx wrangler dev --port 8788 --inspector-port 9230 & sleep 2 && npx @modelcontextprotocol/inspector http://localhost:8788/mcp; wait)",
-    "build": "npm run gen-knowledge && wrangler deploy --dry-run",
-    "deploy": "npm run gen-knowledge && wrangler deploy",
+    "dev": "npm run gen-knowledge && npm run build:sources && (trap 'kill 0' EXIT; npx wrangler dev --port 8788 --inspector-port 9230 & sleep 2 && npx @modelcontextprotocol/inspector http://localhost:8788/mcp; wait)",
+    "dev:env": "npm run gen-knowledge && npm run build:sources && (trap 'kill 0' EXIT; npx wrangler dev --port 8788 --inspector-port 9230 & sleep 2 && npx @modelcontextprotocol/inspector http://localhost:8788/mcp; wait)",
+    "build": "npm run gen-knowledge && npm run build:sources && wrangler deploy --dry-run",
+    "deploy": "npm run gen-knowledge && npm run build:sources && wrangler deploy",
     "gen-knowledge": "tsx scripts/gen-knowledge.ts",
+    "build:sources": "tsx scripts/build-sources.ts",
     "stdio": "bash -c 'source ../../.env && npx tsx src/stdio.ts'",
     "dev:stdio": "bash -c 'source ../../.env && npx @modelcontextprotocol/inspector tsx --watch src/stdio.ts'",
     "typegen": "bash -c 'source ../../.env && npx wrangler types'"
