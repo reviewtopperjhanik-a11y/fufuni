@@ -11,12 +11,15 @@
 //
 // VS Code mcp.json:
 //   { "type": "stdio", "command": "npm", "args": ["--prefix", "apps/mcp", "run", "stdio"] }
+/// <reference types="node" />
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { KNOWLEDGE } from "./knowledge.js";
 import { MANIFEST } from "./manifest.js";
 import { registerFufuniTools } from "./tools.js";
+import process from "node:process";
+import aiJsonEnc from "./config/ai.json.enc" with { type:"text" };
 
 const VERBOSE_LOGGING = true; // set to true for debugging MCP server issues
 
@@ -80,7 +83,7 @@ const server = new McpServer({
   version: "2.0.0",
 });
 
-registerFufuniTools(server, { manifest: MANIFEST, knowledge: KNOWLEDGE });
+registerFufuniTools(server, { manifest: MANIFEST, knowledge: KNOWLEDGE, aiEncJson: aiJsonEnc, env: process.env as any as Env });
 
 const transport = new LoggingStdioServerTransport();
 await server.connect(transport);

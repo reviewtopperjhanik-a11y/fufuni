@@ -8,18 +8,21 @@
 // Per-topic tools are removed; all retrieval goes through search or direct slug reference.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import * as z from "zod";
+import * as z from "zod/v4";
 import type { TopicManifest } from "./index.js";
 import { Bm25Index, tokenise } from "./search/bm25.js";
 import { cosineTopK, type VectorIndex } from "./search/cosine.js";
 import { reciprocalRankFusion } from "./search/rrf.js";
 import { BM25_INDEX } from "./search/bm25-index.js";
 import { CHUNKS } from "./search/chunks.js";
-import type { VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS } from "./search/vectors.js";
+import { VECTOR_MODEL, VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS } from "./search/vectors.js";
+import { decryptAiConfig, selectModels, pickKey } from "./lib/ai-enc.js";
 
 export type ToolDeps = {
   manifest: TopicManifest;
   knowledge: Record<string, string>;
+  aiEncJson: string;
+  env: Env;
 };
 
 /**
@@ -29,7 +32,7 @@ export function registerFufuniTools(
   server: McpServer,
   deps: ToolDeps,
 ): void {
-  const { manifest, knowledge } = deps;
+  const { manifest, knowledge, aiEncJson, env } = deps;
 
   // ── Tool 1: list_topics ──────────────────────────────────────────────────
   server.registerTool("list_topics", {
@@ -146,6 +149,10 @@ export function registerFufuniTools(
   // ── Tool 5: retrieve_knowledge ───────────────────────────────────────────
   // Hybrid BM25 + embeddings search (Phase 2)
   const bm25 = new Bm25Index(BM25_INDEX.docs);
+  // const aiConfig = await decryptAiConfig(aiEncJson, env.CRYPTOKEN).catch((e) => {
+  //   console.warn("[MCP] Failed to decrypt AI config. retrieve_knowledge will operate in BM25-only mode.", e);
+  //   return null;
+  // });
 
   server.registerTool("retrieve_knowledge", {
     title: "Retrieve Fufuni knowledge by semantic search",
@@ -164,21 +171,45 @@ export function registerFufuniTools(
     const tokens = tokenise(query);
     const bm25Hits = bm25.search(tokens, 20);
 
-    // Try vector search if embeddings are available; fall back to BM25-only otherwise
+    // Try vector search via Gemini embedding; fall back to BM25-only otherwise
     let vecHits: Array<{ id: string; score: number }> = [];
     let usingVectors = false;
 
-    try {
-      // Dynamically import vectors module to check if embeddings exist
-      const { VECTORS_B64, VECTOR_DIM, VECTOR_COUNT, CHUNK_IDS: vectorChunkIds } = await import("./search/vectors.js");
-      if (VECTOR_COUNT > 0 && VECTORS_B64) {
-        // Embed the query using a runtime embedding function
-        // For now, this is a placeholder; in production this would call the Gemini API
-        // vecHits = cosineTopK(vectorIndex, queryEmbedding, 20);
-        // usingVectors = true;
+    if (aiEncJson && env.CRYPTOKEN && VECTOR_COUNT > 0 && VECTORS_B64) {
+      try {
+        const aiConfig = await decryptAiConfig(aiEncJson, env.CRYPTOKEN);
+        const geminiCandidates = selectModels(aiConfig, { protocol: 'gemini' });
+        if (geminiCandidates.length > 0) {
+          const { provider } = geminiCandidates[0];
+          const keyObj = pickKey(provider);
+          const truncated = query.split(/\s+/).slice(0, 500).join(' ');
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/${VECTOR_MODEL}:embedContent?key=${keyObj.key}`;
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              model: VECTOR_MODEL,
+              content: { parts: [{ text: truncated }] },
+              output_dimensionality: VECTOR_DIM,
+              taskType: 'RETRIEVAL_QUERY',
+            }),
+          });
+          if (response.ok) {
+            const data = await response.json() as { embedding?: { values?: number[] } };
+            const values = data?.embedding?.values;
+            if (values && values.length === VECTOR_DIM) {
+              const queryVec = new Float32Array(values);
+              const vectorIndex = { VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS };
+              vecHits = cosineTopK(vectorIndex, queryVec, 20);
+              usingVectors = true;
+            }
+          } else {
+            console.warn(`[MCP] Gemini embedding API error: ${response.status}`);
+          }
+        }
+      } catch (e) {
+        console.warn('[MCP] Vector embedding failed, falling back to BM25-only', e);
       }
-    } catch {
-      // Embeddings not available, continue with BM25-only
     }
 
     const fused = usingVectors
@@ -198,7 +229,7 @@ export function registerFufuniTools(
         topic: chunk.topic,
         heading: chunk.heading,
         heading_path: chunk.heading_path,
-        score: 0, // Placeholder; will be populated when vectors are available
+        score: top.find((h) => h.id === chunk.id)?.score ?? 0,
         word_count: chunk.word_count,
         text: chunk.text,
       }));

@@ -16,6 +16,7 @@ import { McpAgent } from "agents/mcp";
 import { KNOWLEDGE } from "./knowledge.js";
 import { MANIFEST } from "./manifest.js";
 import { registerFufuniTools } from "./tools.js";
+import aiJsonEnc from "./config/ai.json.enc" with { type:"text" };
 
 export interface TopicMeta {
   slug: string;
@@ -65,7 +66,7 @@ export class FufuniMCP extends McpAgent {
   });
 
   async init() {
-    registerFufuniTools(this.server, { manifest: MANIFEST, knowledge: KNOWLEDGE });
+    registerFufuniTools(this.server, { manifest: MANIFEST, knowledge: KNOWLEDGE, aiEncJson: aiJsonEnc, env: this.env });
   }
 }
 
