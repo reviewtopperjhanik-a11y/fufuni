@@ -30,6 +30,8 @@
     }
   ],
   "settings": {
+    "github.copilot.selectedCompletionModel": "raptor-mini",
+  "github.copilot.chat.localeOverride": "en",
     "editor.maxTokenizationLineLength":1000000,
     "git.openRepositoryInParentFolders": "always",
     "terminal.integrated.defaultProfile.linux": "bash",
