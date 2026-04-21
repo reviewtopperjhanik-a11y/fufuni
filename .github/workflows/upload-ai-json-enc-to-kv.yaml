@@ -31,6 +31,5 @@ jobs:
             echo "Warning: ai.json.enc not found. Skipping KV upload."
             exit 0
           fi
-          cd apps/merchant
-          npx wrangler kv key put --path ../../ai.json.enc --binding KV_CACHE --remote ai:config
+          npx wrangler kv key put --remote --namespace-id=${{secrets.KV_CACHE_ID}} ai:config --path=ai.json.enc 
           echo "✓ ai.json.enc uploaded to KV_CACHE"
