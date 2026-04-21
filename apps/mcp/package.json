@@ -13,14 +13,14 @@
     "typegen": "wrangler types"
   },
   "dependencies": {
-    "agents": "^0.7.0",
-    "@modelcontextprotocol/sdk": "^1.8.0",
-    "zod": "^3.25.76"
+    "agents": "^0.11.4",
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "zod": "^4.3.6"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260317.1",
-    "tsx": "^4.19.0",
-    "typescript": "^5.9.3",
-    "wrangler": "^4.14.0"
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.3",
+    "wrangler": "^4.84.0"
   }
 }

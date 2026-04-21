@@ -8,7 +8,7 @@
 // Per-topic tools are removed; all retrieval goes through search or direct slug reference.
 
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { z } from "zod";
+import * as z from "zod";
 import type { TopicManifest } from "./index.js";
 import { Bm25Index, tokenise } from "./search/bm25.js";
 import { cosineTopK, type VectorIndex } from "./search/cosine.js";
@@ -63,9 +63,9 @@ export function registerFufuniTools(
       "Return the full Markdown of a Fufuni topic. " +
       "Use this when you already know the topic slug (e.g. 'db-schema', 'how-to-add-hono-route'). " +
       "Prefer `list_topics` to discover slugs.",
-    inputSchema: z.object({
+    inputSchema: {
       slug: z.string().describe("Topic slug (e.g. 'db-schema', 'api-error-patterns')"),
-    }),
+    },
   }, async ({ slug }) => {
     const content = knowledge[slug];
     if (!content) {
@@ -91,11 +91,11 @@ export function registerFufuniTools(
       "[Deprecated] Full-text search across topics. " +
       "Use `list_topics` + tag filtering for better results. " +
       "This tool will be removed on 2026-07-01.",
-    inputSchema: z.object({
+    inputSchema: {
       query: z.string().describe("Keyword or phrase"),
-      max_results: z.number().int().min(1).max(10).optional()
+      max_results: z.int().min(1).max(10).optional()
         .describe("Number of results (default 5)"),
-    }),
+    },
   }, async ({ query, max_results = 5 }) => {
     const needle = query.toLowerCase();
     const results: Array<{ slug: string; excerpt: string }> = [];
@@ -153,13 +153,13 @@ export function registerFufuniTools(
       "Answer a natural-language question by returning the most relevant chunks of the Fufuni knowledge base. " +
       "Combines lexical (BM25) and semantic (cosine similarity) scoring. " +
       "Prefer this over `get_topic` when the user asks a question.",
-    inputSchema: z.object({
+    inputSchema: {
       query: z.string().min(3).describe("Question in natural language, in English or French."),
-      k: z.number().int().min(1).max(10).optional()
+      k: z.int().min(1).max(10).optional()
         .describe("Number of chunks to return (default 5)."),
       topic_filter: z.array(z.string()).optional()
         .describe("Restrict to these topic slugs (from list_topics)."),
-    }),
+    },
   }, async ({ query, k = 5, topic_filter }) => {
     const tokens = tokenise(query);
     const bm25Hits = bm25.search(tokens, 20);

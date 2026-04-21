@@ -11,6 +11,9 @@
     "apps/mcp",
     "e2e"
   ],
+  "overrides": {
+    "zod": "^4.3.6"
+  },
   "devDependencies": {
     "@auth0/auth0-mcp-server": "^0.1.0-beta.11",
     "@heroui/react-mcp": "^1.1.0",
