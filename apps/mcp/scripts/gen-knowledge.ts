@@ -34,8 +34,8 @@ import { decryptAiConfig, type AiConfig } from "../src/lib/ai-enc.js";
 // The Worker imports these files directly at build time, so there is no runtime
 // file system access inside the Cloudflare Worker for knowledge or vector search.
 
-const VECTOR_DIM = 768; // Gemini embedding dimension
-const VECTOR_MODEL = 'gemini-embedding-001'; // Gemini embedding model to use
+const VECTOR_DIM = 256 ;//768; // Gemini embedding dimension
+const VECTOR_MODEL = 'gemini-embedding-2-preview'; //'gemini-embedding-001'; // Gemini embedding model to use
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
