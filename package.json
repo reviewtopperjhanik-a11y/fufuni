@@ -40,8 +40,9 @@
     "mcp:generate:force": "tsx apps/mcp/knowledge/generate.ts --force",
     "mcp:auto": "AI_MODEL='' AI_API_KEY='' AI_API_URL='' tsx apps/mcp/knowledge/generate.ts --max-token-override=30000--auto-refresh --provider=gemini && cd apps/mcp && npm run gen-knowledge",
     "mcp:auto:flash": "AI_MODEL='' AI_API_KEY='' AI_API_URL='' tsx apps/mcp/knowledge/generate.ts --auto-refresh --max-token-override=30000 --no-model-fallback --provider=gemini && cd apps/mcp && npm run gen-knowledge",
-    "ai:encrypt": "bash -c 'openssl enc -aes-256-cbc -a -pbkdf2 -iter 100000 -salt -in ai.json -out ai.json.enc -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json.enc written\"'",
-    "ai:decrypt": "bash -c 'openssl enc -d -aes-256-cbc -a -pbkdf2 -iter 100000 -in ai.json.enc -out ai.json -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json written (keep it out of git!)\"'",
-    "ai:kv:push": "bash -c 'source .env && NS_ID=$(jq -r \".kv_namespaces[0].id\" apps/merchant/wrangler.jsonc) && wrangler kv key put --namespace-id=$NS_ID ai:config --path=ai.json.enc && echo \"✓ ai.json.enc uploaded to KV_CACHE\"'"
+    "ai:encrypt": "bash -c 'if [ -n \"${CRYPTOKEN}\" ]; then openssl enc -aes-256-cbc -a -pbkdf2 -iter 100000 -salt -in ai.json -out ai.json.enc -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json.enc written\"; else echo \"Skipping ai:encrypt because CRYPTOKEN is not defined or empty\"; fi'",
+    "ai:decrypt": "bash -c 'if [ -n \"${CRYPTOKEN}\" ]; then openssl enc -d -aes-256-cbc -a -pbkdf2 -iter 100000 -in ai.json.enc -out ai.json -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json written (keep it out of git!)\"; else echo \"Skipping ai:decrypt because CRYPTOKEN is not defined or empty\"; fi'",
+    "ai:kv:push": "bash -c 'source .env && NS_ID=$(jq -r \".kv_namespaces[0].id\" apps/merchant/wrangler.jsonc) && wrangler kv key put --namespace-id=$NS_ID ai:config --path=ai.json.enc && echo \"✓ ai.json.enc uploaded to KV_CACHE\"'",
+    "ai:kv:push:remote": "bash -c 'source .env && npx wrangler kv key put --remote --namespace-id=$KV_CACHE_ID ai:config --path=ai.json.enc'"
   }
 }
