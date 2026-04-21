@@ -136,26 +136,29 @@ export function generateBm25Index(chunks: GeneratedChunk[]): Bm25Doc[] {
  * @param text - The text to convert into an embedding.
  * @param options - Configuration for the embedding request.
  * @param options.fetch - Optional fetch implementation for testing or environments.
- * @param options.apiKey - API key used to authorize the request.
- * @param options.nextKey - Optional round-robin key provider; called on retryable errors to rotate keys.
+ * @param options.apiKeys - API keys used to authorize the request and rotate on retryable failures.
  * @param options.maxRetries - Maximum number of key-rotation retries on recoverable errors (default: 3).
  * @param options.model - Optional model identifier to request.
+ * @param options.vectorDimension - Expected dimension of the embedding vector (default: 768).
  * @returns A numeric embedding vector or null when the operation is skipped.
  */
 export async function generateEmbedding(
   text: string,
   options: {
     fetch?: typeof fetch;
-    apiKey: string;
-    nextKey?: () => ApiKeyWithOwner;
+    apiKeys: ApiKeyWithOwner[];
     maxRetries?: number;
     model?: string;
+    vectorDimension?: number;
   },
 ): Promise<number[] | null> {
   const fetchFn = options.fetch ?? globalThis.fetch;
-  const maxRetries = options.maxRetries ?? 3;
-  if (!options.apiKey) {
-    console.warn('  [warn] API key not set, skipping embeddings generation');
+  const apiKeys = options.apiKeys ?? [];
+  const shuffledKeys = shuffleArray(apiKeys.slice());
+  const maxRetries = options.maxRetries ?? Math.max(shuffledKeys.length - 1, 0);
+
+  if (shuffledKeys.length === 0) {
+    console.warn('  [warn] API keys not set, skipping embeddings generation');
     return null;
   }
 
@@ -169,7 +172,9 @@ export async function generateEmbedding(
   // Retryable HTTP status codes: quota/rate-limit/server errors
   const RETRYABLE_STATUSES = new Set([403, 429, 500, 502, 503, 504]);
 
-  let currentKey = options.apiKey;
+  let keyIndex = 0;
+  let currentKey = shuffledKeys[keyIndex].key;
+  let currentOwner = shuffledKeys[keyIndex].owner;
 
   for (const path of candidates) {
     let attempt = 0;
@@ -179,6 +184,7 @@ export async function generateEmbedding(
         const body = {
           model,
           content: { parts: [{ text: truncated }] },
+          output_dimensionality: options.vectorDimension ?? 768,
           taskType: 'RETRIEVAL_QUERY',
         };
 
@@ -194,11 +200,12 @@ export async function generateEmbedding(
 
         if (RETRYABLE_STATUSES.has(response.status)) {
           const textBody = await response.text();
-          console.warn(`  [warn] Embedding API error (${path}): ${response.status} — ${textBody.slice(0, 200)}`);
-          if (options.nextKey && attempt < maxRetries) {
-            const next = options.nextKey();
-            console.warn(`  [warn] Rotating to key owner: ${next.owner}`);
-            currentKey = next.key;
+          console.warn(`  [warn] Embedding API error key owner: ${currentOwner} (${path}): ${response.status} — ${textBody.slice(0, 200)}`);
+          if (attempt < maxRetries) {
+            keyIndex = (keyIndex + 1) % apiKeys.length;
+            currentKey = apiKeys[keyIndex].key;
+            currentOwner = apiKeys[keyIndex].owner;
+            console.warn(`  [warn] Rotating to key owner: ${currentOwner}`);
             attempt++;
             continue;
           }
@@ -207,7 +214,7 @@ export async function generateEmbedding(
 
         if (!response.ok) {
           const textBody = await response.text();
-          console.warn(`  [warn] Embedding API error (${path}): ${response.status} — ${textBody.slice(0, 200)}`);
+          console.warn(`  [warn] Embedding API error key owner: ${currentOwner} (${path}): ${response.status} — ${textBody.slice(0, 200)}`);
           break;
         }
 
@@ -226,10 +233,11 @@ export async function generateEmbedding(
         return embedding as number[];
       } catch (err) {
         console.warn(`  [warn] Embedding generation failed on candidate ${path}: ${(err as Error).message}`);
-        if (options.nextKey && attempt < maxRetries) {
-          const next = options.nextKey();
-          console.warn(`  [warn] Rotating to key owner: ${next.owner}`);
-          currentKey = next.key;
+        if (attempt < maxRetries) {
+          keyIndex = (keyIndex + 1) % apiKeys.length;
+          currentKey = apiKeys[keyIndex].key;
+          currentOwner = apiKeys[keyIndex].owner;
+          console.warn(`  [warn] Rotating to key owner: ${currentOwner}`);
           attempt++;
           continue;
         }

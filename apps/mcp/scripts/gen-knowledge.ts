@@ -22,7 +22,6 @@ import {
   normalizeVector,
   buildVectorsModule,
   buildApiKeyPool,
-  createRoundRobinKeyProvider,
 } from "../src/lib/generate-knowledge.js";
 import { decryptAiConfig, type AiConfig } from "../src/lib/ai-enc.js";
 
@@ -109,18 +108,16 @@ if (keyPool.length === 0) {
   process.exit(0);
 }
 
-const nextKey = createRoundRobinKeyProvider(keyPool);
 const embeddings: number[][] = [];
 const chunkIds: string[] = [];
 
 for (const [slug, content] of entries) {
   process.stdout.write(`Embedding ${slug}... `);
-  const firstKey = nextKey();
   const embedding = await generateEmbedding(content, {
     fetch,
-    apiKey: firstKey.key,
-    nextKey,
+    apiKeys: keyPool,
     model: 'gemini-embedding-001',
+    vectorDimension: 768,
   });
 
   if (!embedding) {

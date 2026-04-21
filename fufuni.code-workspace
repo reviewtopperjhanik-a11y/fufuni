@@ -30,6 +30,7 @@
     }
   ],
   "settings": {
+    "editor.maxTokenizationLineLength":1000000,
     "git.openRepositoryInParentFolders": "always",
     "terminal.integrated.defaultProfile.linux": "bash",
     "terminal.integrated.defaultProfile.osx": "zsh",
