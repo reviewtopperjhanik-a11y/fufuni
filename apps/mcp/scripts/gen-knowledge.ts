@@ -22,8 +22,20 @@ import {
   normalizeVector,
   buildVectorsModule,
   buildApiKeyPool,
+  EmbeddingResult,
+  summarizeEmbeddingStats,
 } from "../src/lib/generate-knowledge.js";
 import { decryptAiConfig, type AiConfig } from "../src/lib/ai-enc.js";
+
+// This script is intended to run in a developer machine or CI environment.
+// It generates two build-time artifacts:
+// 1) src/knowledge.ts : a static bundle of all generated Markdown topic files.
+// 2) src/search/vectors.ts : a static embedding index for the same content.
+// The Worker imports these files directly at build time, so there is no runtime
+// file system access inside the Cloudflare Worker for knowledge or vector search.
+
+const VECTOR_DIM = 768; // Gemini embedding dimension
+const VECTOR_MODEL = 'gemini-embedding-001'; // Gemini embedding model to use
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -86,6 +98,9 @@ await mkdir(vectorsOutputDir, { recursive: true });
 const vectorsPath = join(vectorsOutputDir, "vectors.ts");
 
 async function loadEncryptedAiConfig(): Promise<AiConfig | null> {
+  // The encrypted AI config file contains provider credentials.
+  // This script decrypts it in memory using the CRYPTOKEN environment variable.
+  // The decrypted result is never written to disk.
   const cryptoken = process.env.CRYPTOKEN;
   if (!cryptoken) return null;
 
@@ -102,38 +117,86 @@ if (!aiConfig) {
   process.exit(0);
 }
 
+// Build a pool of Gemini API keys from the decrypted config.
+// buildApiKeyPool deduplicates the keys and shuffles them so that
+// repeated calls will spread traffic across multiple key owners.
 const keyPool = buildApiKeyPool(aiConfig, { protocol: 'gemini' });
 if (keyPool.length === 0) {
   console.warn('⚠ No Gemini API keys found in ai.json.enc; skipping vector generation.');
   process.exit(0);
 }
 
+// We will generate one embedding per topic file here.
 const embeddings: number[][] = [];
 const chunkIds: string[] = [];
+const embedddingStats: EmbeddingResult['stats'][] = [];
 
 for (const [slug, content] of entries) {
   process.stdout.write(`Embedding ${slug}... `);
-  const embedding = await generateEmbedding(content, {
+
+  // Use the list of Gemini keys to generate an embedding for this topic.
+  // generateEmbedding will try the keys sequentially, rotating on retryable failures.
+  // We request a fixed 768-dimensional embedding vector here.
+  const result = await generateEmbedding(content, {
     fetch,
     apiKeys: keyPool,
-    model: 'gemini-embedding-001',
-    vectorDimension: 768,
+    model: VECTOR_MODEL,
+    vectorDimension: VECTOR_DIM,
   });
 
-  if (!embedding) {
+  if (!result || result.vector.length === 0) {
     console.warn('failed');
     continue;
   }
 
-  const normalized = normalizeVector(embedding);
+  const { vector, stats } = result;
+  embedddingStats.push(stats);
+  // Normalize the vector to unit length before storing it.
+  // This makes cosine similarity calculation at query time simpler.
+  const normalized = normalizeVector(vector);
   embeddings.push(normalized);
   chunkIds.push(`${slug}#0`);
   console.log('ok');
 }
 
 if (embeddings.length > 0) {
-  const vectorModule = buildVectorsModule(embeddings, chunkIds, embeddings[0].length);
+  // Write the embedding index as a TypeScript module.
+  // This file exports the vector dimension, count, base64-encoded payload,
+  // and chunk IDs. The Cloudflare Worker imports it at build time so the
+  // vector search data is available without runtime network or file access.
+  const vectorModule = buildVectorsModule(
+    embeddings,
+    chunkIds,
+    embeddings[0].length,
+    VECTOR_MODEL,
+  );
   await writeFile(vectorsPath, vectorModule, 'utf-8');
+  const statsSummary = summarizeEmbeddingStats(embedddingStats);
+
+  if (statsSummary.length > 0) {
+    console.log('Embedding key usage summary:');
+    const headers = ['KEY', 'OWNER', 'TRY', 'OK', 'FAIL'];
+    const rows = statsSummary.map((entry) => {
+      const maskedKey = `${entry.key.slice(0, 6)}...${entry.key.slice(-8)}`;
+      return [maskedKey, entry.owner, String(entry.nbTry), String(entry.nbSuccess), String(entry.nbFail)];
+    });
+
+    const colWidths = headers.map((header, index) =>
+      Math.max(header.length, ...rows.map((row) => row[index].length)),
+    );
+
+    console.log(headers.map((header, index) => header.padEnd(colWidths[index])).join(' | '));
+    console.log(colWidths.map((width) => '-'.repeat(width)).join('-+-'));
+
+    for (const row of rows) {
+      console.log(
+        row.map((cell, index) =>
+          index < 2 ? cell.padEnd(colWidths[index]) : cell.padStart(colWidths[index]),
+        ).join(' | '),
+      );
+    }
+  }
+
   console.log(`✓ Generated ${embeddings.length} embeddings → src/search/vectors.ts`);
 } else {
   console.warn('⚠ No embeddings generated; skipping src/search/vectors.ts creation.');

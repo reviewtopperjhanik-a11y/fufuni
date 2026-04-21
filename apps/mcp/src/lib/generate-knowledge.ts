@@ -129,6 +129,51 @@ export function generateBm25Index(chunks: GeneratedChunk[]): Bm25Doc[] {
 }
 
 /**
+ * Return types of AI models that was used for embedding generation.
+ */
+export type EmbeddingResult = {
+  vector: number[];
+  stats: Array<{
+    key: string;
+    owner: string;
+    nbTry: number;
+    nbSuccess: number;
+    nbFail: number;
+  }>;
+};
+
+/**
+ * Summarize multiple embedding stats arrays into a single unified stats array.
+ *
+ * If the same key appears in multiple result batches, the counts are accumulated.
+ * This is useful when you collect embedding results across several topics and
+ * want a compact overview of total key usage.
+ *
+ * @param statsList - Array of per-topic stats arrays.
+ * @returns A summarized stats array with one entry per key.
+ */
+export function summarizeEmbeddingStats(
+  statsList: EmbeddingResult['stats'][],
+): EmbeddingResult['stats'] {
+  const summary = new Map<string, EmbeddingResult['stats'][number]>();
+
+  for (const stats of statsList) {
+    for (const entry of stats) {
+      const existing = summary.get(entry.key);
+      if (existing) {
+        existing.nbTry += entry.nbTry;
+        existing.nbSuccess += entry.nbSuccess;
+        existing.nbFail += entry.nbFail;
+      } else {
+        summary.set(entry.key, { ...entry });
+      }
+    }
+  }
+
+  return Array.from(summary.values());
+}
+
+/**
  * Generate an embedding vector for a text string using Google Gemini endpoints.
  * The function truncates very long input, retries alternate endpoints,
  * and returns null when embedding generation is unavailable or fails.
@@ -140,7 +185,7 @@ export function generateBm25Index(chunks: GeneratedChunk[]): Bm25Doc[] {
  * @param options.maxRetries - Maximum number of key-rotation retries on recoverable errors (default: 3).
  * @param options.model - Optional model identifier to request.
  * @param options.vectorDimension - Expected dimension of the embedding vector (default: 768).
- * @returns A numeric embedding vector or null when the operation is skipped.
+ * @returns An object containing the embedding vector and per-key stats, or null when skipped.
  */
 export async function generateEmbedding(
   text: string,
@@ -151,11 +196,22 @@ export async function generateEmbedding(
     model?: string;
     vectorDimension?: number;
   },
-): Promise<number[] | null> {
+): Promise<EmbeddingResult | null> {
   const fetchFn = options.fetch ?? globalThis.fetch;
   const apiKeys = options.apiKeys ?? [];
   const shuffledKeys = shuffleArray(apiKeys.slice());
   const maxRetries = options.maxRetries ?? Math.max(shuffledKeys.length - 1, 0);
+  const statsMap = new Map<string, { key: string; owner: string; nbTry: number; nbSuccess: number; nbFail: number }>();
+
+  for (const keyEntry of shuffledKeys) {
+    statsMap.set(keyEntry.key, {
+      key: keyEntry.key,
+      owner: keyEntry.owner,
+      nbTry: 0,
+      nbSuccess: 0,
+      nbFail: 0,
+    });
+  }
 
   if (shuffledKeys.length === 0) {
     console.warn('  [warn] API keys not set, skipping embeddings generation');
@@ -188,6 +244,8 @@ export async function generateEmbedding(
           taskType: 'RETRIEVAL_QUERY',
         };
 
+        const requestStat = statsMap.get(currentKey);
+        if (requestStat) requestStat.nbTry += 1;
         const response = await fetchFn(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -200,6 +258,8 @@ export async function generateEmbedding(
 
         if (RETRYABLE_STATUSES.has(response.status)) {
           const textBody = await response.text();
+          const failureStat = statsMap.get(currentKey);
+          if (failureStat) failureStat.nbFail += 1;
           console.warn(`  [warn] Embedding API error key owner: ${currentOwner} (${path}): ${response.status} — ${textBody.slice(0, 200)}`);
           if (attempt < maxRetries) {
             keyIndex = (keyIndex + 1) % apiKeys.length;
@@ -226,12 +286,24 @@ export async function generateEmbedding(
           data[0]?.embedding;
 
         if (!Array.isArray(embedding)) {
+          const failureStat = statsMap.get(currentKey);
+          if (failureStat) failureStat.nbFail += 1;
           console.warn('  [warn] Invalid embedding response format, skipping embeddings');
-          return null;
+          return {
+            vector: [],
+            stats: Array.from(statsMap.values()),
+          };
         }
 
-        return embedding as number[];
+        const successStat = statsMap.get(currentKey);
+        if (successStat) successStat.nbSuccess += 1;
+        return {
+          vector: embedding as number[],
+          stats: Array.from(statsMap.values()),
+        };
       } catch (err) {
+        const failureStat = statsMap.get(currentKey);
+        if (failureStat) failureStat.nbFail += 1;
         console.warn(`  [warn] Embedding generation failed on candidate ${path}: ${(err as Error).message}`);
         if (attempt < maxRetries) {
           keyIndex = (keyIndex + 1) % apiKeys.length;
@@ -247,7 +319,7 @@ export async function generateEmbedding(
   }
 
   console.warn('  [warn] No Gemini embedding endpoint succeeded, skipping embeddings');
-  return null;
+  return { vector: [], stats: Array.from(statsMap.values()) };
 }
 
 /**
@@ -290,17 +362,19 @@ export function float32ArrayToBase64(data: Float32Array): string {
 
 /**
  * Build a TypeScript module string containing encoded vectors and metadata.
- * The generated module exports the vector dimension, count, base64 payload, and chunk ids.
+ * The generated module exports the model, vector dimension, count, base64 payload, and chunk ids.
  *
  * @param embeddings - The list of embedding vectors.
  * @param chunkIds - Parallel array of chunk ids matching the embeddings.
  * @param vectorDim - Expected dimension of each embedding vector.
+ * @param vectorModel - Model identifier used to generate the vectors.
  * @returns A string containing the generated TypeScript module.
  */
 export function buildVectorsModule(
   embeddings: number[][],
   chunkIds: string[],
   vectorDim: number,
+  vectorModel = 'gemini-embedding-001',
 ): string {
   const totalVectors = embeddings.length;
   const buffer = new ArrayBuffer(Float32Array.BYTES_PER_ELEMENT * vectorDim * totalVectors);
@@ -321,6 +395,7 @@ export function buildVectorsModule(
   return `/**
  * AUTO-GENERATED by apps/mcp/scripts/gen-knowledge.ts — do not edit manually.
  */
+export const VECTOR_MODEL = ${JSON.stringify(vectorModel)};
 export const VECTOR_DIM = ${vectorDim};
 export const VECTOR_COUNT = ${totalVectors};
 
