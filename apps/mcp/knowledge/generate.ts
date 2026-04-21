@@ -90,7 +90,6 @@
  */
 
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
-import { createHash } from 'crypto';
 import { execSync } from 'child_process';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -100,7 +99,23 @@ import {
   collectKeys,
   type ModelBudget,
   getModelBudget as getModelBudgetImpl,
-} from '../../../scripts/ai-enc.js';
+} from '../src/lib/ai-enc.js';
+import {
+  buildHeader,
+  callAi,
+  computeTopicChecksums,
+  estimateTokens,
+  generateBm25Index,
+  generateChunks,
+  generateEmbedding,
+  normalizeVector,
+  parseHeaderChecksums,
+  parseRetryAfterMs,
+  truncate,
+  buildManifest,
+  buildApiKeyPool,
+  createRoundRobinKeyProvider,
+} from '../src/lib/generate-knowledge.js';
 import type { Topic } from './base.js';
 
 // ── Static fallbacks (used when model metadata is unavailable) ───────────────
@@ -284,16 +299,6 @@ const MAX_429_RETRIES = 5;
  * A 500 ms safety buffer is added on top of the provider-reported delay
  * to account for clock skew and network latency.
  */
-function parseRetryAfterMs(
-  errorBody: string,
-  retryAfterHeader: string | null,
-  attempt: number,
-): number {
-  const match = errorBody.match(/try again in ([\d.]+)s/i);
-  if (match) return Math.ceil(parseFloat(match[1]) * 1_000) + 500;
-  if (retryAfterHeader) return (parseInt(retryAfterHeader, 10) + 1) * 1_000;
-  return Math.min(5_000 * Math.pow(2, attempt), 60_000);
-}
 
 // ─── round-robin state ───────────────────────────────────────────────────────
 
@@ -522,254 +527,10 @@ function readSrc(relativePath: string): string {
  * Truncate a string to maxChars, adding a `…[truncated]` marker if needed.
  * Truncation happens at a newline boundary when possible.
  */
-function truncate(text: string, maxChars = MAX_SOURCE_CHARS): string {
-  if (text.length <= maxChars) return text;
-  const cut = text.lastIndexOf('\n', maxChars);
-  return text.slice(0, cut > 0 ? cut : maxChars) + '\n…[truncated for token budget]';
-}
-
-/** Rough token estimator: ~1 token per 4 chars (GPT-4 heuristic). */
-function estimateTokens(text: string): number {
-  return Math.ceil(text.length / 4);
-}
-
-/**
- * Call the AI API with a system + user prompt.
- * Returns the assistant's response text.
- */
-async function callAI(
-  systemPrompt: string,
-  userPrompt: string,
-  maxTokens = MAX_OUTPUT_TOKENS,
-  model = nextModel(),
-): Promise<{ content: string; tokensIn: number; tokensOut: number }> {
-  const isAnthropic = AI_API_URL.includes('anthropic.com');
-  const isGemini = (
-    AI_API_URL.includes('generativelanguage.googleapis.com') ||
-    AI_API_URL.includes('gemini.googleapis.com')
-  ) && !AI_API_URL.includes('openai');
-
-  if (verbose) {
-    console.log(`  [ai] model=${model} endpoint=${AI_API_URL}`);
-    console.log(`  [ai] input tokens ≈ ${estimateTokens(systemPrompt + userPrompt)}`);
-  }
-
-  for (let attempt = 0; attempt <= MAX_429_RETRIES; attempt++) {
-    // Fresh key on every attempt — rotates through the pool automatically.
-    const apiKeyEntry = nextApiKey();
-    const apiKey = apiKeyEntry.key;
-    const apiKeyOwner = apiKeyEntry.owner;
-    const keySummary = getKeySummary(apiKey);
-
-    if (showKeyOwner) {
-      console.log(`  → using key owned by [${apiKeyOwner || 'unknown'}]`);
-    }
-
-    const abortCtrl = new AbortController();
-    const abortTimer = setTimeout(() => abortCtrl.abort(), fetchTimeoutMs);
-
-    try {
-      let response: Response;
-
-      if (isAnthropic) {
-        response = await fetch(`${AI_API_URL}/messages`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-api-key': apiKey,
-            'anthropic-version': '2023-06-01',
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: maxTokens,
-            system: systemPrompt,
-            messages: [{ role: 'user', content: userPrompt }],
-          }),
-          signal: abortCtrl.signal,
-        });
-      } else if (isGemini) {
-        response = await fetch(`${AI_API_URL}/models/${model}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            generationConfig: { maxOutputTokens: maxTokens },
-          }),
-          signal: abortCtrl.signal,
-        });
-      } else {
-        // OpenAI / Groq / Together / any OAI-compatible endpoint
-        response = await fetch(`${AI_API_URL}/chat/completions`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify({
-            model,
-            max_tokens: maxTokens,
-            messages: [
-              { role: 'system', content: systemPrompt },
-              { role: 'user', content: userPrompt },
-            ],
-          }),
-          signal: abortCtrl.signal,
-        });
-      }
-      clearTimeout(abortTimer);
-
-      // ── 429 / 503 handling: transient errors — wait then retry same model ──────
-      if ((response.status === 429 || response.status === 503) && attempt < MAX_429_RETRIES) {
-        keySummary.failure++;
-        const errorText = await response.text();
-        const waitMs = parseRetryAfterMs(errorText, response.headers.get('retry-after'), attempt);
-        const statusLabel = response.status === 429 ? '429 rate-limit' : '503 service unavailable';
-        console.log(
-          `  [retry] ${statusLabel} (attempt ${attempt + 1}/${MAX_429_RETRIES}). ` +
-          `Waiting ${(waitMs / 1_000).toFixed(1)} s before next attempt…`,
-        );
-        await new Promise(r => setTimeout(r, waitMs));
-        continue;
-      }
-
-      // ── other HTTP errors ─────────────────────────────────────────────────────
-      if (!response.ok) {
-        keySummary.failure++;
-        const errorText = await response.text();
-        const label = isAnthropic ? 'Anthropic' : isGemini ? 'Gemini' : 'OpenAI/Groq';
-        throw new Error(`AI API error (${label}) ${response.status}: ${errorText}`);
-      }
-
-      // ── parse successful response ─────────────────────────────────────────────
-      if (isAnthropic) {
-        const data = await response.json();
-        keySummary.success++;
-        return {
-          content: data.content?.[0]?.text ?? '',
-          tokensIn: data.usage?.input_tokens ?? estimateTokens(systemPrompt + userPrompt),
-          tokensOut: data.usage?.output_tokens ?? 0,
-        };
-      }
-
-      if (isGemini) {
-        const data = await response.json();
-        keySummary.success++;
-        return {
-          content: data.candidates?.[0]?.content?.parts?.[0]?.text ?? '',
-          tokensIn: data.usageMetadata?.promptTokenCount ?? estimateTokens(systemPrompt + userPrompt),
-          tokensOut: data.usageMetadata?.candidatesTokenCount ?? 0,
-        };
-      }
-
-      // OAI-compatible response
-      const data = await response.json() as {
-        choices: Array<{ message: { content: string } }>;
-        usage?: { prompt_tokens?: number; completion_tokens?: number };
-      };
-      const content = data.choices?.[0]?.message?.content ?? '';
-      const tokensIn = data.usage?.prompt_tokens ?? estimateTokens(systemPrompt + userPrompt);
-      const tokensOut = data.usage?.completion_tokens ?? estimateTokens(content);
-      keySummary.success++;
-      if (verbose) console.log(`  [ai] output tokens ≈ ${tokensOut}`);
-      return { content, tokensIn, tokensOut };
-    } catch (err) {
-      clearTimeout(abortTimer);
-      keySummary.failure++;
-      if ((err as Error).name === 'AbortError' && attempt < MAX_429_RETRIES) {
-        const waitMs = parseRetryAfterMs('', null, attempt);
-        console.log(
-          `  [retry] fetch timeout after ${(fetchTimeoutMs / 1_000).toFixed(0)}s ` +
-          `(attempt ${attempt + 1}/${MAX_429_RETRIES}). Waiting ${(waitMs / 1_000).toFixed(1)} s…`,
-        );
-        await new Promise(r => setTimeout(r, waitMs));
-        continue;
-      }
-      throw err;
-    }
-  }
-
-  // Unreachable — the loop always returns or throws before exhausting retries.
-  throw new Error(`AI call failed after ${MAX_429_RETRIES} retries.`);
-}
-
 // ─── output directory ─────────────────────────────────────────────────────────
-const MCP_DIR = join(ROOT, 'mcp');
+const MCP_DIR = join(ROOT, 'apps/mcp/knowledge/generated');
 if (!dryRun) {
   mkdirSync(MCP_DIR, { recursive: true });
-}
-
-/**
- * Build the HTML comment header that is prepended to every generated file.
- */
-type HeaderMeta = {
-  model?: string;
-  tokensIn?: number;
-  tokensOut?: number;
-  manualFactsChecksum?: string;
-  sourcesChecksum?: string;
-  sourceFileHashes?: Record<string, string>;
-};
-
-function buildHeader(description: string, meta?: HeaderMeta): string {
-  const headerLines = [
-    '<!--',
-    '  AUTO-GENERATED by apps/mcp/knowledge/generate.ts',
-    '  Do not edit manually. Run the script to regenerate.',
-    '  To add or modify topics, edit files in apps/mcp/knowledge/topics/',
-    `  description:  ${description}`,
-  ];
-
-  if (meta?.model) headerLines.push(`  model:        ${meta.model}`);
-  if (meta?.tokensIn !== undefined) headerLines.push(`  tokens_in:    ${meta.tokensIn}`);
-  if (meta?.tokensOut !== undefined) headerLines.push(`  tokens_out:   ${meta.tokensOut}`);
-  if (meta?.model) headerLines.push(`  api_endpoint: ${AI_API_URL}`);
-  if (meta?.manualFactsChecksum) headerLines.push(`  manual_facts_checksum: ${meta.manualFactsChecksum}`);
-  if (meta?.sourcesChecksum) headerLines.push(`  sources_checksum: ${meta.sourcesChecksum}`);
-  if (meta?.sourceFileHashes) {
-    headerLines.push('  source_file_hashes:');
-    for (const [path, hash] of Object.entries(meta.sourceFileHashes)) {
-      headerLines.push(`    ${path}: ${hash}`);
-    }
-  }
-
-  headerLines.push('-->\n');
-  return headerLines.join('\n');
-}
-
-function hashString(value: string): string {
-  return createHash('sha256').update(value, 'utf8').digest('hex');
-}
-
-function computeTopicChecksums(topic: Topic): {
-  manualFactsChecksum: string;
-  sourcesChecksum: string;
-  sourceFileHashes: Record<string, string>;
-} {
-  const manualFactsText = (topic.manualFacts ?? []).join('\n');
-  const sourceFileHashes: Record<string, string> = {};
-  const sourceBlocks: string[] = [];
-
-  for (const srcPath of topic.sources) {
-    const content = readSrc(srcPath);
-    sourceFileHashes[srcPath] = hashString(`${srcPath}\n${content}`);
-    sourceBlocks.push(`${srcPath}\n${content}`);
-  }
-
-  return {
-    manualFactsChecksum: hashString(manualFactsText),
-    sourcesChecksum: hashString(sourceBlocks.join('\n---\n')),
-    sourceFileHashes,
-  };
-}
-
-function parseHeaderChecksums(content: string): { manualFactsChecksum?: string; sourcesChecksum?: string } {
-  const manualFactsMatch = content.match(/manual_facts_checksum:\s*([0-9a-f]{64})/);
-  const sourcesMatch = content.match(/sources_checksum:\s*([0-9a-f]{64})/);
-  return {
-    manualFactsChecksum: manualFactsMatch?.[1],
-    sourcesChecksum: sourcesMatch?.[1],
-  };
 }
 
 // ─── topic auto-discovery ─────────────────────────────────────────────────────
@@ -890,6 +651,7 @@ async function loadAiConfigOverride(): Promise<void> {
     modelMeta = providerCandidates.map(c => ({
       id: c.model.id,
       object: 'model' as const,
+      created: Date.now(),
       context_window: c.model.contextWindow,
       max_completion_tokens: c.model.maxOutputTokens,
       owned_by: c.providerKey,
@@ -912,154 +674,6 @@ async function loadAiConfigOverride(): Promise<void> {
     `[config] ai.json.enc → provider="${best.providerKey}" model="${best.model.id}" (priority ${best.model.priority}) ` +
     `keys=${collectKeys(config, providerArg ? { providerKey: providerArg } : {}).length}`,
   );
-}
-
-// ─── manifest builder ─────────────────────────────────────────────────────────
-/**
- * Build the manifest JSON object from all topics.
- * Used by tools.ts at runtime to populate list_topics and get_manifest.
- */
-// ─── BM25 index generation ──────────────────────────────────────────────────
-interface Bm25Doc {
-  id: string;
-  terms: string[];
-}
-
-const STOP_WORDS_SET = new Set([
-  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'by', 'for', 'from',
-  'has', 'have', 'in', 'is', 'it', 'its', 'of', 'on', 'or', 'that',
-  'the', 'to', 'was', 'were', 'will', 'with', 'about', 'also', 'any',
-  'been', 'but', 'can', 'could', 'do', 'does', 'doing', 'down', 'each',
-]);
-
-function tokenize(text: string): string[] {
-  return text
-    .toLowerCase()
-    .split(/[^a-z0-9_\-]+/g)
-    .filter((t) => t.length > 1 && !STOP_WORDS_SET.has(t));
-}
-
-function generateBm25Index(chunks: GeneratedChunk[]): Bm25Doc[] {
-  const docs: Bm25Doc[] = [];
-  for (const chunk of chunks) {
-    const terms = tokenize(chunk.text);
-    docs.push({ id: chunk.id, terms });
-  }
-  return docs;
-}
-
-// ─── Embedding generation ───────────────────────────────────────────────────
-async function generateEmbedding(text: string): Promise<number[] | null> {
-  const apiKey = process.env.GOOGLE_API_KEY;
-  if (!apiKey) {
-    console.warn('  [warn] GOOGLE_API_KEY not set, skipping embeddings generation');
-    return null;
-  }
-
-  try {
-    const endpoint = 'https://generativelanguage.googleapis.com/v1beta/models/text-embedding-004:embedContent';
-    const truncated = text.split(/\s+/).slice(0, 500).join(' ');
-
-    const response = await fetch(`${endpoint}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model: 'models/text-embedding-004',
-        content: { parts: [{ text: truncated }] },
-      }),
-    });
-
-    if (!response.ok) {
-      const error = await response.text();
-      console.warn(`  [warn] Embedding API error: ${response.status}, skipping embeddings`);
-      return null;
-    }
-
-    const data = await response.json() as any;
-    const embedding = data.embedding?.values;
-    if (!embedding || !Array.isArray(embedding)) {
-      console.warn('  [warn] Invalid embedding response format, skipping embeddings');
-      return null;
-    }
-
-    return embedding as number[];
-  } catch (err) {
-    console.warn(`  [warn] Embedding generation failed: ${(err as Error).message}, skipping embeddings`);
-    return null;
-  }
-}
-
-function normalizeVector(vec: number[]): number[] {
-  const norm = Math.sqrt(vec.reduce((sum, v) => sum + v * v, 0));
-  return vec.map(v => v / (norm || 1));
-}
-
-// ─── Generate chunks from topics ────────────────────────────────────────────
-interface GeneratedChunk {
-  id: string;
-  topic: string;
-  heading: string;
-  heading_path: string[];
-  text: string;
-  word_count: number;
-}
-
-function generateChunks(topics: Topic[]): GeneratedChunk[] {
-  const chunks: GeneratedChunk[] = [];
-  for (const topic of topics) {
-    const outPath = join(MCP_DIR, `${topic.name}.md`);
-    if (!existsSync(outPath)) continue;
-    const mdContent = readFileSync(outPath, 'utf8');
-    const text = mdContent.replace(/<!--[\s\S]*?-->/, '');
-    const wordCount = text.split(/\s+/).length;
-    chunks.push({
-      id: `${topic.name}#0`,
-      topic: topic.name,
-      heading: `## ${topic.description}`,
-      heading_path: [topic.description],
-      text,
-      word_count: wordCount,
-    });
-  }
-  return chunks;
-}
-
-function buildManifest(generatedTopics: Topic[]) {
-  const commit = (() => {
-    try {
-      return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
-    } catch {
-      return 'unknown';
-    }
-  })();
-
-  const topics = generatedTopics.map((topic) => {
-    const outPath = join(MCP_DIR, `${topic.name}.md`);
-    const mdContent = existsSync(outPath) ? readFileSync(outPath, 'utf8') : '';
-    const words = mdContent.replace(/<!--[\s\S]*?-->/, '').split(/\s+/).length;
-    const checksums = parseHeaderChecksums(mdContent);
-
-    // Extract title from first Markdown heading
-    const titleMatch = mdContent.match(/^#{1,2}\s+(.+)$/m);
-    const title = titleMatch?.[1]?.trim() ?? topic.name;
-
-    return {
-      slug: topic.name,
-      title,
-      description: topic.description,
-      tags: topic.tags || [],
-      updated_at: new Date().toISOString(),
-      word_count: words,
-      sources_checksum: checksums.sourcesChecksum || '',
-    };
-  });
-
-  return {
-    generated_at: new Date().toISOString(),
-    commit,
-    manifest_version: '1.0.0' as const,
-    topics,
-  };
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────
@@ -1105,7 +719,7 @@ async function main() {
     const outPath = join(MCP_DIR, `${topic.name}.md`);
     console.log(`\n[${topic.name}] ${topic.description}`);
 
-    const topicChecksums = computeTopicChecksums(topic);
+    const topicChecksums = await computeTopicChecksums(topic, readSrc);
     const existing = !dryRun && existsSync(outPath) ? readFileSync(outPath, 'utf8') : undefined;
     const existingHeader = existing ? parseHeaderChecksums(existing) : {};
     const hasFailureMarker = existing?.includes('AI generation failed. Raw source below.') ?? false;
@@ -1179,15 +793,42 @@ async function main() {
             const sizeNote = halvings > 0 ? ` [src budget ${charsPerSource} chars]` : '';
             const retryNote = attempt > 0 ? ` (model fallback ${attempt}/${modelsToTry.length - 1})` : '';
             console.log(`  → calling AI [${chosenModel}]${sizeNote}${retryNote}…`);
+            let keySummary: { owner: string; success: number; failure: number } | undefined;
+            let abortTimer: ReturnType<typeof setTimeout> | undefined;
             try {
+              const apiKeyEntry = nextApiKey();
+              const apiKey = apiKeyEntry.key;
+              const apiKeyOwner = apiKeyEntry.owner;
+              keySummary = getKeySummary(apiKey);
+              if (showKeyOwner) {
+                console.log(`  → using key owned by [${apiKeyOwner || 'unknown'}]`);
+              }
+
+              const abortCtrl = new AbortController();
+              abortTimer = setTimeout(() => abortCtrl.abort(), fetchTimeoutMs);
+
               const { maxOutputTokens } = getModelBudget(chosenModel);
-              const result = await callAI(topic.systemPrompt, userPrompt, maxOutputTokens, chosenModel);
+              const result = await callAi(topic.systemPrompt, userPrompt, {
+                apiUrl: AI_API_URL,
+                apiKey,
+                model: chosenModel,
+                maxTokens: maxOutputTokens,
+                abortSignal: abortCtrl.signal,
+                verbose,
+                showKeyOwner,
+                keyOwner: apiKeyOwner,
+              });
+              clearTimeout(abortTimer);
+
               aiContent = result.content;
               aiMeta = { model: chosenModel, tokensIn: result.tokensIn, tokensOut: result.tokensOut };
               console.log(`  → received ${result.tokensOut} tokens out (${result.tokensIn} in)`);
+              keySummary.success++;
               succeeded = true;
               break modelLoop;
             } catch (innerErr) {
+              if (abortTimer) clearTimeout(abortTimer);
+              if (keySummary) keySummary.failure++;
               const msg = (innerErr as Error).message;
               const is413 = msg.includes('413') || msg.includes('Request too large') || msg.includes('rate_limit_exceeded');
               if (is413) {
@@ -1240,6 +881,7 @@ async function main() {
 
     const header = buildHeader(mcpDescription, {
       ...aiMeta,
+      apiEndpoint: AI_API_URL,
       manualFactsChecksum: topicChecksums.manualFactsChecksum,
       sourcesChecksum: topicChecksums.sourcesChecksum,
       sourceFileHashes: topicChecksums.sourceFileHashes,
@@ -1254,7 +896,23 @@ async function main() {
 
   // ─── generate manifest ──────────────────────────────────────────────────────
   console.log('\nGenerating manifest...');
-  const manifestData = buildManifest(topics);
+  const commit = (() => {
+    try {
+      return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+    } catch {
+      return 'unknown';
+    }
+  })();
+
+  const manifestData = buildManifest(topics, {
+    commit,
+    now: new Date().toISOString(),
+    getTopicMarkdown: (topicName) => {
+      const path = join(MCP_DIR, `${topicName}.md`);
+      return existsSync(path) ? readFileSync(path, 'utf8') : '';
+    },
+  });
+
   const manifestCode = `/**
  * AUTO-GENERATED by apps/mcp/knowledge/generate.ts — do not edit manually.
  * This file is gitignored; it is rebuilt before every deploy.
@@ -1272,7 +930,10 @@ export const MANIFEST: TopicManifest = ${JSON.stringify(manifestData, null, 2)};
   console.log('\nGenerating search indexes...');
 
   // Generate chunks first (needed for BM25 indexing)
-  const chunks = generateChunks(topics);
+  const chunks = generateChunks(topics, (topicName) => {
+    const path = join(MCP_DIR, `${topicName}.md`);
+    return existsSync(path) ? readFileSync(path, 'utf8') : '';
+  });
   
   // Then generate BM25 index from chunks
   const bm25Docs = generateBm25Index(chunks);
@@ -1317,65 +978,6 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
   const chunksPath = join(ROOT, 'apps/mcp/src/search/chunks.ts');
   writeFileSync(chunksPath, chunksCode, 'utf8');
   console.log(`  → written chunks index (${chunks.length} chunks)`);
-
-  // Generate embeddings (optional)
-  if (!dryRun && !skipAI && process.env.GOOGLE_API_KEY) {
-    console.log('\nGenerating embeddings...');
-    const embeddings: number[][] = [];
-    const chunkIds: string[] = [];
-
-    for (const chunk of chunks) {
-      process.stdout.write(`  [${chunkIds.length + 1}/${chunks.length}] embedding ${chunk.id}…`);
-      const embedding = await generateEmbedding(chunk.text);
-      if (embedding) {
-        const normalized = normalizeVector(embedding);
-        embeddings.push(normalized);
-        chunkIds.push(chunk.id);
-      }
-      console.log(' done');
-    }
-
-    if (embeddings.length > 0) {
-      // Convert embeddings to base64-encoded Float32 buffer
-      const totalFloats = embeddings.length * 768;
-      const buffer = new ArrayBuffer(totalFloats * 4);
-      const floatView = new Float32Array(buffer);
-      let idx = 0;
-      for (const emb of embeddings) {
-        for (const val of emb) {
-          floatView[idx++] = val;
-        }
-      }
-      const bytes = new Uint8Array(buffer);
-      let b64 = '';
-      for (let i = 0; i < bytes.length; i++) {
-        b64 += String.fromCharCode(bytes[i]);
-      }
-      const vectorsB64 = btoa(b64);
-
-      const vectorsCode = `/**
- * AUTO-GENERATED by apps/mcp/knowledge/generate.ts — do not edit manually.
- */
-export const VECTOR_DIM = 768;
-export const VECTOR_COUNT = ${embeddings.length};
-
-/**
- * Base64-encoded Float32 buffer, concatenated in chunk order.
- * Layout: [chunk0_v0, chunk0_v1, …, chunk0_v767, chunk1_v0, …]
- */
-export const VECTORS_B64 = ${JSON.stringify(vectorsB64)};
-
-/** Parallel array: chunk IDs in the same order as VECTORS_B64. */
-export const CHUNK_IDS: readonly string[] = ${JSON.stringify(chunkIds)};
-`;
-
-      const vectorsPath = join(ROOT, 'apps/mcp/src/search/vectors.ts');
-      writeFileSync(vectorsPath, vectorsCode, 'utf8');
-      console.log(`  → written vector embeddings (${embeddings.length} vectors, ${vectorsB64.length} bytes)`);
-    } else {
-      console.log('  → no embeddings generated (all API calls failed)');
-    }
-  }
 
   console.log('\n' + '─'.repeat(60));
   console.log(`Done. generated=${generated} skipped=${skipped} errors=${errors}`);

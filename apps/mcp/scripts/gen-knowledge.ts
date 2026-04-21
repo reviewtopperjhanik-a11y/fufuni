@@ -5,6 +5,7 @@
 //
 // Reads all *.md files from the monorepo mcp/ directory and generates
 // apps/mcp/src/knowledge.ts — a static Record<slug, markdown-content> bundle
+// and apps/mcp/src/search/vectors.ts — a static embedding index for the content,
 // that is imported by the MCP Worker at build time (no runtime I/O needed).
 //
 // Usage (from any directory):
@@ -16,11 +17,19 @@ import { readdir, readFile, writeFile, mkdir } from "fs/promises";
 import { existsSync } from "fs";
 import { join, extname, basename, dirname } from "path";
 import { fileURLToPath } from "url";
+import {
+  generateEmbedding,
+  normalizeVector,
+  buildVectorsModule,
+  buildApiKeyPool,
+  createRoundRobinKeyProvider,
+} from "../src/lib/generate-knowledge.js";
+import { decryptAiConfig, type AiConfig } from "../src/lib/ai-enc.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const mcpDir = join(__dirname, "../../../mcp");
+const mcpDir = join(__dirname, "../knowledge/generated"); // Relative to this script
 const outputFile = join(__dirname, "../src/knowledge.ts");
 
 // Ensure src/ exists
@@ -33,7 +42,7 @@ if (!existsSync(mcpDir)) {
     [
       "// AUTO-GENERATED — no knowledge files found.",
       "// Run the MCP generate script first: npm run mcp:generate",
-      "// If user creeated an ai.json.enc file and setup the mcp:auto sript, the MCP generate script will be more efficient by using the provier choosen in mcp:auto (gemini, azure, openai...) to generate knowledge files from the ai.json.enc configuration.",
+      "// If you set CRYPTOKEN and apps/mcp/src/config/ai.json.enc, this script will decrypt it in memory and generate embeddings using the configured Gemini keys.",
       "",
       "export const KNOWLEDGE: Record<string, string> = {};",
       "",
@@ -72,3 +81,61 @@ lines.push("};", "");
 
 await writeFile(outputFile, lines.join("\n"), "utf-8");
 console.log(`✓ Generated ${entries.length} topics → src/knowledge.ts`);
+
+const vectorsOutputDir = join(__dirname, "../src/search");
+await mkdir(vectorsOutputDir, { recursive: true });
+const vectorsPath = join(vectorsOutputDir, "vectors.ts");
+
+async function loadEncryptedAiConfig(): Promise<AiConfig | null> {
+  const cryptoken = process.env.CRYPTOKEN;
+  if (!cryptoken) return null;
+
+  const configPath = join(__dirname, "../src/config/ai.json.enc");
+  if (!existsSync(configPath)) return null;
+
+  const encrypted = await readFile(configPath, "utf-8");
+  return await decryptAiConfig(encrypted, cryptoken);
+}
+
+const aiConfig = await loadEncryptedAiConfig();
+if (!aiConfig) {
+  console.warn('⚠ CRYPTOKEN or apps/mcp/src/config/ai.json.enc is not configured; skipping vector generation.');
+  process.exit(0);
+}
+
+const keyPool = buildApiKeyPool(aiConfig, { protocol: 'gemini' });
+if (keyPool.length === 0) {
+  console.warn('⚠ No Gemini API keys found in ai.json.enc; skipping vector generation.');
+  process.exit(0);
+}
+
+const nextKey = createRoundRobinKeyProvider(keyPool);
+const embeddings: number[][] = [];
+const chunkIds: string[] = [];
+
+for (const [slug, content] of entries) {
+  process.stdout.write(`Embedding ${slug}... `);
+  const embedding = await generateEmbedding(content, {
+    fetch,
+    apiKey: nextKey().key,
+    model: 'models/text-embedding-005',
+  });
+
+  if (!embedding) {
+    console.warn('failed');
+    continue;
+  }
+
+  const normalized = normalizeVector(embedding);
+  embeddings.push(normalized);
+  chunkIds.push(`${slug}#0`);
+  console.log('ok');
+}
+
+if (embeddings.length > 0) {
+  const vectorModule = buildVectorsModule(embeddings, chunkIds, embeddings[0].length);
+  await writeFile(vectorsPath, vectorModule, 'utf-8');
+  console.log(`✓ Generated ${embeddings.length} embeddings → src/search/vectors.ts`);
+} else {
+  console.warn('⚠ No embeddings generated; skipping src/search/vectors.ts creation.');
+}

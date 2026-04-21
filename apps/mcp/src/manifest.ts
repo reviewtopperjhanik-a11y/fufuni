@@ -5,8 +5,8 @@
 import type { TopicManifest } from './index.js';
 
 export const MANIFEST: TopicManifest = {
-  "generated_at": "2026-04-18T08:43:27.609Z",
-  "commit": "1075a95",
+  "generated_at": "2026-04-21T04:53:21.641Z",
+  "commit": "6adcc7b",
   "manifest_version": "1.0.0",
   "topics": [
     {
@@ -17,8 +17,8 @@ export const MANIFEST: TopicManifest = {
         "design",
         "theming"
       ],
-      "updated_at": "2026-04-18T08:43:27.597Z",
-      "word_count": 1274,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1273,
       "sources_checksum": "78e4506c9f466658906205fb8ed705d0b2da8e5161507bd4b26d314c60045322"
     },
     {
@@ -35,8 +35,8 @@ export const MANIFEST: TopicManifest = {
         "moderation",
         "reviews"
       ],
-      "updated_at": "2026-04-18T08:43:27.599Z",
-      "word_count": 1096,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1095,
       "sources_checksum": "3ae4bcc02601403f46866b9bbd06610cf4b55d01ba8199734bd3bec5ee0dc3eb"
     },
     {
@@ -47,8 +47,8 @@ export const MANIFEST: TopicManifest = {
         "metrics",
         "observability"
       ],
-      "updated_at": "2026-04-18T08:43:27.599Z",
-      "word_count": 1056,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1055,
       "sources_checksum": "45312b45e65b1217f4875d64a4f440b6fd01555c0903a0d16b880b7b4589338f"
     },
     {
@@ -58,8 +58,8 @@ export const MANIFEST: TopicManifest = {
       "tags": [
         "general"
       ],
-      "updated_at": "2026-04-18T08:43:27.600Z",
-      "word_count": 1355,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1354,
       "sources_checksum": "c8309686cd258995d7eddf8bbb36c770a655c93699c2fdafc51c1e48cfc7121e"
     },
     {
@@ -74,13 +74,13 @@ export const MANIFEST: TopicManifest = {
         "security",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.601Z",
-      "word_count": 1113,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1112,
       "sources_checksum": "14ed54aed6473e07554153e6ab655f394ecfbf575029b9d8c9ab04f0d8ea5428"
     },
     {
       "slug": "auth0-tenant-setup",
-      "title": "Automation with Deploy Tenant Resources",
+      "title": "Purpose and Usage",
       "description": "Auth0 tenant deployment — auto-install script, resource-server scopes, RBAC roles, social connections, and the Auth0 Deploy CLI workflow.",
       "tags": [
         "auth",
@@ -89,8 +89,8 @@ export const MANIFEST: TopicManifest = {
         "security",
         "testing"
       ],
-      "updated_at": "2026-04-18T08:43:27.601Z",
-      "word_count": 1290,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1107,
       "sources_checksum": "82b116e24f8015c516fe60060c659d366a7b2a36c4df88906b575cc8ca5648a8"
     },
     {
@@ -106,8 +106,8 @@ export const MANIFEST: TopicManifest = {
         "stripe",
         "ucp"
       ],
-      "updated_at": "2026-04-18T08:43:27.601Z",
-      "word_count": 1170,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1169,
       "sources_checksum": "8097941bca7cd53a32f95b7ec0a35cb703fe2b9f3a1888450480a60ea10b2521"
     },
     {
@@ -124,8 +124,8 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "testing"
       ],
-      "updated_at": "2026-04-18T08:43:27.601Z",
-      "word_count": 1192,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1191,
       "sources_checksum": "bd08b301cf5e11c884dabe72acf99f5e642ef0f10dffe8c29aa8256f8d755e39"
     },
     {
@@ -139,8 +139,8 @@ export const MANIFEST: TopicManifest = {
         "ucp",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.601Z",
-      "word_count": 1442,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1441,
       "sources_checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
@@ -162,8 +162,8 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "user"
       ],
-      "updated_at": "2026-04-18T08:43:27.602Z",
-      "word_count": 1319,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1318,
       "sources_checksum": "2bc43f33b2fe27b52cf93aa9cc08773f708de0ffe41404458a897d107ed99b56"
     },
     {
@@ -175,8 +175,8 @@ export const MANIFEST: TopicManifest = {
         "durable-object",
         "schema"
       ],
-      "updated_at": "2026-04-18T08:43:27.602Z",
-      "word_count": 1561,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1560,
       "sources_checksum": "56e619248dd1546776ba5d7f77399678d0d129a51d5bbaf54e10eb79e53acce4"
     },
     {
@@ -189,8 +189,8 @@ export const MANIFEST: TopicManifest = {
         "pricing",
         "testing"
       ],
-      "updated_at": "2026-04-18T08:43:27.603Z",
-      "word_count": 1281,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1280,
       "sources_checksum": "8ef76494fb84f2e5e30faf75516bdce5711536e0b7d4ed81cefd98fb184bc7e8"
     },
     {
@@ -205,8 +205,8 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "testing"
       ],
-      "updated_at": "2026-04-18T08:43:27.603Z",
-      "word_count": 1089,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1088,
       "sources_checksum": "aa55552fb2d70ac8a236a366ec40495053dd74d38cb931f924ae092bec566e7a"
     },
     {
@@ -219,8 +219,8 @@ export const MANIFEST: TopicManifest = {
         "mailgun",
         "orders"
       ],
-      "updated_at": "2026-04-18T08:43:27.603Z",
-      "word_count": 1072,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1071,
       "sources_checksum": "0ae646504fa394dac20e70999ada7517f5e787be2bf359cb7fa00471dc1b9659"
     },
     {
@@ -232,8 +232,8 @@ export const MANIFEST: TopicManifest = {
         "images",
         "storage"
       ],
-      "updated_at": "2026-04-18T08:43:27.603Z",
-      "word_count": 1045,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1044,
       "sources_checksum": "c7355b78247db878ab5683509da3f5b862453f7f739932011d3952ac1761bddf"
     },
     {
@@ -247,8 +247,8 @@ export const MANIFEST: TopicManifest = {
         "theming",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.604Z",
-      "word_count": 1123,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1122,
       "sources_checksum": "acdd966e39076c2e6ccc795a2b75ef734b85e8f8cd4065bb7ee34bdd419d00a5"
     },
     {
@@ -260,8 +260,8 @@ export const MANIFEST: TopicManifest = {
         "backend",
         "hono"
       ],
-      "updated_at": "2026-04-18T08:43:27.604Z",
-      "word_count": 1235,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1234,
       "sources_checksum": "fdd0178e846e43d73fa0dc3dee8208b99e1b82e5b3596d3946d7fb99cfd5dfe4"
     },
     {
@@ -279,8 +279,8 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.604Z",
-      "word_count": 1273,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1272,
       "sources_checksum": "1786b0e4b75821b712f4fc67d23488ad6fa1b89de759027378c9bb210a5721af"
     },
     {
@@ -294,8 +294,8 @@ export const MANIFEST: TopicManifest = {
         "react",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.604Z",
-      "word_count": 1210,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1209,
       "sources_checksum": "3194a34395ce4e12311474189ce379dc3fafe51eade7f5b201cc5f1e423972c3"
     },
     {
@@ -310,8 +310,8 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.605Z",
-      "word_count": 1123,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1122,
       "sources_checksum": "2dcbb58154063e3e67378af551fdad0de7448dced3944c2c9ea4a171497c2adc"
     },
     {
@@ -322,8 +322,8 @@ export const MANIFEST: TopicManifest = {
         "inventory",
         "warehouse"
       ],
-      "updated_at": "2026-04-18T08:43:27.605Z",
-      "word_count": 1243,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1242,
       "sources_checksum": "8fc3714b3df6fdf44b6061fb91f4423df5f196b4b74b595155c00d13a52a62b2"
     },
     {
@@ -336,8 +336,8 @@ export const MANIFEST: TopicManifest = {
         "invoicing",
         "orders"
       ],
-      "updated_at": "2026-04-18T08:43:27.605Z",
-      "word_count": 1037,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1036,
       "sources_checksum": "90207c0a5c6d62a1ed2883b8a31b2e4f2d3130a39ad4a1c2f19cbe8bd8be8f80"
     },
     {
@@ -352,8 +352,8 @@ export const MANIFEST: TopicManifest = {
         "security",
         "storage"
       ],
-      "updated_at": "2026-04-18T08:43:27.605Z",
-      "word_count": 1091,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1090,
       "sources_checksum": "6ed351c174ef894e52e0afd2f3b476cde7be76c0680f3d47f1f5a85a45928ce7"
     },
     {
@@ -363,8 +363,8 @@ export const MANIFEST: TopicManifest = {
       "tags": [
         "general"
       ],
-      "updated_at": "2026-04-18T08:43:27.606Z",
-      "word_count": 1104,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1103,
       "sources_checksum": "86ccda609673ce16c145932e6395bf14a1edf9607a692f63d735ceb7766e8189"
     },
     {
@@ -376,8 +376,8 @@ export const MANIFEST: TopicManifest = {
         "react",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.606Z",
-      "word_count": 1242,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1241,
       "sources_checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
@@ -392,8 +392,8 @@ export const MANIFEST: TopicManifest = {
         "orders",
         "schema"
       ],
-      "updated_at": "2026-04-18T08:43:27.606Z",
-      "word_count": 1113,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1112,
       "sources_checksum": "16180139cea84c08f0259fa1cccaf6961e0211d4d84c0e100c61725cadc2422a"
     },
     {
@@ -407,8 +407,8 @@ export const MANIFEST: TopicManifest = {
         "integration",
         "security"
       ],
-      "updated_at": "2026-04-18T08:43:27.606Z",
-      "word_count": 1179,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1178,
       "sources_checksum": "dcd38fe40a28b1ec43840e97330a397599a89badf25571d6ddb91fa4a5f153df"
     },
     {
@@ -421,8 +421,8 @@ export const MANIFEST: TopicManifest = {
         "invoicing",
         "orders"
       ],
-      "updated_at": "2026-04-18T08:43:27.607Z",
-      "word_count": 965,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 964,
       "sources_checksum": "884067771ab7197f81117832376199667a65bd14d22069f7fff10394a9f2e494"
     },
     {
@@ -436,8 +436,8 @@ export const MANIFEST: TopicManifest = {
         "payments",
         "stripe"
       ],
-      "updated_at": "2026-04-18T08:43:27.607Z",
-      "word_count": 1274,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1273,
       "sources_checksum": "eb53db1e9955527f852119537504aa90f26f026f1ba3bfa6ecc5e93d44d19c47"
     },
     {
@@ -448,8 +448,8 @@ export const MANIFEST: TopicManifest = {
         "catalog",
         "products"
       ],
-      "updated_at": "2026-04-18T08:43:27.607Z",
-      "word_count": 1419,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1418,
       "sources_checksum": "b068fbeb6459190109571a250e36b7ecbe137668fb4019e3412f9f426b92ce2a"
     },
     {
@@ -463,8 +463,8 @@ export const MANIFEST: TopicManifest = {
         "products",
         "reviews"
       ],
-      "updated_at": "2026-04-18T08:43:27.607Z",
-      "word_count": 1151,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1150,
       "sources_checksum": "2eee616dc080feadb370714430679d82816ea4f80d7c5712389864056f03e008"
     },
     {
@@ -475,8 +475,8 @@ export const MANIFEST: TopicManifest = {
         "commerce",
         "pricing"
       ],
-      "updated_at": "2026-04-18T08:43:27.607Z",
-      "word_count": 1265,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1264,
       "sources_checksum": "cb787dab5f95e570bb448ebb6629b87c3b36c5973a02833673395010ff9657aa"
     },
     {
@@ -487,8 +487,8 @@ export const MANIFEST: TopicManifest = {
         "data",
         "testing"
       ],
-      "updated_at": "2026-04-18T08:43:27.608Z",
-      "word_count": 1286,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1285,
       "sources_checksum": "b37261fe66600a58c044f4bbac69cf6fb86284246d31581356ea52ac7b2679ad"
     },
     {
@@ -500,8 +500,8 @@ export const MANIFEST: TopicManifest = {
         "backend",
         "hono"
       ],
-      "updated_at": "2026-04-18T08:43:27.608Z",
-      "word_count": 1262,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1261,
       "sources_checksum": "d420780a7f62cd976b551e4648abe5426af604127f67dc7b51f137ea98ed6789"
     },
     {
@@ -515,8 +515,8 @@ export const MANIFEST: TopicManifest = {
         "theming",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.608Z",
-      "word_count": 1041,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1040,
       "sources_checksum": "14f33a2d52fb5deaa8f6481d6d0ecf72e541543b10b70a728c03c679c4741bfc"
     },
     {
@@ -528,8 +528,8 @@ export const MANIFEST: TopicManifest = {
         "react",
         "ui"
       ],
-      "updated_at": "2026-04-18T08:43:27.608Z",
-      "word_count": 1295,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1294,
       "sources_checksum": "1f3c4784272a2d1bf03e7deb3a9150133130e03730a11ad6a6c8922d20d9e954"
     },
     {
@@ -543,8 +543,8 @@ export const MANIFEST: TopicManifest = {
         "security",
         "user"
       ],
-      "updated_at": "2026-04-18T08:43:27.609Z",
-      "word_count": 1083,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1082,
       "sources_checksum": "5f81fa0ccca254095d593a9ae2e4d4890f135cfc78b287a128ee336a91c7f3c8"
     },
     {
@@ -555,8 +555,8 @@ export const MANIFEST: TopicManifest = {
         "events",
         "webhooks"
       ],
-      "updated_at": "2026-04-18T08:43:27.609Z",
-      "word_count": 1193,
+      "updated_at": "2026-04-21T04:53:21.641Z",
+      "word_count": 1192,
       "sources_checksum": "92b2559bd014a0f161ed6e3e69b093d8f10d2bb251c8601ac343332a6efbc33e"
     }
   ]
