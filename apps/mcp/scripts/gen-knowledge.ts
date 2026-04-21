@@ -115,10 +115,12 @@ const chunkIds: string[] = [];
 
 for (const [slug, content] of entries) {
   process.stdout.write(`Embedding ${slug}... `);
+  const firstKey = nextKey();
   const embedding = await generateEmbedding(content, {
     fetch,
-    apiKey: nextKey().key,
-    model: 'models/text-embedding-005',
+    apiKey: firstKey.key,
+    nextKey,
+    model: 'gemini-embedding-001',
   });
 
   if (!embedding) {

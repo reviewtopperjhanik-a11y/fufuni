@@ -137,6 +137,8 @@ export function generateBm25Index(chunks: GeneratedChunk[]): Bm25Doc[] {
  * @param options - Configuration for the embedding request.
  * @param options.fetch - Optional fetch implementation for testing or environments.
  * @param options.apiKey - API key used to authorize the request.
+ * @param options.nextKey - Optional round-robin key provider; called on retryable errors to rotate keys.
+ * @param options.maxRetries - Maximum number of key-rotation retries on recoverable errors (default: 3).
  * @param options.model - Optional model identifier to request.
  * @returns A numeric embedding vector or null when the operation is skipped.
  */
@@ -145,65 +147,94 @@ export async function generateEmbedding(
   options: {
     fetch?: typeof fetch;
     apiKey: string;
+    nextKey?: () => ApiKeyWithOwner;
+    maxRetries?: number;
     model?: string;
   },
 ): Promise<number[] | null> {
   const fetchFn = options.fetch ?? globalThis.fetch;
-  const apiKey = options.apiKey;
-  if (!apiKey) {
+  const maxRetries = options.maxRetries ?? 3;
+  if (!options.apiKey) {
     console.warn('  [warn] API key not set, skipping embeddings generation');
     return null;
   }
 
-  const model = options.model ?? 'models/text-embedding-005';
+  const model = options.model ?? 'gemini-embedding-001';
   const truncated = text.split(/\s+/).slice(0, 500).join(' ');
   const baseUrl = 'https://generativelanguage.googleapis.com';
   const candidates = [
-    '/v1beta/models/text-embedding-005:embedContent',
-    '/v1beta1/models/text-embedding-005:embedContent',
+    `/v1beta/models/${model}:embedContent`,
   ];
 
+  // Retryable HTTP status codes: quota/rate-limit/server errors
+  const RETRYABLE_STATUSES = new Set([403, 429, 500, 502, 503, 504]);
+
+  let currentKey = options.apiKey;
+
   for (const path of candidates) {
-    try {
-      const url = `${baseUrl}${path}?key=${apiKey}`;
-      const body = {
-        model,
-        content: { parts: [{ text: truncated }] },
-        taskType: 'RETRIEVAL_QUERY',
-      };
+    let attempt = 0;
+    while (attempt <= maxRetries) {
+      try {
+        const url = `${baseUrl}${path}?key=${currentKey}`;
+        const body = {
+          model,
+          content: { parts: [{ text: truncated }] },
+          taskType: 'RETRIEVAL_QUERY',
+        };
 
-      const response = await fetchFn(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(body),
-      });
+        const response = await fetchFn(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
 
-      if (response.status === 404) {
-        continue;
+        if (response.status === 404) {
+          break; // Try next candidate path
+        }
+
+        if (RETRYABLE_STATUSES.has(response.status)) {
+          const textBody = await response.text();
+          console.warn(`  [warn] Embedding API error (${path}): ${response.status} — ${textBody.slice(0, 200)}`);
+          if (options.nextKey && attempt < maxRetries) {
+            const next = options.nextKey();
+            console.warn(`  [warn] Rotating to key owner: ${next.owner}`);
+            currentKey = next.key;
+            attempt++;
+            continue;
+          }
+          break; // No more keys to try
+        }
+
+        if (!response.ok) {
+          const textBody = await response.text();
+          console.warn(`  [warn] Embedding API error (${path}): ${response.status} — ${textBody.slice(0, 200)}`);
+          break;
+        }
+
+        const data = await response.json() as any;
+        const embedding =
+          data.embedding?.values ||
+          data.embeddings?.[0]?.embedding ||
+          data.data?.[0]?.embedding ||
+          data[0]?.embedding;
+
+        if (!Array.isArray(embedding)) {
+          console.warn('  [warn] Invalid embedding response format, skipping embeddings');
+          return null;
+        }
+
+        return embedding as number[];
+      } catch (err) {
+        console.warn(`  [warn] Embedding generation failed on candidate ${path}: ${(err as Error).message}`);
+        if (options.nextKey && attempt < maxRetries) {
+          const next = options.nextKey();
+          console.warn(`  [warn] Rotating to key owner: ${next.owner}`);
+          currentKey = next.key;
+          attempt++;
+          continue;
+        }
+        break;
       }
-
-      if (!response.ok) {
-        const textBody = await response.text();
-        console.warn(`  [warn] Embedding API error (${path}): ${response.status} — ${textBody}`);
-        return null;
-      }
-
-      const data = await response.json() as any;
-      const embedding =
-        data.embedding?.values ||
-        data.embeddings?.[0]?.embedding ||
-        data.data?.[0]?.embedding ||
-        data[0]?.embedding;
-
-      if (!Array.isArray(embedding)) {
-        console.warn('  [warn] Invalid embedding response format, skipping embeddings');
-        return null;
-      }
-
-      return embedding as number[];
-    } catch (err) {
-      console.warn(`  [warn] Embedding generation failed on candidate ${path}: ${(err as Error).message}`);
-      continue;
     }
   }
 
@@ -302,8 +333,23 @@ export type ApiKeyWithOwner = {
 };
 
 /**
+ * Shuffle an array in-place using the Fisher-Yates algorithm.
+ *
+ * @param items - The array to shuffle.
+ * @returns The same array, shuffled.
+ */
+function shuffleArray<T>(items: T[]): T[] {
+  for (let i = items.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [items[i], items[j]] = [items[j], items[i]];
+  }
+  return items;
+}
+
+/**
  * Build a pool of unique API keys from AI model configurations.
  * This removes duplicate keys and preserves the first owner for each key.
+ * The result is then shuffled to spread traffic across keys randomly.
  *
  * @param config - AI configuration containing provider models and keys.
  * @param opts - Optional selection options for provider and protocol.
@@ -321,7 +367,9 @@ export function buildApiKeyPool(
       }
     }
   }
-  return Array.from(keys.entries()).map(([key, owner]) => ({ key, owner }));
+  return shuffleArray(
+    Array.from(keys.entries()).map(([key, owner]) => ({ key, owner })),
+  );
 }
 
 /**
