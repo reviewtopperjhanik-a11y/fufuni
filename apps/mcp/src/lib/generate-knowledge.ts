@@ -185,6 +185,7 @@ export function summarizeEmbeddingStats(
  * @param options.maxRetries - Maximum number of key-rotation retries on recoverable errors (default: 3).
  * @param options.model - Optional model identifier to request.
  * @param options.vectorDimension - Expected dimension of the embedding vector (default: 768).
+ * @param options.taskType - Optional Gemini retrieval task type (default: 'RETRIEVAL_DOCUMENT').
  * @returns An object containing the embedding vector and per-key stats, or null when skipped.
  */
 export async function generateEmbedding(
@@ -195,6 +196,7 @@ export async function generateEmbedding(
     maxRetries?: number;
     model?: string;
     vectorDimension?: number;
+    taskType?: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT';
   },
 ): Promise<EmbeddingResult | null> {
   const fetchFn = options.fetch ?? globalThis.fetch;
@@ -219,6 +221,7 @@ export async function generateEmbedding(
   }
 
   const model = options.model ?? 'gemini-embedding-001';
+  const taskType = options.taskType ?? 'RETRIEVAL_DOCUMENT';
   const truncated = text.split(/\s+/).slice(0, 500).join(' ');
   const baseUrl = 'https://generativelanguage.googleapis.com';
   const candidates = [
@@ -241,7 +244,7 @@ export async function generateEmbedding(
           model,
           content: { parts: [{ text: truncated }] },
           output_dimensionality: options.vectorDimension ?? 768,
-          taskType: 'RETRIEVAL_QUERY',
+          taskType,
         };
 
         const requestStat = statsMap.get(currentKey);

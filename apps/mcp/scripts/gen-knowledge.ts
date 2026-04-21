@@ -24,6 +24,7 @@ import {
   buildApiKeyPool,
   EmbeddingResult,
   summarizeEmbeddingStats,
+  maskApiKey,
 } from "../src/lib/generate-knowledge.js";
 import { decryptAiConfig, type AiConfig } from "../src/lib/ai-enc.js";
 
@@ -177,7 +178,7 @@ if (embeddings.length > 0) {
     console.log('Embedding key usage summary:');
     const headers = ['KEY', 'OWNER', 'TRY', 'OK', 'FAIL'];
     const rows = statsSummary.map((entry) => {
-      const maskedKey = `${entry.key.slice(0, 6)}...${entry.key.slice(-8)}`;
+      const maskedKey = maskApiKey(entry.key);
       return [maskedKey, entry.owner, String(entry.nbTry), String(entry.nbSuccess), String(entry.nbFail)];
     });
 

@@ -16,8 +16,8 @@ import { reciprocalRankFusion } from "./search/rrf.js";
 import { BM25_INDEX } from "./search/bm25-index.js";
 import { CHUNKS } from "./search/chunks.js";
 import { VECTOR_MODEL, VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS } from "./search/vectors.js";
-import { decryptAiConfig, selectModels, pickKey, AiKey } from "./lib/ai-enc.js";
-import { maskApiKey } from "./lib/generate-knowledge.js";
+import { decryptAiConfig } from "./lib/ai-enc.js";
+import { generateEmbedding, buildApiKeyPool, normalizeVector, maskApiKey } from "./lib/generate-knowledge.js";
 
 export type ToolDeps = {
   manifest: TopicManifest;
@@ -175,49 +175,32 @@ export function registerFufuniTools(
     // Try vector search via Gemini embedding; fall back to BM25-only otherwise
     let vecHits: Array<{ id: string; score: number }> = [];
     let usingVectors = false;
-    let aiKey: AiKey | null = null;
+    let embeddingStats: Array<{ key: string; nb_try: number; nb_success: number; nb_fail: number }> = [];
 
     if (aiEncJson && env.CRYPTOKEN && VECTOR_COUNT > 0 && VECTORS_B64) {
       try {
         const aiConfig = await decryptAiConfig(aiEncJson, env.CRYPTOKEN);
-        const geminiCandidates = selectModels(aiConfig, { protocol: 'gemini' });
-        if (geminiCandidates.length > 0) {
-          const { provider } = geminiCandidates[0];
-          const keyObj = pickKey(provider);
-          aiKey = keyObj;
-          const truncated = query.split(/\s+/).slice(0, 500).join(' ');
-          const url = `https://generativelanguage.googleapis.com/v1beta/models/${VECTOR_MODEL}:embedContent?key=${keyObj.key}`;
-          const response = await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              model: VECTOR_MODEL,
-              content: { parts: [{ text: truncated }] },
-              output_dimensionality: VECTOR_DIM,
-              taskType: 'RETRIEVAL_QUERY',
-            }),
-          });
-          if (response.ok) {
-            const data = await response.json() as { embedding?: { values?: number[] } };
-            const values = data?.embedding?.values;
-            if (values && values.length === VECTOR_DIM) {
-              const queryVec = new Float32Array(values);
-              let norm = 0;
-              for (let i = 0; i < queryVec.length; i++) {
-                norm += queryVec[i] * queryVec[i];
-              }
-              norm = Math.sqrt(norm);
-              if (norm > 0) {
-                for (let i = 0; i < queryVec.length; i++) {
-                  queryVec[i] /= norm;
-                }
-                const vectorIndex: VectorIndex = { VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS };
-                vecHits = cosineTopK(vectorIndex, queryVec, 20);
-                usingVectors = true;
-              }
-            }
-          } else {
-            console.error(`[MCP] Gemini embedding API error: ${response.status}`);
+        const apiKeys = buildApiKeyPool(aiConfig, { protocol: 'gemini' });
+        const result = await generateEmbedding(query, {
+          apiKeys,
+          model: VECTOR_MODEL,
+          vectorDimension: VECTOR_DIM,
+          taskType: 'RETRIEVAL_QUERY',
+        });
+        if (result) {
+          embeddingStats = result.stats
+            .filter((s) => s.nbTry > 0)
+            .map((s) => ({
+              key: maskApiKey(s.key),
+              nb_try: s.nbTry,
+              nb_success: s.nbSuccess,
+              nb_fail: s.nbFail,
+            }));
+          if (result.vector.length === VECTOR_DIM) {
+            const queryVec = new Float32Array(normalizeVector(result.vector));
+            const vectorIndex: VectorIndex = { VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS };
+            vecHits = cosineTopK(vectorIndex, queryVec, 20);
+            usingVectors = true;
           }
         }
       } catch (e) {
@@ -258,7 +241,7 @@ export function registerFufuniTools(
               mode,
               count: chunks.length,
               chunks,
-              ai_key_used: aiKey ? maskApiKey(aiKey.key) : "BM25-only",
+              stats: embeddingStats,
             },
             null,
             2
