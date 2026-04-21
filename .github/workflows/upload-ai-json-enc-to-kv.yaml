@@ -9,6 +9,7 @@ on:
   push:
     paths:
       - ai.json.enc
+      - .github/workflows/upload-ai-json-enc-to-kv.yaml
 
 permissions:
   contents: write
