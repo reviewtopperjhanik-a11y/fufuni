@@ -16,7 +16,8 @@ import { reciprocalRankFusion } from "./search/rrf.js";
 import { BM25_INDEX } from "./search/bm25-index.js";
 import { CHUNKS } from "./search/chunks.js";
 import { VECTOR_MODEL, VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS } from "./search/vectors.js";
-import { decryptAiConfig, selectModels, pickKey } from "./lib/ai-enc.js";
+import { decryptAiConfig, selectModels, pickKey, AiKey } from "./lib/ai-enc.js";
+import { maskApiKey } from "./lib/generate-knowledge.js";
 
 export type ToolDeps = {
   manifest: TopicManifest;
@@ -174,6 +175,7 @@ export function registerFufuniTools(
     // Try vector search via Gemini embedding; fall back to BM25-only otherwise
     let vecHits: Array<{ id: string; score: number }> = [];
     let usingVectors = false;
+    let aiKey: AiKey | null = null;
 
     if (aiEncJson && env.CRYPTOKEN && VECTOR_COUNT > 0 && VECTORS_B64) {
       try {
@@ -182,6 +184,7 @@ export function registerFufuniTools(
         if (geminiCandidates.length > 0) {
           const { provider } = geminiCandidates[0];
           const keyObj = pickKey(provider);
+          aiKey = keyObj;
           const truncated = query.split(/\s+/).slice(0, 500).join(' ');
           const url = `https://generativelanguage.googleapis.com/v1beta/models/${VECTOR_MODEL}:embedContent?key=${keyObj.key}`;
           const response = await fetch(url, {
@@ -214,11 +217,11 @@ export function registerFufuniTools(
               }
             }
           } else {
-            console.warn(`[MCP] Gemini embedding API error: ${response.status}`);
+            console.error(`[MCP] Gemini embedding API error: ${response.status}`);
           }
         }
       } catch (e) {
-        console.warn('[MCP] Vector embedding failed, falling back to BM25-only', e);
+        console.error('[MCP] Vector embedding failed, falling back to BM25-only', e);
       }
     }
 
@@ -255,6 +258,7 @@ export function registerFufuniTools(
               mode,
               count: chunks.length,
               chunks,
+              ai_key_used: aiKey ? maskApiKey(aiKey.key) : "BM25-only",
             },
             null,
             2

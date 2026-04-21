@@ -803,3 +803,20 @@ export async function callAi(
   const tokensOut = data.usage?.completion_tokens ?? estimateTokens(content);
   return { content, tokensIn, tokensOut };
 }
+
+/**
+ * Function for returning a part of an API key for logging purposes, to avoid exposing the full key in logs.
+ * 
+ * @param key - The API key string to partially mask.
+ * @param keepStart - Number of characters to keep at the start of the key (default: 6).
+ * @param keepEnd - Number of characters to keep at the end of the key (default: 8).
+ * @returns A masked version of the API key, showing only the specified start and end characters.
+ */
+export function maskApiKey(key: string, keepStart = 6, keepEnd = 8): string {
+  if (key.length <= keepStart + keepEnd) {
+    return '*'.repeat(key.length);
+  }
+  const start = key.slice(0, keepStart);
+  const end = key.slice(-keepEnd);
+  return `${start}...${end}`;
+}
