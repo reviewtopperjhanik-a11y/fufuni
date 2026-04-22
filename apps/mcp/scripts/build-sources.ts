@@ -23,7 +23,7 @@ const __dirname = dirname(__filename);
 const repoRoot = join(__dirname, "../../..");
 const outputFile = join(__dirname, "../src/sources.ts");
 const whitelistFile = join(__dirname, "../src/sources-whitelist.ts");
-const topicSourcesDir = join(__dirname, "../knowledge/topics");
+const topicSourcesDir = join(__dirname, "../src/knowledge/topics");
 
 const MANUAL_READABLE_SOURCES = [
   // Merchant Worker — Core
