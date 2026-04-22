@@ -22,7 +22,7 @@
  * Generates static knowledge-base files in `mcp/` that will later be served
  * by a remote MCP (Model Context Protocol) server running on Cloudflare Workers.
  *
- * Topics are auto-discovered from apps/mcp/knowledge/topics/*.ts
+ * Topics are auto-discovered from apps/mcp/src/knowledge/topics/*.ts
  * Each topic file must export a default Topic object.
  *
  * PURPOSE
@@ -218,7 +218,7 @@ Environment variables:
   AI_API_URL           Optional API endpoint override
   CRYPTOKEN            Password used to encrypt/decrypt ai.json.enc
 
-Topics are auto-discovered from apps/mcp/knowledge/topics/*.ts
+Topics are auto-discovered from apps/mcp/src/knowledge/topics/*.ts
 Each file must export a default Topic object.
 
 Examples:
@@ -529,14 +529,14 @@ function readSrc(relativePath: string): string {
  * Truncation happens at a newline boundary when possible.
  */
 // ─── output directory ─────────────────────────────────────────────────────────
-const MCP_DIR = join(ROOT, 'apps/mcp/knowledge/generated');
+const MCP_DIR = join(ROOT, 'apps/mcp/src/knowledge/generated');
 if (!dryRun) {
   mkdirSync(MCP_DIR, { recursive: true });
 }
 
 // ─── topic auto-discovery ─────────────────────────────────────────────────────
 /**
- * Dynamically import all *.ts files from apps/mcp/knowledge/topics/.
+ * Dynamically import all *.ts files from apps/mcp/src/knowledge/topics/.
  * Each file must export a default Topic object.
  * Files are sorted alphabetically, but topic execution order follows
  * their file names (add a numeric prefix if order matters).
@@ -687,7 +687,7 @@ async function main() {
     await initModels();
   }
 
-  // Auto-discover all topics from apps/mcp/knowledge/topics/
+  // Auto-discover all topics from apps/mcp/src/knowledge/topics/
   const ALL_TOPICS = await loadTopics();
 
   // Filter to the named topics if --topic= was provided one or more times.

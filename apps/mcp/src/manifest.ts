@@ -5,25 +5,25 @@
 import type { TopicManifest } from './index.js';
 
 export const MANIFEST: TopicManifest = {
-  "generated_at": "2026-04-22T06:36:34.502Z",
-  "commit": "761642f",
+  "generated_at": "2026-04-22T12:15:07.659Z",
+  "commit": "9ad2905",
   "manifest_version": "1.0.0",
   "topics": [
     {
       "slug": "admin-crud-pattern",
-      "title": "The Three-Component Architecture",
+      "title": "The Admin CRUD Pattern",
       "description": "Standardized admin list/edit architecture built from AdminCrudLayout, useAdminCrud hook, and RowActions — the three-part composition every admin page uses.",
       "tags": [
         "design",
         "theming"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1272,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1273,
       "sources_checksum": "78e4506c9f466658906205fb8ed705d0b2da8e5161507bd4b26d314c60045322"
     },
     {
       "slug": "ai-assisted-features",
-      "title": "AI Implementation Architecture",
+      "title": "Architecture: Browser-Side Inference",
       "description": "AI-assisted features (review moderation, auto-translation) — GET /v1/ai/parameters endpoint, ai-client.ts helpers, and the browser-side inference pattern.",
       "tags": [
         "ai",
@@ -35,36 +35,36 @@ export const MANIFEST: TopicManifest = {
         "moderation",
         "reviews"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1080,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1095,
       "sources_checksum": "3ae4bcc02601403f46866b9bbd06610cf4b55d01ba8199734bd3bec5ee0dc3eb"
     },
     {
       "slug": "analytics-dashboard",
-      "title": "Analytics API Endpoints",
+      "title": "Analytics API Architecture",
       "description": "Merchant analytics surface — revenue, orders and traffic endpoints plus the chart wrappers rendered on the admin analytics page.",
       "tags": [
         "metrics",
         "observability"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1059,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1055,
       "sources_checksum": "45312b45e65b1217f4875d64a4f440b6fd01555c0903a0d16b880b7b4589338f"
     },
     {
       "slug": "api-error-patterns",
-      "title": "The ApiError Class Structure",
+      "title": "The ApiError Class Architecture",
       "description": "ApiError class and static helpers (notFound, unauthorized, invalidRequest, conflict…), Hono-to-JSON conversion, and frontend error-handling patterns.",
       "tags": [
         "general"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1125,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1354,
       "sources_checksum": "c8309686cd258995d7eddf8bbb36c770a655c93699c2fdafc51c1e48cfc7121e"
     },
     {
       "slug": "auth-patterns",
-      "title": "Supported Token Formats",
+      "title": "Supported Token Types",
       "description": "Backend authMiddleware, RBAC guards (adminOnly, superAdminOnly, databaseAdminOnly…), and the frontend AuthenticationGuardWithPermission wrapper used to gate admin pages.",
       "tags": [
         "auth",
@@ -74,13 +74,13 @@ export const MANIFEST: TopicManifest = {
         "security",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1343,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1112,
       "sources_checksum": "14ed54aed6473e07554153e6ab655f394ecfbf575029b9d8c9ab04f0d8ea5428"
     },
     {
       "slug": "auth0-tenant-setup",
-      "title": "Purpose and Execution",
+      "title": "Purpose and Usage",
       "description": "Auth0 tenant deployment — auto-install script, resource-server scopes, RBAC roles, social connections, and the Auth0 Deploy CLI workflow.",
       "tags": [
         "auth",
@@ -89,13 +89,13 @@ export const MANIFEST: TopicManifest = {
         "security",
         "testing"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1062,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1107,
       "sources_checksum": "82b116e24f8015c516fe60060c659d366a7b2a36c4df88906b575cc8ca5648a8"
     },
     {
       "slug": "checkout-and-ucp",
-      "title": "Universal Commerce Protocol (UCP)",
+      "title": "Universal Commerce Protocol (UCP) Integration",
       "description": "Checkout flow and the Universal Commerce Protocol (UCP) — Stripe Checkout integration, UCP sessions, browse/catalog endpoints consumed by AI shopping agents.",
       "tags": [
         "ai-agents",
@@ -106,13 +106,13 @@ export const MANIFEST: TopicManifest = {
         "stripe",
         "ucp"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1285,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1169,
       "sources_checksum": "8097941bca7cd53a32f95b7ec0a35cb703fe2b9f3a1888450480a60ea10b2521"
     },
     {
       "slug": "cloudflare-worker-patterns",
-      "title": "Accessing Cloudflare Bindings in Hono",
+      "title": "Accessing Bindings in Hono Routes",
       "description": "Cloudflare Worker building blocks: Durable Objects with SQLite, KV, R2, Rate Limiter bindings, wrangler.jsonc layout, and CI secrets handling.",
       "tags": [
         "ci",
@@ -124,8 +124,8 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "testing"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1165,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1191,
       "sources_checksum": "bd08b301cf5e11c884dabe72acf99f5e642ef0f10dffe8c29aa8256f8d755e39"
     },
     {
@@ -139,13 +139,13 @@ export const MANIFEST: TopicManifest = {
         "ucp",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 991,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1441,
       "sources_checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "slug": "customer-account-patterns",
-      "title": "Customer Authentication and Middleware",
+      "title": "Customer Authentication Middleware",
       "description": "Customer account surface: /me routes, customerAuthMiddleware, address book, order history, and profile-update flows for logged-in shoppers.",
       "tags": [
         "account",
@@ -162,26 +162,26 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "user"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1485,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1318,
       "sources_checksum": "2bc43f33b2fe27b52cf93aa9cc08773f708de0ffe41404458a897d107ed99b56"
     },
     {
       "slug": "db-schema",
-      "title": "Durable Object Persistence Pattern",
+      "title": "Durable Object Persistence Architecture",
       "description": "Complete Durable Object SQL schema — every table, column, index and foreign key used by the Fufuni backend.",
       "tags": [
         "database",
         "durable-object",
         "schema"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1678,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1560,
       "sources_checksum": "56e619248dd1546776ba5d7f77399678d0d129a51d5bbaf54e10eb79e53acce4"
     },
     {
       "slug": "discounts-and-pricing",
-      "title": "Discount Types and Schema",
+      "title": "Discount Models and Types",
       "description": "Discount codes and tiered pricing — lib/pricing.ts helpers, promotion endpoints, and the discount-application order for cart totals.",
       "tags": [
         "ci",
@@ -189,13 +189,13 @@ export const MANIFEST: TopicManifest = {
         "pricing",
         "testing"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1284,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1280,
       "sources_checksum": "8ef76494fb84f2e5e30faf75516bdce5711536e0b7d4ed81cefd98fb184bc7e8"
     },
     {
       "slug": "e2e-testing",
-      "title": "E2E Project Structure",
+      "title": "E2E Project Architecture",
       "description": "Playwright end-to-end setup — fixtures, storage-state auth reuse, test specs under e2e/, and helper scripts that seed a temporary store.",
       "tags": [
         "ci",
@@ -205,13 +205,13 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "testing"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1043,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1088,
       "sources_checksum": "aa55552fb2d70ac8a236a366ec40495053dd74d38cb931f924ae092bec566e7a"
     },
     {
       "slug": "email-templates",
-      "title": "Mailgun Infrastructure",
+      "title": "Mailgun Configuration",
       "description": "Transactional email delivery via Mailgun — Handlebars templates (order confirmation, password reset, refund), sending helpers, and trigger points.",
       "tags": [
         "commerce",
@@ -219,26 +219,26 @@ export const MANIFEST: TopicManifest = {
         "mailgun",
         "orders"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1149,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1071,
       "sources_checksum": "0ae646504fa394dac20e70999ada7517f5e787be2bf359cb7fa00471dc1b9659"
     },
     {
       "slug": "framework-overview",
-      "title": "🛠 Technology Stack",
+      "title": "Framework Overview",
       "description": "High-level Fufuni architecture — stack (CF Workers + Durable Objects + React), monorepo layout, request lifecycle, and core conventions. Start here.",
       "tags": [
         "cloudflare",
         "images",
         "storage"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1305,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1044,
       "sources_checksum": "c7355b78247db878ab5683509da3f5b862453f7f739932011d3952ac1761bddf"
     },
     {
       "slug": "frontend-react-patterns",
-      "title": "Application Architecture & Providers",
+      "title": "React Router and Protected Routes",
       "description": "React 19 patterns on the merchant UI — React Query defaults, HeroUI v3 components, client routing, custom hooks, navbar wiring, and theme integration.",
       "tags": [
         "design",
@@ -247,26 +247,26 @@ export const MANIFEST: TopicManifest = {
         "theming",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 997,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1122,
       "sources_checksum": "acdd966e39076c2e6ccc795a2b75ef734b85e8f8cd4065bb7ee34bdd419d00a5"
     },
     {
       "slug": "how-to-add-hono-route",
-      "title": "Anatomy of a Fufuni Route File",
+      "title": "File Structure and Boilerplate",
       "description": "Step-by-step pattern for adding a new OpenAPIHono route — Zod schemas, public vs admin split (publicApp + adminApp export), and RBAC guards.",
       "tags": [
         "api",
         "backend",
         "hono"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1392,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1234,
       "sources_checksum": "fdd0178e846e43d73fa0dc3dee8208b99e1b82e5b3596d3946d7fb99cfd5dfe4"
     },
     {
       "slug": "how-to-add-migration",
-      "title": "The Triple-Entry Schema Pattern",
+      "title": "The Three Pillars of Fufuni Migrations",
       "description": "Step-by-step pattern for changing the DB schema — update SCHEMA constant, append to ensureInitialized, add numbered SQL file under apps/merchant/migrations/.",
       "tags": [
         "cloudflare",
@@ -279,13 +279,13 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1241,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1272,
       "sources_checksum": "1786b0e4b75821b712f4fc67d23488ad6fa1b89de759027378c9bb210a5721af"
     },
     {
       "slug": "i18n-patterns",
-      "title": "Locale Architecture and File Structure",
+      "title": "Supported Locales and File Structure",
       "description": "react-i18next usage across the six supported locales — locale files layout, useTranslation hook, and fallback-language behaviour.",
       "tags": [
         "frontend",
@@ -294,8 +294,8 @@ export const MANIFEST: TopicManifest = {
         "react",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1092,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1209,
       "sources_checksum": "3194a34395ce4e12311474189ce379dc3fafe51eade7f5b201cc5f1e423972c3"
     },
     {
@@ -310,8 +310,8 @@ export const MANIFEST: TopicManifest = {
         "storage",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1208,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1122,
       "sources_checksum": "2dcbb58154063e3e67378af551fdad0de7448dced3944c2c9ea4a171497c2adc"
     },
     {
@@ -322,13 +322,13 @@ export const MANIFEST: TopicManifest = {
         "inventory",
         "warehouse"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1246,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1242,
       "sources_checksum": "8fc3714b3df6fdf44b6061fb91f4423df5f196b4b74b595155c00d13a52a62b2"
     },
     {
       "slug": "invoice-and-pdf",
-      "title": "PDF Generation Engine",
+      "title": "Client-Side PDF Generation",
       "description": "Client-side PDF invoice generation with jsPDF — invoice layout, order-view tokens for public access, and the download entry point.",
       "tags": [
         "commerce",
@@ -336,13 +336,13 @@ export const MANIFEST: TopicManifest = {
         "invoicing",
         "orders"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1047,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1036,
       "sources_checksum": "90207c0a5c6d62a1ed2883b8a31b2e4f2d3130a39ad4a1c2f19cbe8bd8be8f80"
     },
     {
       "slug": "jwt-user-metadata-patterns",
-      "title": "The `useTokenUserData` Hook",
+      "title": "The useTokenUserData Hook",
       "description": "Auth0 JWT custom claims — user_metadata vs app_metadata, useTokenUserData hook, store-metadata propagation, and per-user theme storage.",
       "tags": [
         "auth",
@@ -352,37 +352,37 @@ export const MANIFEST: TopicManifest = {
         "security",
         "storage"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1190,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1090,
       "sources_checksum": "6ed351c174ef894e52e0afd2f3b476cde7be76c0680f3d47f1f5a85a45928ce7"
     },
     {
       "slug": "localized-content-patterns",
-      "title": "LocalizedText Structure and Storage",
+      "title": "LocalizedText Definition and Storage Format",
       "description": "Multilingual content model — LocalizedText type, useLocalizedTextInput hook, and the renderLocalized utility used across product and category surfaces.",
       "tags": [
         "general"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1061,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1103,
       "sources_checksum": "86ccda609673ce16c145932e6395bf14a1edf9607a692f63d735ceb7766e8189"
     },
     {
       "slug": "mcp-server-quickstart",
-      "title": "Understanding the Fufuni MCP Server",
+      "title": "The Fufuni MCP Server Architecture",
       "description": "Setup and extension of the Fufuni MCP server itself — generate.ts pipeline, adding a new topic, running gen-knowledge, and deploying to Cloudflare.",
       "tags": [
         "frontend",
         "react",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1256,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1110,
       "sources_checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
       "slug": "migrations-reference",
-      "title": "Durable Object Schema Management",
+      "title": "Database Migration Lifecycle",
       "description": "Enumeration of every numbered SQL migration — applied order, schema changes introduced, and a mini changelog per migration file.",
       "tags": [
         "commerce",
@@ -392,8 +392,8 @@ export const MANIFEST: TopicManifest = {
         "orders",
         "schema"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1381,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1112,
       "sources_checksum": "16180139cea84c08f0259fa1cccaf6961e0211d4d84c0e100c61725cadc2422a"
     },
     {
@@ -407,13 +407,13 @@ export const MANIFEST: TopicManifest = {
         "integration",
         "security"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1144,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1178,
       "sources_checksum": "dcd38fe40a28b1ec43840e97330a397599a89badf25571d6ddb91fa4a5f153df"
     },
     {
       "slug": "order-view-tokens",
-      "title": "Purpose of Order View Tokens",
+      "title": "Purpose and Overview",
       "description": "Signed order-view tokens — how they are generated, how the public invoice route validates them, and when to use them instead of JWT auth.",
       "tags": [
         "commerce",
@@ -421,8 +421,8 @@ export const MANIFEST: TopicManifest = {
         "invoicing",
         "orders"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1220,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 964,
       "sources_checksum": "884067771ab7197f81117832376199667a65bd14d22069f7fff10394a9f2e494"
     },
     {
@@ -436,25 +436,25 @@ export const MANIFEST: TopicManifest = {
         "payments",
         "stripe"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1219,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1273,
       "sources_checksum": "eb53db1e9955527f852119537504aa90f26f026f1ba3bfa6ecc5e93d44d19c47"
     },
     {
       "slug": "product-catalog-and-localization",
-      "title": "Product Model and Image Structure",
+      "title": "Product Model and Data Structure",
       "description": "Product catalogue — CRUD endpoints, variant management, category tree, and how product names and descriptions are localized per store locale.",
       "tags": [
         "catalog",
         "products"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1291,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1418,
       "sources_checksum": "b068fbeb6459190109571a250e36b7ecbe137668fb4019e3412f9f426b92ce2a"
     },
     {
       "slug": "product-reviews",
-      "title": "Product Review Data Model",
+      "title": "Product Reviews Data Model",
       "description": "Product review system — customer submission, rating aggregation, AI-assisted moderation, and the admin review management page.",
       "tags": [
         "ai",
@@ -463,45 +463,45 @@ export const MANIFEST: TopicManifest = {
         "products",
         "reviews"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1185,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1150,
       "sources_checksum": "2eee616dc080feadb370714430679d82816ea4f80d7c5712389864056f03e008"
     },
     {
       "slug": "regions-taxes-shipping",
-      "title": "Regions and Geographic Mapping",
+      "title": "Regions and Geographic Groupings",
       "description": "Regions, tax rates, and shipping zones — lib/tax.ts and lib/shipping.ts helpers, rate tables, and region → shipping-zone mapping.",
       "tags": [
         "commerce",
         "pricing"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1349,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1264,
       "sources_checksum": "cb787dab5f95e570bb448ebb6629b87c3b36c5973a02833673395010ff9657aa"
     },
     {
       "slug": "seed-data-patterns",
-      "title": "Execution and CLI Arguments",
+      "title": "Execution and Environment Setup",
       "description": "Seed script structure — how demo data is inserted, how to add new seed records, and the reset-demo GitHub Action that triggers it on a schedule.",
       "tags": [
         "data",
         "testing"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1079,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1285,
       "sources_checksum": "b37261fe66600a58c044f4bbac69cf6fb86284246d31581356ea52ac7b2679ad"
     },
     {
       "slug": "setup-and-initialization",
-      "title": "Checking Initialization Status",
+      "title": "Initial Setup Status",
       "description": "First-run store setup — the /v1/setup endpoint, initial-configuration fields, and the routes that bootstrap a fresh Fufuni instance.",
       "tags": [
         "api",
         "backend",
         "hono"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1222,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1261,
       "sources_checksum": "d420780a7f62cd976b551e4648abe5426af604127f67dc7b51f137ea98ed6789"
     },
     {
@@ -515,26 +515,26 @@ export const MANIFEST: TopicManifest = {
         "theming",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1103,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1040,
       "sources_checksum": "14f33a2d52fb5deaa8f6481d6d0ecf72e541543b10b70a728c03c679c4741bfc"
     },
     {
       "slug": "use-secured-api",
-      "title": "Import path",
+      "title": "Introduction and Import Path",
       "description": "useSecuredApi React hook for authenticated calls — getJson, postJson, putJson, patchJson, deleteJson, postForm, plus Auth0 bearer injection.",
       "tags": [
         "frontend",
         "react",
         "ui"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1150,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1294,
       "sources_checksum": "1f3c4784272a2d1bf03e7deb3a9150133130e03730a11ad6a6c8922d20d9e954"
     },
     {
       "slug": "user-preferences-and-wishlist",
-      "title": "User Persistence Architecture",
+      "title": "User Metadata vs. SQL Persistence",
       "description": "Per-user state — wishlist stored in Auth0 user_metadata, saved carts, and the custom hooks that wrap the metadata updates.",
       "tags": [
         "account",
@@ -543,8 +543,8 @@ export const MANIFEST: TopicManifest = {
         "security",
         "user"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1013,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1082,
       "sources_checksum": "5f81fa0ccca254095d593a9ae2e4d4890f135cfc78b287a128ee336a91c7f3c8"
     },
     {
@@ -555,8 +555,8 @@ export const MANIFEST: TopicManifest = {
         "events",
         "webhooks"
       ],
-      "updated_at": "2026-04-22T06:36:34.502Z",
-      "word_count": 1130,
+      "updated_at": "2026-04-22T12:15:07.659Z",
+      "word_count": 1192,
       "sources_checksum": "92b2559bd014a0f161ed6e3e69b093d8f10d2bb251c8601ac343332a6efbc33e"
     }
   ]
