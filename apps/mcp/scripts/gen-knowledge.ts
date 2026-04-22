@@ -42,7 +42,7 @@ const VECTOR_MODEL = 'gemini-embedding-2-preview'; //'gemini-embedding-001'; // 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const mcpDir = join(__dirname, "../knowledge/generated"); // Relative to this script
+const mcpDir = join(__dirname, "../src/knowledge/generated"); // Relative to this script
 const outputFile = join(__dirname, "../src/knowledge.ts");
 
 // Ensure src/ exists

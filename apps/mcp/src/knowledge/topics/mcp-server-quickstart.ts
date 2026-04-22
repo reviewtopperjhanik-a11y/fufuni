@@ -23,14 +23,14 @@ const topic: Topic = {
     'The knowledge base output directory is <repo-root>/mcp/. One .md file is generated per topic.',
     'Running the MCP server locally (stdio mode): npx tsx apps/mcp/src/stdio.ts — compatible with Claude Desktop via the MCP config.',
     'Adding a topic file is the ONLY way to add new knowledge to the MCP server. Do not edit apps/mcp/src/knowledge.ts directly — it is auto-generated.',
-    'The generate.ts script (apps/mcp/knowledge/generate.ts) is the generator. It reads all topic .ts files, calls buildPrompt with the concatenated source files, sends to an LLM, and writes the response as a .md file.',
+    'The generate.ts script (apps/mcp/src/knowledge/generate.ts) is the generator. It reads all topic .ts files, calls buildPrompt with the concatenated source files, sends to an LLM, and writes the response as a .md file.',
     'Copyright header required in every new topic file: "Copyright (c) 2026 Ronan LE MEILLAT - SCTG Development / License: AGPL-3.0-or-later".',
   ],
   buildPrompt: (src) => appendFacts(`
 Task: Write a "MCP Server Quickstart" guide for contributors who want to extend the knowledge base.
 Include:
 1. What the MCP server is and how AI assistants consume it.
-2. Directory layout: apps/mcp/knowledge/topics/ (one .ts per topic), apps/mcp/knowledge/generate.ts (generator), apps/mcp/knowledge/base.ts (shared types).
+2. Directory layout: apps/mcp/knowledge/topics/ (one .ts per topic), apps/mcp/src/knowledge/generate.ts (generator), apps/mcp/knowledge/base.ts (shared types).
 3. Step-by-step: how to add a new topic file (with full template including copyright header).
 4. The Topic interface fields: name, description, sources, systemPrompt, manualFacts, buildPrompt, maxSourceChars.
 5. The generate commands: mcp:generate, mcp:generate:force, mcp:auto. What each does.

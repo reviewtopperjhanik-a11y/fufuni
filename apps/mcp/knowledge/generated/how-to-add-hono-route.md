@@ -5,7 +5,7 @@
   description:  Call this when adding a Hono route, middleware, or sub-router to the Fufuni backend.
   model:        gemini-3-flash-preview
   tokens_in:    12094
-  tokens_out:   2564
+  tokens_out:   2941
   api_endpoint: https://generativelanguage.googleapis.com/v1beta
   manual_facts_checksum: 4779a69a6cfb57e3d078a39bd18d8face49ec898842b79ff17fa352789dcc2ad
   sources_checksum: fdd0178e846e43d73fa0dc3dee8208b99e1b82e5b3596d3946d7fb99cfd5dfe4
@@ -16,193 +16,52 @@
     apps/merchant/src/index.ts: 9ecd5ad24f8e059b0124c97b47ae275c0b326b116cf31127db8cdf4fd3f85960
 -->
 
-## File Structure and Boilerplate
+## Anatomy of a Fufuni Route File
 
-When adding a new feature to the Fufuni backend, you must create a dedicated route file in `apps/merchant/src/routes/`. The convention is to use a plural noun (e.g., `tags.ts`, `collections.ts`). 
+Every feature in the Fufuni backend is encapsulated within a route file located in `apps/merchant/src/routes/`. These files follow a strict architectural pattern: they use `OpenAPIHono` for type-safe routing and documentation, and they export two distinct app instances: a **public** app and an **admin** app.
 
-Fufuni uses `@hono/zod-openapi` to ensure that every endpoint is type-safe and automatically documented in the Swagger UI. You must never use standard Hono `app.get` or `app.post` calls; instead, use `createRoute` to define the contract first.
+The public app handles unauthenticated requests (or requests with a public API key), while the admin app requires `authMiddleware` and specific RBAC (Role-Based Access Control) permissions.
+
+### File Boilerplate and Exports
+
+When creating `apps/merchant/src/routes/my-feature.ts`, you must import the necessary utilities from the core framework. Never define Zod schemas within the route file; always import them from `../schemas`.
 
 ```typescript
-// apps/merchant/src/routes/my-feature.ts
 import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
 import { z } from 'zod';
 import { ApiError, uuid, now, type HonoEnv } from '../types';
 import { getDb } from '../db';
 import { authMiddleware, adminOnly } from '../middleware/auth';
-// Note: Real schemas must be imported from ../schemas
-import { ErrorResponse } from '../schemas'; 
+// Import schemas from the centralized schema directory
+import { 
+  ErrorResponse, 
+  TagResponse, 
+  TagListResponse, 
+  CreateTagBody 
+} from '../schemas';
 
+// 1. Initialize the Public App (No auth required by default)
 const publicApp = new OpenAPIHono<HonoEnv>();
-const adminApp = new OpenAPIHono<HonoEnv>();
 
-// Apply auth middleware to all admin routes
+// 2. Initialize the Admin App (Requires authMiddleware)
+const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', authMiddleware);
 
-export { publicApp as publicMyFeature, adminApp as adminMyFeature };
-```
-
-## Splitting Public and Admin Endpoints
-
-Fufuni strictly separates public access (storefront visitors) from admin access (merchant dashboard). This is achieved by exporting two separate `OpenAPIHono` instances.
-
-1.  **Public Router (`publicApp`)**: Used for routes that require no authentication or accept public API keys (`pk_...`). These are registered before the global auth checks in `index.ts`.
-2.  **Admin Router (`adminApp`)**: Used for routes requiring a secret key (`sk_...`) or an Auth0 JWT. These routes typically use `authMiddleware` and specific RBAC guards.
-
-### Pattern for Router Export
-```typescript
-// Define routes here...
-
-// Export using this specific naming convention
+// 3. Export named instances for index.ts registration
 export { publicApp as publicTags, adminApp as adminTags };
 ```
 
-## Database Interaction with getDb()
+## Defining Routes with OpenAPI
 
-The Fufuni backend runs on Cloudflare Durable Objects using SQLite. You do not access the database directly; instead, you use the `getDb` helper which wraps the Durable Object's RPC methods.
+Fufuni uses `@hono/zod-openapi` to ensure that every endpoint is documented and validated. You must use `createRoute` to define the contract before implementing the logic.
 
--   **`db.query<T>(sql, params)`**: Used for `SELECT` statements. Always returns an array.
--   **`db.run(sql, params)`**: Used for `INSERT`, `UPDATE`, and `DELETE`. Returns an object containing the number of changes.
+### Request Validation
 
-### Example Query and Mutation
-```typescript
-const handler = async (c: any) => {
-  const db = getDb(c.var.db);
-  
-  // Reading data
-  const rows = await db.query<{ id: string; name: string }>(
-    'SELECT id, name FROM tags WHERE status = ?',
-    ['active']
-  );
+Never use `c.req.json()` or `c.req.query()` directly. Use `c.req.valid('json')`, `c.req.valid('query')`, or `c.req.valid('param')`. This ensures the runtime data matches your Zod schemas and provides automatic type inference for the handler.
 
-  // Writing data
-  const result = await db.run(
-    'INSERT INTO tags (id, name, created_at) VALUES (?, ?, ?)',
-    [uuid(), 'New Tag', now()]
-  );
-
-  return c.json({ items: rows, created: result.changes > 0 });
-};
-```
-
-## Handling Errors with ApiError
-
-Never return manual JSON error objects. Fufuni uses a centralized `ApiError` class that ensures error responses follow the standard envelope format: `{ error: { code, message, details } }`. 
-
-Throwing an `ApiError` automatically triggers the global error handler in `index.ts`, which sets the correct HTTP status code.
-
-### Standard Error Usage
-```typescript
-// Inside a route handler
-const [item] = await db.query('SELECT * FROM items WHERE id = ?', [id]);
-
-if (!item) {
-  throw ApiError.notFound(`Item with ID ${id} not found`);
-}
-
-if (somethingIsWrong) {
-  throw ApiError.badRequest('Invalid configuration', { field: 'config_set' });
-}
-
-try {
-  // logic
-} catch (err) {
-  throw ApiError.internalServerError(err instanceof Error ? err.message : 'Database failure');
-}
-```
-
-## Available RBAC Guards
-
-When defining admin routes, you must use middleware to restrict access based on permissions. These guards are imported from `../middleware/auth` and should be placed in the `middleware` array of the `createRoute` configuration.
-
-| Guard | Requirement |
-| :--- | :--- |
-| `adminOnly` | Requires `admin:store` permission (Standard Merchant) |
-| `superAdminOnly` | Requires highest level privileges |
-| `databaseAdminOnly` | Requires `admin:database` for raw SQL/DB operations |
-| `aiAccessOnly` | Requires `ai:api` for AI translation or config |
-| `mailAccessOnly` | Requires `mail:api` for sending/configuring emails |
-| `validJwtAuthOnly` | Validates that a token is present but doesn't check specific roles |
-
-### Implementation in createRoute
-```typescript
-const secureRoute = createRoute({
-  method: 'post',
-  path: '/',
-  middleware: [adminOnly] as const, // Use 'as const' for Hono type inference
-  // ... rest of config
-});
-```
-
-## Registering Routes in index.ts
-
-New routes must be mounted in `apps/merchant/src/index.ts`. The order of registration is critical because Hono matches routes sequentially and middleware application depends on placement.
-
-1.  **Public Routes**: Register these **before** any global authentication middleware.
-2.  **Admin Routes**: Register these towards the end of the file.
-3.  **Cache Invalidation**: If your resource is cached (like products or categories), ensure the `kvInvalidateMiddleware` is applied to the prefix.
+### Example: Defining a Documented Route
 
 ```typescript
-// apps/merchant/src/index.ts
-
-// 1. Import your routers
-import { publicTags, adminTags } from './routes/tags';
-
-// 2. (Optional) Register Cache Middleware if high traffic
-app.use('/v1/tags', kvCacheMiddleware);
-app.use('/v1/tags/*', kvCacheMiddleware);
-
-// 3. Register public routes (before auth)
-app.route('/v1/tags', publicTags);
-
-// ... other routes ...
-
-// 4. Register admin routes
-app.route('/v1/tags', adminTags);
-```
-
-## Complete Worked Example: Tags API
-
-This example demonstrates a complete `tags.ts` file implementing a public list and an admin-only creation endpoint.
-
-### Step 1: Define Schemas (apps/merchant/src/schemas/tags.ts)
-*Note: In a real scenario, you would add these to the central schemas directory.*
-
-```typescript
-import { z } from '@hono/zod-openapi';
-
-export const TagSchema = z.object({
-  id: z.string().uuid(),
-  name: z.string().min(1),
-  slug: z.string(),
-  created_at: z.string().datetime(),
-}).openapi('Tag');
-
-export const CreateTagBody = z.object({
-  name: z.string().min(1),
-  slug: z.string().min(1),
-}).openapi('CreateTagBody');
-
-export const TagListResponse = z.object({
-  items: z.array(TagSchema),
-}).openapi('TagListResponse');
-```
-
-### Step 2: Implement the Route (apps/merchant/src/routes/tags.ts)
-
-```typescript
-import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
-import { z } from 'zod';
-import { ApiError, uuid, now, type HonoEnv } from '../types';
-import { getDb } from '../db';
-import { authMiddleware, adminOnly } from '../middleware/auth';
-import { ErrorResponse } from '../schemas';
-// Simulated imports from step 1
-import { TagSchema, CreateTagBody, TagListResponse } from '../schemas';
-
-const publicApp = new OpenAPIHono<HonoEnv>();
-const adminApp = new OpenAPIHono<HonoEnv>();
-
-// --- Public: List Tags ---
 const listTagsRoute = createRoute({
   method: 'get',
   path: '/',
@@ -211,11 +70,11 @@ const listTagsRoute = createRoute({
   responses: {
     200: {
       content: { 'application/json': { schema: TagListResponse } },
-      description: 'List of tags',
+      description: 'A list of tags retrieved successfully',
     },
     500: {
       content: { 'application/json': { schema: ErrorResponse } },
-      description: 'Server error',
+      description: 'Internal server error',
     },
   },
 });
@@ -229,16 +88,169 @@ publicApp.openapi(listTagsRoute, async (c) => {
     throw ApiError.internalServerError('Failed to fetch tags');
   }
 });
+```
 
-// --- Admin: Create Tag ---
+## Interacting with the Database
+
+Fufuni runs on Cloudflare Durable Objects using SQLite. The database is accessed via a `DOStub` available in the Hono context. You must use the `getDb` helper to interact with it.
+
+### Querying vs Running
+
+- **`db.query<T>(sql, params)`**: Used for `SELECT` statements. It returns a Promise of an array of objects.
+- **`db.run(sql, params)`**: Used for `INSERT`, `UPDATE`, and `DELETE`. It returns the number of changes made.
+
+```typescript
+// Example: Creating a record (Mutation)
+const createTag = async (db: Database, name: string) => {
+  const id = uuid();
+  const timestamp = now();
+  
+  await db.run(
+    `INSERT INTO tags (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)`,
+    [id, name, timestamp, timestamp]
+  );
+  
+  return id;
+};
+
+// Example: Fetching a record (Query)
+const getTag = async (db: Database, id: string) => {
+  const [tag] = await db.query<any>(`SELECT * FROM tags WHERE id = ?`, [id]);
+  if (!tag) throw ApiError.notFound('Tag not found');
+  return tag;
+};
+```
+
+## Error Handling with ApiError
+
+The framework uses a centralized error handler. To return an error response, throw an instance of `ApiError`. This ensures the response follows the standard Fufuni error envelope: `{ error: { code, message, details } }`.
+
+| Method | Status Code | Use Case |
+| :--- | :--- | :--- |
+| `ApiError.badRequest(msg)` | 400 | Invalid payload or logic error. |
+| `ApiError.unauthorized()` | 401 | Missing or invalid credentials. |
+| `ApiError.forbidden()` | 403 | Authenticated but insufficient permissions. |
+| `ApiError.notFound(msg)` | 404 | Resource does not exist in DB. |
+| `ApiError.conflict(msg)` | 409 | Duplicate handle or unique constraint violation. |
+| `ApiError.internalServerError()`| 500 | Uncaught exceptions or DB failures. |
+
+## Role-Based Access Control (RBAC)
+
+Admin routes must be protected by specific guards imported from `../middleware/auth`. These guards are applied to the `middleware` array in the `createRoute` definition and then used within the `adminApp.openapi` call.
+
+### Available Guards
+
+1.  **`adminOnly`**: Standard store management (products, categories, orders). Requires `admin:store` permission.
+2.  **`superAdminOnly`**: Dangerous operations or billing settings.
+3.  **`databaseAdminOnly`**: Direct access to database schema or migration tools. Requires `admin:database`.
+4.  **`aiAccessOnly`**: Configuration of AI translation models and keys.
+5.  **`mailAccessOnly`**: Editing transactional email templates.
+6.  **`validJwtAuthOnly`**: Validates that a user is logged in via Auth0 (typically for customer-profile actions) but doesn't check for admin privileges.
+
+### Applying RBAC to a Route
+
+```typescript
+const createTagRoute = createRoute({
+  method: 'post',
+  path: '/',
+  tags: ['Tags'],
+  summary: 'Create a new tag (admin only)',
+  security: [{ bearerAuth: ['admin:store'] }],
+  middleware: [adminOnly] as const, // Apply the RBAC guard
+  request: {
+    body: {
+      content: { 'application/json': { schema: CreateTagBody } },
+    },
+  },
+  responses: {
+    201: { content: { 'application/json': { schema: TagResponse } }, description: 'Created' },
+    403: { content: { 'application/json': { schema: ErrorResponse } }, description: 'Forbidden' },
+  },
+});
+```
+
+## Registering Routes in index.ts
+
+After creating your route file, you must register it in `apps/merchant/src/index.ts`. The order of registration is critical for the KV cache and authentication logic.
+
+1.  **Public routes** are mounted near the top, before the global authentication middleware or rate limiters.
+2.  **Admin routes** are mounted later, alongside other resource managers like `adminCatalog`.
+
+```typescript
+// apps/merchant/src/index.ts
+
+import { publicTags, adminTags } from './routes/tags';
+
+// ... other imports
+
+// 1. Mount Public Route
+app.route('/v1/tags', publicTags);
+
+// ... middlewares like auth and rate limiting
+
+// 2. Mount Admin Route
+app.route('/v1/tags', adminTags);
+```
+
+### KV Cache Registration
+If your resource is high-traffic (like categories or products), register it with the `kvCacheMiddleware` in `index.ts`. This allows unauthenticated `GET` requests to be served from Cloudflare KV instead of waking up the Durable Object.
+
+```typescript
+app.use('/v1/tags', kvCacheMiddleware);
+app.use('/v1/tags/*', kvCacheMiddleware);
+```
+
+## Worked Example: The Tags API
+
+Below is a complete implementation of a "Tags" feature, demonstrating the public/admin split, database usage, and RBAC.
+
+### File: `apps/merchant/src/routes/tags.ts`
+
+```typescript
+import { OpenAPIHono, createRoute } from '@hono/zod-openapi';
+import { z } from 'zod';
+import { ApiError, uuid, now, type HonoEnv } from '../types';
+import { getDb } from '../db';
+import { authMiddleware, adminOnly } from '../middleware/auth';
+import { 
+  TagResponse, 
+  TagListResponse, 
+  CreateTagBody, 
+  ErrorResponse 
+} from '../schemas';
+
+// --- PUBLIC APP ---
+const publicApp = new OpenAPIHono<HonoEnv>();
+
+const listTagsRoute = createRoute({
+  method: 'get',
+  path: '/',
+  tags: ['Tags'],
+  summary: 'Get all tags',
+  responses: {
+    200: { 
+      content: { 'application/json': { schema: TagListResponse } },
+      description: 'List of tags' 
+    },
+  },
+});
+
+publicApp.openapi(listTagsRoute, async (c) => {
+  const db = getDb(c.var.db);
+  const rows = await db.query<any>('SELECT * FROM tags');
+  return c.json({ items: rows }, 200);
+});
+
+// --- ADMIN APP ---
+const adminApp = new OpenAPIHono<HonoEnv>();
 adminApp.use('*', authMiddleware);
 
 const createTagRoute = createRoute({
   method: 'post',
   path: '/',
   tags: ['Tags'],
-  summary: 'Create a new tag',
-  security: [{ bearerAuth: [] }],
+  summary: 'Create a tag',
+  security: [{ bearerAuth: ['admin:store'] }],
   middleware: [adminOnly] as const,
   request: {
     body: {
@@ -246,53 +258,53 @@ const createTagRoute = createRoute({
     },
   },
   responses: {
-    201: {
-      content: { 'application/json': { schema: TagSchema } },
-      description: 'Tag created',
+    201: { 
+      content: { 'application/json': { schema: TagResponse } },
+      description: 'Tag created' 
     },
-    409: {
+    409: { 
       content: { 'application/json': { schema: ErrorResponse } },
-      description: 'Slug already exists',
+      description: 'Tag already exists' 
     },
   },
 });
 
 adminApp.openapi(createTagRoute, async (c) => {
-  const { name, slug } = c.req.valid('json');
+  const { name } = c.req.valid('json');
   const db = getDb(c.var.db);
 
-  const [existing] = await db.query('SELECT id FROM tags WHERE slug = ?', [slug]);
-  if (existing) {
-    throw ApiError.conflict(`Tag with slug "${slug}" already exists`);
-  }
+  // Check for existence
+  const [existing] = await db.query<{ id: string }>(
+    'SELECT id FROM tags WHERE name = ?', 
+    [name]
+  );
+  if (existing) throw ApiError.conflict(`Tag "${name}" already exists`);
 
   const id = uuid();
   const timestamp = now();
 
   await db.run(
-    'INSERT INTO tags (id, name, slug, created_at) VALUES (?, ?, ?, ?)',
-    [id, name, slug, timestamp]
+    'INSERT INTO tags (id, name, created_at, updated_at) VALUES (?, ?, ?, ?)',
+    [id, name, timestamp, timestamp]
   );
 
   return c.json({
     id,
     name,
-    slug,
     created_at: timestamp,
+    updated_at: timestamp
   }, 201);
 });
 
 export { publicApp as publicTags, adminApp as adminTags };
 ```
 
-### Step 3: Database Schema update
-Ensure your Durable Object migrations (or initial setup) include the new table.
+### Registration Checklist
 
-```sql
-CREATE TABLE IF NOT EXISTS tags (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  slug TEXT UNIQUE NOT NULL,
-  created_at TEXT NOT NULL
-);
-```
+When you finish the code above, verify the following:
+1.  Did you add the `tags` table to the SQLite schema in the Durable Object?
+2.  Did you define `TagResponse`, `TagListResponse`, and `CreateTagBody` in `apps/merchant/src/schemas/index.ts`?
+3.  Did you register `publicTags` and `adminTags` in `index.ts`?
+4.  If using the KV cache, did you verify that `kvInvalidateMiddleware` is applied to `/v1/tags/*` to purge the cache after a `POST` or `DELETE`?
+
+Fufuni handles invalidation automatically by prefix. If you register `app.use('/v1/tags/*', kvInvalidateMiddleware)`, any successful mutation (POST/PATCH/DELETE) on an endpoint starting with `/v1/tags/` will purge all keys in KV starting with `v1/tags`, ensuring your storefront data stays fresh.
