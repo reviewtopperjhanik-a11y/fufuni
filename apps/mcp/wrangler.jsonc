@@ -13,8 +13,9 @@
   "name": "fufuni-mcp",
   "main": "src/index.ts",
   "compatibility_date": "2025-12-01",
-  "compatibility_flags": ["nodejs_compat"],
-
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
   "durable_objects": {
     "bindings": [
       {
@@ -23,14 +24,20 @@
       }
     ]
   },
-
+  "vectorize": [
+    {
+      "binding": "VECTORIZE", // available in your Worker on env.VECTORIZE
+      "index_name": "fufuni-mcp"
+    }
+  ],
   "migrations": [
     {
       "tag": "v1",
-      "new_sqlite_classes": ["FufuniMCP"]
+      "new_sqlite_classes": [
+        "FufuniMCP"
+      ]
     }
   ],
-
   "ratelimits": [
     {
       "name": "MCP_RATE_LIMITER",
@@ -41,25 +48,27 @@
       }
     }
   ],
-
   "observability": {
     "enabled": true
   },
-
-	"kv_namespaces": [
-		{
-			"binding": "KV_CACHE",
-			"id": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
-		}
-	],
-
+  "kv_namespaces": [
+    {
+      "binding": "KV_CACHE",
+      "id": "da39a3ee5e6b4b0d3255bfef95601890afd80709"
+    }
+  ],
   "dev": {
     "port": 8788
   },
-
   // Tell Wrangler/esbuild to treat .enc files as plain-text modules so that
   // `import x from "…" with { type: "text" }` works at bundle time.
   "rules": [
-    { "type": "Text", "globs": ["**/*.enc"], "fallthrough": true }
+    {
+      "type": "Text",
+      "globs": [
+        "**/*.enc"
+      ],
+      "fallthrough": true
+    }
   ]
 }
