@@ -25,6 +25,9 @@ jobs:
     name: Playwright E2E
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    env:
+      PLAYWRIGHT_STORAGE_USER: ${{ secrets.PLAYWRIGHT_STORAGE_USER }}
+      PLAYWRIGHT_STORAGE_ADMIN: ${{ secrets.PLAYWRIGHT_STORAGE_ADMIN }}
 
     steps:
       - name: Checkout
@@ -49,17 +52,13 @@ jobs:
         # The secret contains base64-encoded storage-state-user.json
         # Generate with: base64 -i storage-state-user.json | tr -d '\n'  (macOS)
         #            or: base64 -w 0 storage-state-user.json             (Linux)
-        if: ${{ secrets.PLAYWRIGHT_STORAGE_USER != '' }}
-        env:
-          PLAYWRIGHT_STORAGE_USER: ${{ secrets.PLAYWRIGHT_STORAGE_USER }}
+        if: ${{ env.PLAYWRIGHT_STORAGE_USER != '' }}
         run: |
           mkdir -p e2e/fixtures
           echo "$PLAYWRIGHT_STORAGE_USER" | base64 -d > e2e/fixtures/storage-state-user.json
 
       - name: Restore admin storage state
-        if: ${{ secrets.PLAYWRIGHT_STORAGE_ADMIN != '' }}
-        env:
-          PLAYWRIGHT_STORAGE_ADMIN: ${{ secrets.PLAYWRIGHT_STORAGE_ADMIN }}
+        if: ${{ env.PLAYWRIGHT_STORAGE_ADMIN != '' }}
         run: |
           mkdir -p e2e/fixtures
           echo "$PLAYWRIGHT_STORAGE_ADMIN" | base64 -d > e2e/fixtures/storage-state.json
@@ -83,14 +82,14 @@ jobs:
         run: npx playwright test --project=public-chromium --project=public-firefox --project=public-mobile
 
       - name: Run auth tests (requires user fixture)
-        if: ${{ secrets.PLAYWRIGHT_STORAGE_USER != '' }}
+        if: ${{ env.PLAYWRIGHT_STORAGE_USER != '' }}
         working-directory: e2e
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.target.outputs.url }}
         run: npx playwright test --project=auth-user
 
       - name: Run admin tests (requires admin fixture)
-        if: ${{ secrets.PLAYWRIGHT_STORAGE_ADMIN != '' }}
+        if: ${{ env.PLAYWRIGHT_STORAGE_ADMIN != '' }}
         working-directory: e2e
         env:
           PLAYWRIGHT_BASE_URL: ${{ steps.target.outputs.url }}
