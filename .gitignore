@@ -32,3 +32,4 @@ llms.txt
 llms-slim.md
 playwright-report/
 .wrangler/
+.continue/
