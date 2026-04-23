@@ -33,3 +33,4 @@ llms-slim.md
 playwright-report/
 .wrangler/
 .continue/
+.vscode/mcp.json

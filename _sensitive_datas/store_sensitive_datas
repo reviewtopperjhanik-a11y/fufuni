@@ -69,6 +69,8 @@ FILES_TO_BACKUP=(
     "cloudflare-worker/.vscode/settings.json"
     "client/.vscode/launch.json" "client/.vscode/settings.json"
     "launch-*"                                       # Launch scripts
+    ".continue"
+    ".vscode/mcp.json"
 )
 
 # .env file is located one level from this script
