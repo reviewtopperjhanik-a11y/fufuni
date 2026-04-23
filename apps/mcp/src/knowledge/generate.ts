@@ -97,6 +97,9 @@ import {
   decryptAiConfig,
   selectModels,
   collectKeys,
+  resolveProviderEndpoint,
+  resolveModelId,
+  selectEmbeddingModels,
   type ModelBudget,
   getModelBudget as getModelBudgetImpl,
 } from '../lib/ai-enc.js';
@@ -346,6 +349,9 @@ function nextApiKey(): { key: string; owner: string } {
 }
 
 let AI_API_URL = process.env.AI_API_URL ?? 'https://api.groq.com/openai/v1';
+
+// Cloudflare AI Gateway token — enables all AI calls to route through the gateway.
+const AIG_TOKEN = process.env.CLOUDFLARE_AIG_TOKEN ?? undefined;
 
 // ─── model discovery ─────────────────────────────────────────────────────────
 
@@ -612,7 +618,8 @@ async function loadAiConfigOverride(): Promise<void> {
     argv.find(a => a.startsWith('--provider='))?.slice(11) ??
     process.env.AI_PROVIDER;
 
-  const candidates = selectModels(config, providerArg ? { providerKey: providerArg } : {});
+  const candidates = selectModels(config, providerArg ? { providerKey: providerArg } : {})
+    .filter(c => c.model.usage === 'chat'); // use only chat-capable models for better output formatting and to future-proof against non-chat models appearing in the config
   if (candidates.length === 0) {
     console.warn(`[config] ai.json.enc: no models found${providerArg ? ` for provider "${providerArg}"` : ''}. Falling back to env vars.`);
     return;
@@ -636,8 +643,9 @@ async function loadAiConfigOverride(): Promise<void> {
   if (forceOverride || !process.env.AI_MODEL?.trim()) {
     process.env.AI_MODEL = best.model.id;
   }
+  const { endpoint, useGateway } = resolveProviderEndpoint(best.provider, AIG_TOKEN);
   if (forceOverride || !process.env.AI_API_URL?.trim()) {
-    AI_API_URL = best.provider.endpoint;
+    AI_API_URL = endpoint;
   }
 
   if (!discoverModels) {
@@ -648,9 +656,9 @@ async function loadAiConfigOverride(): Promise<void> {
       process.exit(1);
     }
 
-    modelPool = providerCandidates.map(c => c.model.id);
+    modelPool = providerCandidates.map(c => resolveModelId(c.model.id, c.provider, useGateway));
     modelMeta = providerCandidates.map(c => ({
-      id: c.model.id,
+      id: resolveModelId(c.model.id, c.provider, useGateway),
       object: 'model' as const,
       created: Date.now(),
       context_window: c.model.contextWindow,
@@ -818,6 +826,7 @@ async function main() {
                 verbose,
                 showKeyOwner,
                 keyOwner: apiKeyOwner,
+                aigToken: AIG_TOKEN,
               });
               clearTimeout(abortTimer);
 

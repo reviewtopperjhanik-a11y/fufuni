@@ -11,7 +11,7 @@
     "stripe:listen": "bash -c 'source ../../.env && stripe --api-key $STRIPE_SECRET_KEY listen --load-from-webhooks-api --forward-to http://localhost:8787'",
     "deploy": "wrangler deploy",
     "gen:openapi": "bash -c 'source ../../.env && wrangler dev --port 8787 & PID=$! && for i in $(seq 1 30); do sleep 1 && curl -sf http://localhost:8787/openapi.json > ../../openapi.json && echo \"\\n✓ Generated openapi.json\" && kill $PID && exit 0; done; echo \"\\n✗ wrangler did not respond\" && kill $PID && exit 1'",
-    "db:init": "wrangler d1 execute DB --file=schema-d1.sql --local",
+    "db:init": "source ../../.env && npx tsx scripts/init.ts",
     "db:seed": "npx tsx scripts/seed.ts",
     "test": "vitest --config vitest.config.ts --run",
     "test:regions": "bash tests/run-integration.sh",
@@ -20,7 +20,8 @@
     "test:schema": "vitest run tests/schema-validation.test.ts --reporter=verbose",
     "test:api-helpers": "vitest run tests/api-helpers.test.ts --reporter=verbose",
     "test:all": "vitest run --reporter=verbose",
-    "typegen": "bash -c 'cp ../../.env .dev.vars && wrangler types'"
+    "typegen": "bash -c 'cp ../../.env .dev.vars && wrangler types'",
+    "ai:kv:put": "wrangler kv key put ai:config --binding KV_CACHE --path ../../ai.json.enc"
   },
   "dependencies": {
     "@hono/swagger-ui": "^0.6.1",

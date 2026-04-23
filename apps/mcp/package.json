@@ -12,7 +12,7 @@
     "build:sources": "tsx scripts/build-sources.ts",
     "stdio": "bash -c 'source ../../.env && npx tsx src/stdio.ts'",
     "dev:stdio": "bash -c 'source ../../.env && npx @modelcontextprotocol/inspector tsx --watch src/stdio.ts'",
-    "typegen": "bash -c 'source ../../.env && npx wrangler types'"
+    "typegen": "bash -c 'source ../../.env && cp ../../.env .dev.vars && npx wrangler types'"
   },
   "dependencies": {
     "agents": "^0.11.4",

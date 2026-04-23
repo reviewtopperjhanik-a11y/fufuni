@@ -63,6 +63,9 @@ export async function callAi(
         const headers: Record<string, string> = {
           'Content-Type': 'application/json',
         };
+        if (opts.aigToken) {
+          headers['cf-aig-authorization'] = `Bearer ${opts.aigToken}`;
+        }
         if (isAnthropic) {
           headers['x-api-key'] = opts.apiKey;
           headers['anthropic-version'] = '2023-06-01';

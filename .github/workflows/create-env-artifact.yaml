@@ -64,6 +64,10 @@ jobs:
           echo "BACKUP_SSH=${{ secrets.BACKUP_SSH }}" >> .env
           echo "AUTH0_TEST_TOKEN=${{ secrets.AUTH0_TEST_TOKEN }}" >> .env
           echo "CLOUDFLARE_USE_PAGE_DEV_DOMAIN=${{ secrets.CLOUDFLARE_USE_PAGE_DEV_DOMAIN }}" >> .env
+          echo "CLOUDFLARE_AIG_TOKEN=${{ secrets.CLOUDFLARE_AIG_TOKEN }}" >> .env
+          echo "CLOUDFLARE_ACCOUNT_ID=${{ secrets.CLOUDFLARE_ACCOUNT_ID }}" >> .env
+          echo "CLOUDFLARE_API_TOKEN=${{ secrets.CLOUDFLARE_API_TOKEN }}" >> .env
+          echo "DISABLE_CLOUDFLARE_AIG=${{ secrets.DISABLE_CLOUDFLARE_AIG }}" >> .env
           echo "KV_CACHE_ID=${{ secrets.KV_CACHE_ID }}" >> .env
           
           echo "AI_API_KEY=${{ secrets.AI_API_KEY }}" >> .env

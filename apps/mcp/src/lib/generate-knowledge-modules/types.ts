@@ -44,6 +44,7 @@ export type TopicManifest = {
 
 export type EmbeddingResult = {
   vector: number[];
+  connection: 'direct' | 'gateway' | null;
   stats: Array<{
     key: string;
     owner: string;
@@ -63,6 +64,8 @@ export type CallAiOptions = {
   verbose?: boolean;
   showKeyOwner?: boolean;
   keyOwner?: string;
+  /** Cloudflare AI Gateway bearer token. When set, adds the cf-aig-authorization header. */
+  aigToken?: string;
 };
 
 export type ApiKeyWithOwner = {

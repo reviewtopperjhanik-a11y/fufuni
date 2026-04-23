@@ -90,7 +90,7 @@ export type Env = {
   /**
    * Permission string required to access mail-related API routes. Defaults to `mail:api` when not set.
    */
-  MAIL_PERMISSION?: string; 
+  MAIL_PERMISSION?: string;
 
   /**
    * Groq / OpenAI-compatible API key for product description AI translation.
@@ -167,6 +167,11 @@ export type Env = {
    * Set as a Cloudflare secret. Used by GET /v1/ai/parameters when ai:config is stored in KV_CACHE.
    */
   CRYPTOKEN?: string;
+
+  /** 
+    * Cloudflare AI Gateway bearer token. When set, adds the cf-aig-authorization header to AI requests.
+    */
+  CLOUDFLARE_AIG_TOKEN?: string;
 };
 
 /**

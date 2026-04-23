@@ -94,6 +94,7 @@ Visitors see an attractive landing page with a Log in button and direct links to
   - [Auth0 helpers](#auth0-helpers)
   - [AI parameters](#ai-parameters)
   - [Setup & config](#setup--config)
+- [Cloudflare AI Gateway](#cloudflare-ai-gateway)
 - [Database Schema](#database-schema)
   - [Migrations](#migrations)
 - [Shipping System](#shipping-system)
@@ -1242,11 +1243,27 @@ CREATE TABLE saved_carts (
 
 | Method | Path | Auth | Description |
 |---|---|---|---|
-| `GET` | `/v1/ai/parameters` | `ai:api` | Returns `{apiKey, model, url}` for the AI provider |
+| `GET` | `/v1/ai/parameters` | `ai:api` | Returns AI provider credentials, optionally including Cloudflare AI Gateway fields |
+
+Response shape:
+```json
+{
+  "providerName": "groq",
+  "apiKey": "gsk_...",
+  "model": "llama-3.3-70b-versatile",
+  "url": "https://api.groq.com/openai/v1",
+  "cloudflareAigToken": "cfut_...",
+  "cloudflareAigUrl": "https://gateway.ai.cloudflare.com/v1/{account}/{gateway}/compat"
+}
+```
+
+`cloudflareAigToken` and `cloudflareAigUrl` are only present when the Worker env var `CLOUDFLARE_AIG_TOKEN` is set. The frontend casts this response directly as `AiParams` — field names must match exactly.
 
 > The backend only transmits credentials — **all AI calls (LLM requests) are executed client-side** in `utils/ai-client.ts`. This keeps the server stateless with respect to AI and avoids proxying large payloads.
 >
 > `AI_API_KEY` may contain one or more keys separated by commas (for key rotation/load balancing). The endpoint randomly selects one non-empty key per request.
+>
+> When using the encrypted `ai.json.enc` config (recommended), the backend selects the best available provider/model by priority and returns its credentials. See [Cloudflare AI Gateway](#cloudflare-ai-gateway) for the full multi-provider setup.
 
 
 ---
@@ -1479,17 +1496,17 @@ The backend exposes a single endpoint that returns AI credentials to the client:
 ```
 GET /v1/ai/parameters
 Authorization: Bearer <token-with-ai:api-permission>
-
-Response: { "apiKey": "...", "model": "...", "url": "..." }
 ```
 
 **All actual LLM requests are made by the browser** in `apps/client/src/utils/ai-client.ts`.
 The server acts only as a credential dispenser — it never proxies AI payloads.
 
-Configured via `wrangler.jsonc`:
+Simple configuration via `wrangler.jsonc` (single provider, no encryption):
 - `AI_API_URL`: provider base URL (e.g. `https://api.groq.com/openai/v1`)
-- `AI_MODEL`: model name (e.g. `openai/gpt-oss-20b`)
-- `AI_API_KEY`: API key (set as a Wrangler secret in production)
+- `AI_MODEL`: model name (e.g. `llama-3.3-70b-versatile`)
+- `AI_API_KEY`: API key (Wrangler secret in production)
+
+For multi-provider, priority-based selection and gateway routing, use `ai.json.enc` — see [Cloudflare AI Gateway](#cloudflare-ai-gateway).
 
 ### Review Moderation
 
@@ -1828,6 +1845,129 @@ Two additional secrets are required specifically for this workflow:
    - Value: the token you just copied
 
 > ⚠️ Fine-grained PATs have a maximum lifetime of 1 year on GitHub.com. Set a calendar reminder to rotate `GH_PAT_WITH_FUFUNI_SECRETS_ACCESS_RW` before it expires, otherwise the workflow will still run but the Management token cache will no longer be updated (it will be re-fetched from Auth0 on every run until the PAT is replaced).
+
+---
+
+## Cloudflare AI Gateway
+
+Fufuni supports routing all AI calls through the [Cloudflare AI Gateway](https://developers.cloudflare.com/ai-gateway/) for unified observability, logging, caching, and rate limiting across providers.
+
+### How it works
+
+```
+Browser ──(credentials only)──► GET /v1/ai/parameters ──► Merchant Worker
+                                                               │
+                                                    Decrypts ai.json.enc
+                                                    Selects best provider
+                                                    Returns credentials
+                                                               │
+Browser ◄──── { apiKey, model, url, cloudflareAigToken, cloudflareAigUrl } ─────┘
+   │
+   │  POST chat/completions (with cf-aig-authorization header)
+   ▼
+Cloudflare AI Gateway (/compat endpoint)
+   │
+   ▼
+AI Provider (Groq, Anthropic, OpenAI…)
+```
+
+> **Note:** Direct browser-to-gateway calls currently fail on the CORS preflight when "Authenticated Gateway" is enabled (the browser cannot send `cf-aig-authorization` in the OPTIONS request — a browser security constraint). The `DISABLE_CLOUDFLARE_AIG` flag is provided as a workaround until Cloudflare addresses this. See [Known limitation](#known-limitation-cors-preflight) below.
+
+### Encrypted AI configuration — `ai.json` / `ai.json.enc`
+
+Instead of (or in addition to) the simple `AI_API_KEY` / `AI_MODEL` / `AI_API_URL` env vars, you can configure multiple providers with priorities, key rotation, and gateway routing by editing `ai.json` at the repo root and uploading its encrypted form to Cloudflare KV.
+
+**`ai.json` structure:**
+
+```json
+{
+  "version": 1,
+  "providers": {
+    "groq": {
+      "protocol": "openai",
+      "endpoint": "https://api.groq.com/openai/v1",
+      "gatewayEndpoint": "https://gateway.ai.cloudflare.com/v1/{account}/{gateway}/compat",
+      "gatewayModelPrefix": "groq",
+      "keys": [
+        { "key": "gsk_...", "owner": "main", "type": "paid" }
+      ],
+      "models": [
+        {
+          "id": "llama-3.3-70b-versatile",
+          "usage": "chat",
+          "contextWindow": 128000,
+          "maxOutputTokens": 32768,
+          "tpmLimit": null,
+          "priority": 1
+        }
+      ]
+    }
+  }
+}
+```
+
+Key fields:
+| Field | Description |
+|---|---|
+| `protocol` | Wire format: `openai`, `anthropic`, or `gemini` |
+| `endpoint` | Direct provider base URL (fallback when gateway is not configured) |
+| `gatewayEndpoint` | Cloudflare AI Gateway compat URL (used when `CLOUDFLARE_AIG_TOKEN` is set) |
+| `gatewayModelPrefix` | Prefix added to model IDs for the gateway (e.g. `"groq"` → `"groq/llama-3.3-70b-versatile"`) |
+| `model.usage` | `"chat"` (default) or `"embedding"` — **must be set** to prevent embedding models from being selected as chat models |
+| `model.priority` | `1` = most preferred, higher = fallback |
+
+**Encrypting and uploading:**
+
+```bash
+# Encrypt (CRYPTOKEN must match the Wrangler secret)
+openssl enc -aes-256-cbc -a -pbkdf2 -iter 100000 -salt \
+  -in ai.json -out ai.json.enc -pass pass:"${CRYPTOKEN}"
+
+# Upload to Worker KV (once the Worker is deployed)
+curl -X POST https://your-worker.workers.dev/v1/ai/config \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d "{\"content\": \"$(cat ai.json.enc)\"}"
+```
+
+The Worker decrypts the config in memory at runtime using the Web Crypto API (`decryptAiConfig()` in `lib/ai-enc.ts`). The plaintext never leaves the Worker's memory.
+
+### Model prefixing
+
+The Cloudflare AI Gateway compat endpoint requires model IDs to be prefixed with the provider slug:
+
+| Provider | Direct model ID | Gateway model ID |
+|---|---|---|
+| Groq | `llama-3.3-70b-versatile` | `groq/llama-3.3-70b-versatile` |
+| Anthropic | `claude-haiku-4-5` | `anthropic/claude-haiku-4-5` |
+| Google AI | `gemini-3-flash-preview` | `google-ai-studio/gemini-3-flash-preview` |
+
+The frontend (`ai-client.ts`) automatically prefixes the model when `cloudflareAigUrl` is set. The MCP server (`generate.ts`, `tools.ts`) uses `resolveModelId()` from `lib/ai-enc.ts` for the same purpose.
+
+### Environment variables and secrets
+
+| Variable | Where | Description |
+|---|---|---|
+| `CLOUDFLARE_AIG_TOKEN` | Wrangler secret + GitHub Secret | Cloudflare AI Gateway bearer token (`cfut_...`). When set, the Worker includes `cloudflareAigToken` and `cloudflareAigUrl` in the `/v1/ai/parameters` response. |
+| `CRYPTOKEN` | Wrangler secret + GitHub Secret | Decryption password for `ai.json.enc`. Must match the password used during `openssl enc`. |
+| `DISABLE_CLOUDFLARE_AIG` | `.env` → `vite.config.ts` define block | Build-time flag for the frontend SPA. Set to `true` to force direct provider calls, bypassing gateway routing entirely. See [Known limitation](#known-limitation-cors-preflight). |
+
+**`DISABLE_CLOUDFLARE_AIG` in detail:**
+
+This flag is exposed to the frontend at build time via `vite.config.ts` as `import.meta.env.DISABLE_CLOUDFLARE_AIG`. When `true`, `analyzeReviewWithAi()` and `translateWithAi()` ignore `cloudflareAigToken`/`cloudflareAigUrl` and call the AI provider directly.
+
+- In `.env`: `DISABLE_CLOUDFLARE_AIG=true`
+- As a GitHub Secret: add `DISABLE_CLOUDFLARE_AIG` with value `true` so CI builds also disable the gateway path.
+
+Remove the variable (or set it to `false`) once Cloudflare resolves the CORS preflight issue.
+
+### Known limitation — CORS preflight
+
+When "Authenticated Gateway" is enabled on your Cloudflare AI Gateway, the browser sends a CORS preflight (`OPTIONS`) before every cross-origin request. The browser **cannot** include custom headers (`cf-aig-authorization`) in this preflight — this is an inviolable browser security restriction that no JavaScript library can bypass.
+
+**Consequence:** Cloudflare AI Gateway returns `401` on the preflight → the actual `POST` is never sent.
+
+**Current workaround:** set `DISABLE_CLOUDFLARE_AIG=true` in `.env` (and as a GitHub Secret). The gateway is still used by the **MCP server** and the **backend generation scripts** (Node.js/Worker context, no CORS restrictions).
 
 ---
 

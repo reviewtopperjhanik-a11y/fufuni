@@ -23,8 +23,22 @@ export async function generateEmbedding(
     model?: string;
     vectorDimension?: number;
     taskType?: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT';
+    /**
+     * Cloudflare AI Gateway base URL (without the /compat suffix).
+     * E.g. "https://gateway.ai.cloudflare.com/v1/{accountId}/{gatewayId}"
+     * When set together with aigToken, embeddings are routed through the gateway
+     * using the native Gemini embedContent path.
+     */
+    gatewayBaseUrl?: string;
+    /** Cloudflare AI Gateway bearer token. Required when gatewayBaseUrl is set. */
+    aigToken?: string;
   },
 ): Promise<EmbeddingResult | null> {
+  // Route through Cloudflare AI Gateway native path when gateway config is present
+  if (options.gatewayBaseUrl && options.aigToken) {
+    return generateEmbeddingViaGateway(text, options as Parameters<typeof generateEmbeddingViaGateway>[1]);
+  }
+
   const fetchFn = options.fetch ?? globalThis.fetch;
   const apiKeys = options.apiKeys ?? [];
   const shuffledKeys = shuffleArray(apiKeys.slice());
@@ -115,6 +129,7 @@ export async function generateEmbedding(
           if (failureStat) failureStat.nbFail += 1;
           console.warn('  [warn] Invalid embedding response format, skipping embeddings');
           return {
+            connection: null,
             vector: [],
             stats: Array.from(statsMap.values()),
           };
@@ -123,6 +138,7 @@ export async function generateEmbedding(
         const successStat = statsMap.get(currentKey);
         if (successStat) successStat.nbSuccess += 1;
         return {
+          connection: 'direct',
           vector: embedding as number[],
           stats: Array.from(statsMap.values()),
         };
@@ -144,7 +160,137 @@ export async function generateEmbedding(
   }
 
   console.warn('  [warn] No Gemini embedding endpoint succeeded, skipping embeddings');
-  return { vector: [], stats: Array.from(statsMap.values()) };
+  return { vector: [], stats: Array.from(statsMap.values()), connection: null };
+}
+
+/**
+ * Generate an embedding using the Cloudflare AI Gateway native Gemini path.
+ *
+ * This function calls the native Gemini embedContent endpoint through the gateway,
+ * which supports taskType and output_dimensionality parameters (not available
+ * through the OpenAI-compatible compat path).
+ *
+ * URL pattern: {gatewayBaseUrl}/google-ai-studio/v1beta/models/{model}:embedContent
+ *
+ * @internal Called by generateEmbedding() when gateway config is present.
+ */
+async function generateEmbeddingViaGateway(
+  text: string,
+  options: {
+    fetch?: typeof fetch;
+    apiKeys: ApiKeyWithOwner[];
+    maxRetries?: number;
+    model?: string;
+    vectorDimension?: number;
+    taskType?: 'RETRIEVAL_QUERY' | 'RETRIEVAL_DOCUMENT';
+    gatewayBaseUrl: string;
+    aigToken: string;
+  },
+): Promise<EmbeddingResult | null> {
+  const fetchFn = options.fetch ?? globalThis.fetch;
+  const apiKeys = options.apiKeys ?? [];
+  const shuffledKeys = shuffleArray(apiKeys.slice());
+  const maxRetries = options.maxRetries ?? Math.max(shuffledKeys.length - 1, 0);
+  const statsMap = new Map<string, { key: string; owner: string; nbTry: number; nbSuccess: number; nbFail: number }>();
+
+  for (const keyEntry of shuffledKeys) {
+    statsMap.set(keyEntry.key, { key: keyEntry.key, owner: keyEntry.owner, nbTry: 0, nbSuccess: 0, nbFail: 0 });
+  }
+
+  if (shuffledKeys.length === 0) {
+    console.warn('  [warn] API keys not set, skipping embeddings generation');
+    return null;
+  }
+
+  // Strip any gateway prefix from model ID — native Gemini path uses the raw model name
+  const rawModel = (options.model ?? 'gemini-embedding-001').replace(/^[^/]+\//, '');
+  const taskType = options.taskType ?? 'RETRIEVAL_DOCUMENT';
+  const truncated = text.split(/\s+/).slice(0, 500).join(' ');
+  const baseUrl = options.gatewayBaseUrl.replace(/\/$/, '');
+  const url = `${baseUrl}/google-ai-studio/v1beta/models/${rawModel}:embedContent`;
+  const RETRYABLE_STATUSES = new Set([403, 429, 500, 502, 503, 504]);
+
+  let keyIndex = 0;
+  let currentKey = shuffledKeys[keyIndex].key;
+  let currentOwner = shuffledKeys[keyIndex].owner;
+
+  let attempt = 0;
+  while (attempt <= maxRetries) {
+    try {
+      const body = {
+        model: rawModel,
+        content: { parts: [{ text: truncated }] },
+        output_dimensionality: options.vectorDimension ?? 1536,
+        taskType,
+      };
+
+      const requestStat = statsMap.get(currentKey);
+      if (requestStat) requestStat.nbTry += 1;
+
+      const response = await fetchFn(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'cf-aig-authorization': `Bearer ${options.aigToken}`,
+          'x-goog-api-key': currentKey,
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (RETRYABLE_STATUSES.has(response.status)) {
+        const textBody = await response.text();
+        const failureStat = statsMap.get(currentKey);
+        if (failureStat) failureStat.nbFail += 1;
+        console.warn(`  [warn] Gateway embedding error key owner: ${currentOwner}: ${response.status} — ${textBody.slice(0, 200)}`);
+        if (attempt < maxRetries) {
+          keyIndex = (keyIndex + 1) % apiKeys.length;
+          currentKey = apiKeys[keyIndex].key;
+          currentOwner = apiKeys[keyIndex].owner;
+          console.warn(`  [warn] Rotating to key owner: ${currentOwner}`);
+          attempt++;
+          continue;
+        }
+        break;
+      }
+
+      if (!response.ok) {
+        const textBody = await response.text();
+        console.warn(`  [warn] Gateway embedding error key owner: ${currentOwner}: ${response.status} — ${textBody.slice(0, 200)}`);
+        break;
+      }
+
+      // Native Gemini response: { embedding: { values: number[] }, usageMetadata: {...} }
+      const data = await response.json() as { embedding?: { values: number[] } };
+      const embedding = data.embedding?.values;
+
+      if (!Array.isArray(embedding)) {
+        const failureStat = statsMap.get(currentKey);
+        if (failureStat) failureStat.nbFail += 1;
+        console.warn('  [warn] Invalid gateway embedding response format, skipping embeddings');
+        return { vector: [], stats: Array.from(statsMap.values()), connection: null };
+      }
+
+      const successStat = statsMap.get(currentKey);
+      if (successStat) successStat.nbSuccess += 1;
+      return { vector: embedding, stats: Array.from(statsMap.values()), connection: 'gateway' };
+    } catch (err) {
+      const failureStat = statsMap.get(currentKey);
+      if (failureStat) failureStat.nbFail += 1;
+      console.warn(`  [warn] Gateway embedding failed: ${(err as Error).message}`);
+      if (attempt < maxRetries) {
+        keyIndex = (keyIndex + 1) % apiKeys.length;
+        currentKey = apiKeys[keyIndex].key;
+        currentOwner = apiKeys[keyIndex].owner;
+        console.warn(`  [warn] Rotating to key owner: ${currentOwner}`);
+        attempt++;
+        continue;
+      }
+      break;
+    }
+  }
+
+  console.warn('  [warn] Cloudflare AI Gateway embedding failed, skipping');
+  return { vector: [], stats: Array.from(statsMap.values()), connection: null };
 }
 
 /**

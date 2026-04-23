@@ -34,13 +34,27 @@ export interface AiParams {
   apiKey: string;
   /** The model identifier to use (e.g. `"gpt-4o"`, `"claude-3-haiku-20240307"`). */
   model: string;
-  /** The base URL of the completions endpoint (e.g. `"https://api.openai.com/v1"`). */
+  /** The base URL of the completions endpoint (e.g. `"https://api.openai.com/v1"`). Used for provider auto-detection. */
   url: string;
   /**
    * Explicit provider hint. When omitted the provider is auto-detected from
    * the `url`. Supported values: `"openai"` | `"groq"` | `"anthropic"` | `"auto"`.
    */
   provider?: "openai" | "groq" | "anthropic" | "auto";
+  /**
+   * Optional Cloudflare AI Gateway bearer token.
+   * When set together with `cloudflareAigUrl`, all requests are routed through
+   * the gateway using the OpenAI-compat format.
+   */
+  cloudflareAigToken?: string;
+  /**
+   * Cloudflare AI Gateway compat URL (from `GET /v1/ai/parameters`).
+   * When set together with `aigToken`, overrides `url` as the HTTP endpoint
+   * and forces OpenAI-compat format. The model is automatically prefixed with
+   * the provider slug derived from `provider` or auto-detected from `url`
+   * (e.g. `"groq/llama-3.3-70b-versatile"`, `"anthropic/claude-haiku-4-5"`).
+   */
+  cloudflareAigUrl?: string;
 }
 
 /**
@@ -79,6 +93,14 @@ export async function analyzeReviewWithAi(
 ): Promise<ReviewAnalysisResult> {
   const provider = detectProvider(aiParams.url, aiParams.provider);
 
+  // When the Cloudflare AI Gateway is configured, route through the compat
+  // endpoint using OpenAI format and prefix the model with the provider slug.
+  const useGateway = !!(aiParams.cloudflareAigUrl && aiParams.cloudflareAigToken && !import.meta.env.DISABLE_CLOUDFLARE_AIG);
+  const effectiveUrl = useGateway ? aiParams.cloudflareAigUrl! : aiParams.url;
+  const effectiveModel = useGateway && !aiParams.model.includes("/")
+    ? `${gatewayModelPrefix(provider)}/${aiParams.model}`
+    : aiParams.model;
+
   const prompt =
     `You are a content moderator for an e-commerce platform.\n` +
     `Analyze the following customer product review and decide whether to APPROVE or REJECT it.\n` +
@@ -97,10 +119,8 @@ export async function analyzeReviewWithAi(
   try {
     let rawText: string | undefined;
 
-    if (provider === "anthropic") {
-      const baseUrl = aiParams.url.endsWith("/")
-        ? aiParams.url
-        : aiParams.url + "/";
+    if (provider === "anthropic" && !useGateway) {
+      const baseUrl = effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/";
       const endpoint = new URL("messages", baseUrl).toString();
       const res = await fetch(endpoint, {
         method: "POST",
@@ -108,9 +128,10 @@ export async function analyzeReviewWithAi(
           "x-api-key": aiParams.apiKey,
           "Content-Type": "application/json",
           "anthropic-version": "2023-06-01",
+          ...(aiParams.cloudflareAigToken ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` } : {}),
         },
         body: JSON.stringify({
-          model: aiParams.model,
+          model: effectiveModel,
           max_tokens: 128,
           messages: [{ role: "user", content: prompt }],
         }),
@@ -123,18 +144,17 @@ export async function analyzeReviewWithAi(
 
       rawText = data.content?.[0]?.text?.trim();
     } else {
-      const baseUrl = aiParams.url.endsWith("/")
-        ? aiParams.url
-        : aiParams.url + "/";
+      const baseUrl = effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/";
       const endpoint = new URL("chat/completions", baseUrl).toString();
       const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${aiParams.apiKey}`,
           "Content-Type": "application/json",
+          ...(aiParams.cloudflareAigToken ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` } : {}),
         },
         body: JSON.stringify({
-          model: aiParams.model,
+          model: effectiveModel,
           messages: [{ role: "user", content: prompt }],
           temperature: 0.1,
           max_tokens: 128,
@@ -223,6 +243,19 @@ export interface TranslationResult {
 }
 
 /**
+ * Map a provider slug to its Cloudflare AI Gateway model prefix.
+ * Falls back to the slug itself when no explicit mapping exists.
+ */
+function gatewayModelPrefix(provider: "openai" | "groq" | "anthropic"): string {
+  const map: Record<string, string> = {
+    groq: "groq",
+    anthropic: "anthropic",
+    openai: "openai",
+  };
+  return map[provider] ?? provider;
+}
+
+/**
  * Detect AI provider from URL or explicit provider setting
  */
 function detectProvider(
@@ -255,6 +288,23 @@ export async function translateWithAi(
   isHtml = true,
   options?: { maxTokens?: number; contentType?: "product_description" | "email_template" },
 ): Promise<TranslationResult> {
+  // When the Cloudflare AI Gateway is configured, route all calls through the
+  // compat endpoint using OpenAI format (avoids provider-specific header logic).
+  if (aiParams.cloudflareAigUrl && aiParams.cloudflareAigToken) {
+    const provider = detectProvider(aiParams.url, aiParams.provider);
+    const prefix = gatewayModelPrefix(provider);
+    const prefixedModel = aiParams.model.includes("/")
+      ? aiParams.model
+      : `${prefix}/${aiParams.model}`;
+    return await callOpenAiCompatibleApi(
+      sourceContent,
+      targetLanguage,
+      { ...aiParams, url: aiParams.cloudflareAigUrl, model: prefixedModel },
+      isHtml,
+      options,
+    );
+  }
+
   const provider = detectProvider(aiParams.url, aiParams.provider);
 
   try {
@@ -330,6 +380,7 @@ async function callOpenAiCompatibleApi(
     headers: {
       Authorization: `Bearer ${aiParams.apiKey}`,
       "Content-Type": "application/json",
+      ...(aiParams.cloudflareAigToken ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` } : {}),
     },
     body: JSON.stringify({
       model: aiParams.model,
@@ -417,6 +468,7 @@ async function callAnthropicApi(
       "x-api-key": aiParams.apiKey,
       "Content-Type": "application/json",
       "anthropic-version": "2023-06-01",
+      ...(aiParams.cloudflareAigToken ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` } : {}),
     },
     body: JSON.stringify({
       model: aiParams.model,

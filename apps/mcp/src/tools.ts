@@ -16,7 +16,7 @@ import { reciprocalRankFusion } from "./search/rrf.js";
 import { BM25_INDEX } from "./search/bm25-index.js";
 import { CHUNKS } from "./search/chunks.js";
 import { VECTOR_MODEL, VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS } from "./search/vectors.js";
-import { decryptAiConfig } from "./lib/ai-enc.js";
+import { decryptAiConfig, resolveProviderEndpoint, selectEmbeddingModels } from "./lib/ai-enc.js";
 import { generateEmbedding, buildApiKeyPool, normalizeVector, maskApiKey } from "./lib/generate-knowledge.js";
 import { SOURCES, SOURCE_COMMITS } from "./sources.js";
 import { READABLE_SOURCES } from "./sources-whitelist.js";
@@ -208,18 +208,29 @@ export function registerFufuniTools(
     let vecHits: Array<{ id: string; score: number }> = [];
     let usingVectors = false;
     let embeddingStats: Array<{ key: string; nb_try: number; nb_success: number; nb_fail: number }> = [];
-
+    let connectedViaGateway = false;
     if (aiEncJson && env.CRYPTOKEN && VECTOR_COUNT > 0 && VECTORS_B64) {
       try {
         const aiConfig = await decryptAiConfig(aiEncJson, env.CRYPTOKEN);
         const apiKeys = buildApiKeyPool(aiConfig, { protocol: 'gemini' });
+        // Resolve gateway base URL from the embedding model's provider config
+        const embCandidates = selectEmbeddingModels(aiConfig, 'gemini');
+        const embProvider = embCandidates[0]?.provider;
+        const { endpoint: embEndpoint, useGateway } = embProvider
+          ? resolveProviderEndpoint(embProvider, env.CLOUDFLARE_AIG_TOKEN)
+          : { endpoint: '', useGateway: false };
+        // Strip /compat suffix — native Gemini embedContent path is rooted at the gateway base
+        const gatewayBaseUrl = useGateway ? embEndpoint.replace(/\/compat$/, '') : undefined;
         const result = await generateEmbedding(query, {
           apiKeys,
           model: VECTOR_MODEL,
           vectorDimension: VECTOR_DIM,
           taskType: 'RETRIEVAL_QUERY',
+          aigToken: env.CLOUDFLARE_AIG_TOKEN,
+          gatewayBaseUrl,
         });
         if (result) {
+          connectedViaGateway = result.connection === 'gateway';
           embeddingStats = result.stats
             .filter((s) => s.nbTry > 0)
             .map((s) => ({
@@ -274,6 +285,7 @@ export function registerFufuniTools(
               count: chunks.length,
               chunks,
               stats: embeddingStats,
+              connection: connectedViaGateway === true ? "gateway" : "direct",
             },
             null,
             2

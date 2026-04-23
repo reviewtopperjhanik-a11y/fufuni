@@ -147,6 +147,8 @@ export default defineConfig({
     "import.meta.env.DATABASE_PERMISSION": JSON.stringify(process.env.DATABASE_PERMISSION || "admin:database"),
     "import.meta.env.AI_PERMISSION": JSON.stringify(process.env.AI_PERMISSION || "ai:api"),
     "import.meta.env.MAIL_PERMISSION": JSON.stringify(process.env.MAIL_PERMISSION || "mail:api"),
+    // Variable for disabling the Cloudfare AI Gateway and using direct API calls instead, for testing and fallback purposes
+    "import.meta.env.DISABLE_CLOUDFLARE_AIG": JSON.stringify(process.env.DISABLE_CLOUDFLARE_AIG === "true"),
   },
   resolve: {
     tsconfigPaths: true,

@@ -26,7 +26,7 @@ import {
   summarizeEmbeddingStats,
   maskApiKey,
 } from "../src/lib/generate-knowledge.js";
-import { decryptAiConfig, type AiConfig } from "../src/lib/ai-enc.js";
+import { decryptAiConfig, selectEmbeddingModels, resolveProviderEndpoint, type AiConfig } from "../src/lib/ai-enc.js";
 import { chunkMarkdown, type GeneratedChunk } from "../src/search/chunker.js";
 
 // This script is intended to run in a developer machine or CI environment.
@@ -155,6 +155,26 @@ if (!aiConfig) {
   process.exit(0);
 }
 
+// Resolve the best embedding model from the config
+const AIG_TOKEN = process.env.CLOUDFLARE_AIG_TOKEN ?? undefined;
+const embCandidates = selectEmbeddingModels(aiConfig, 'gemini');
+if (embCandidates.length === 0) {
+  console.warn('⚠ No Gemini embedding models found in ai.json.enc; skipping vector generation.');
+  process.exit(0);
+}
+const embBest = embCandidates[0];
+const resolvedVectorModel = embBest.model.id;
+const resolvedVectorDim = embBest.model.defaultDimensions ?? VECTOR_DIM;
+const { endpoint: embEndpoint, useGateway } = resolveProviderEndpoint(embBest.provider, AIG_TOKEN);
+// For the native Gemini embed path, strip the /compat suffix to get the base gateway URL
+const gatewayBaseUrl = useGateway ? embEndpoint.replace(/\/compat$/, '') : undefined;
+
+if (useGateway) {
+  console.log(`✓ Using Cloudflare AI Gateway for embeddings (model: ${resolvedVectorModel}, dim: ${resolvedVectorDim})`);
+} else {
+  console.log(`✓ Using direct Gemini API for embeddings (model: ${resolvedVectorModel}, dim: ${resolvedVectorDim})`);
+}
+
 // Build a pool of Gemini API keys from the decrypted config.
 // buildApiKeyPool deduplicates the keys and shuffles them so that
 // repeated calls will spread traffic across multiple key owners.
@@ -178,8 +198,10 @@ for (const [slug, content] of entries) {
   const result = await generateEmbedding(content, {
     fetch,
     apiKeys: keyPool,
-    model: VECTOR_MODEL,
-    vectorDimension: VECTOR_DIM,
+    model: resolvedVectorModel,
+    vectorDimension: resolvedVectorDim,
+    gatewayBaseUrl,
+    aigToken: AIG_TOKEN,
   });
 
   if (!result || result.vector.length === 0) {
@@ -206,7 +228,7 @@ if (embeddings.length > 0) {
     embeddings,
     chunkIds,
     embeddings[0].length,
-    VECTOR_MODEL,
+    resolvedVectorModel,
   );
   await writeFile(vectorsPath, vectorModule, 'utf-8');
   const statsSummary = summarizeEmbeddingStats(embedddingStats);

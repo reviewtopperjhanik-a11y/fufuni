@@ -24,6 +24,9 @@ export interface AiKey {
   type?: AiKeyTier;
 }
 
+/** Discriminates chat/completion models from embedding models. */
+export type AiModelUsage = 'chat' | 'embedding';
+
 export interface AiModel {
   /** Provider-specific model identifier, e.g. "llama-3.3-70b-versatile". */
   id: string;
@@ -43,13 +46,38 @@ export interface AiModel {
   priority: number;
   /** Arbitrary labels for filtering, e.g. ["fast", "code", "cheap"]. */
   tags?: string[];
+  /**
+   * Model usage category.
+   * - "chat"      : text completion / generation (POST /chat/completions)
+   * - "embedding" : vector embedding (POST /embeddings)
+   * Defaults to "chat" when omitted for backward compatibility.
+   */
+  usage?: AiModelUsage;
+  /**
+   * For embedding models only: native output vector dimension.
+   * Used as the default value for the "dimensions" / "output_dimensionality" parameter.
+   */
+  defaultDimensions?: number;
 }
 
 export interface AiProvider {
   /** Wire protocol for API requests. */
   protocol: AiProtocol;
-  /** Base API endpoint, e.g. "https://api.groq.com/openai/v1". */
+  /** Base API endpoint, e.g. "https://api.groq.com/openai/v1". Used as fallback. */
   endpoint: string;
+  /**
+   * Optional: Cloudflare AI Gateway compatible endpoint.
+   * When set and CLOUDFLARE_AIG_TOKEN is available, this endpoint is used instead
+   * of `endpoint`. Must end with the compat path, e.g.:
+   * "https://gateway.ai.cloudflare.com/v1/{account}/{gateway}/compat"
+   */
+  gatewayEndpoint?: string;
+  /**
+   * Optional: prefix to prepend to model IDs when routing through the gateway.
+   * E.g. "google-ai-studio" for Gemini, "groq" for Groq, "anthropic" for Anthropic.
+   * Required when gatewayEndpoint is set.
+   */
+  gatewayModelPrefix?: string;
   /** All valid API keys for this provider (round-robin via pickKey()). */
   keys: AiKey[];
   /** Available models with their constraints and priority. */
@@ -143,6 +171,7 @@ export function selectModels(
     protocol?: AiProtocol;
     providerKey?: string;
     tag?: string;
+    usage?: AiModelUsage;
   } = {},
 ): ModelCandidate[] {
   const out: ModelCandidate[] = [];
@@ -151,11 +180,74 @@ export function selectModels(
     if (opts.protocol && provider.protocol !== opts.protocol) continue;
     for (const model of provider.models) {
       if (opts.tag && !model.tags?.includes(opts.tag)) continue;
+      if (opts.usage && model.usage !== opts.usage) continue;
       out.push({ providerKey: key, provider, model });
     }
   }
   // Sort ascending by priority: 1 = best, highest number = worst fallback
   return out.sort((a, b) => a.model.priority - b.model.priority);
+}
+
+/**
+ * Resolve the effective API endpoint for a provider.
+ *
+ * When a gateway endpoint and token are both available, the gateway is preferred.
+ * Falls back to the direct provider endpoint when the gateway is not configured.
+ *
+ * @param provider  The AiProvider configuration object.
+ * @param aigToken  The CLOUDFLARE_AIG_TOKEN value, or undefined if not set.
+ */
+export function resolveProviderEndpoint(
+  provider: AiProvider,
+  aigToken: string | undefined,
+): { endpoint: string; useGateway: boolean } {
+  if (aigToken && provider.gatewayEndpoint) {
+    return { endpoint: provider.gatewayEndpoint, useGateway: true };
+  }
+  return { endpoint: provider.endpoint, useGateway: false };
+}
+
+/**
+ * Build the model ID string to send in the request body.
+ *
+ * When routing through the Cloudflare AI Gateway, models must be prefixed with
+ * the provider's gateway slug (e.g. "groq/llama-3.3-70b-versatile").
+ * When calling the provider directly, the model ID is used as-is.
+ *
+ * @param modelId    Raw model ID from ai.json (e.g. "llama-3.3-70b-versatile").
+ * @param provider   The AiProvider configuration object.
+ * @param useGateway Whether the request is going through the gateway.
+ */
+export function resolveModelId(
+  modelId: string,
+  provider: AiProvider,
+  useGateway: boolean,
+): string {
+  if (useGateway && provider.gatewayModelPrefix) {
+    // Avoid double-prefixing if the model ID already contains a slash
+    if (modelId.includes('/')) return modelId;
+    return `${provider.gatewayModelPrefix}/${modelId}`;
+  }
+  return modelId;
+}
+
+/**
+ * Select the best embedding models from the config, sorted by priority.
+ *
+ * Filters for models with usage === 'embedding'. Falls back to models tagged
+ * "embedding" when no model has the usage field set (backward compat).
+ *
+ * @param config      Decrypted AiConfig.
+ * @param providerKey Optional provider filter, e.g. "gemini".
+ */
+export function selectEmbeddingModels(
+  config: AiConfig,
+  providerKey?: string,
+): ModelCandidate[] {
+  const byUsage = selectModels(config, { providerKey, usage: 'embedding' });
+  if (byUsage.length > 0) return byUsage;
+  // Backward compat: fall back to models tagged "embedding"
+  return selectModels(config, { providerKey, tag: 'embedding' });
 }
 
 /**

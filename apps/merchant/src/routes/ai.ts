@@ -55,9 +55,12 @@ const AiParamsQuery = z.object({
 
 // Response schema
 const AiParamsResponse = z.object({
+  providerName: z.string().describe('Human-friendly provider name (e.g., "Groq", "Anthropic")'),
   apiKey: z.string(),
   model: z.string(),
   url: z.string(),
+  cloudflareAigToken: z.string().optional().describe('Present if the worker is configured to use Cloudflare AI Gateway (via CLOUDFLARE_AIG_TOKEN)'),
+  cloudflareAigUrl: z.string().optional().describe('Present if the worker is configured to use Cloudflare AI Gateway (via CLOUDFLARE_AIG_TOKEN)'),
 });
 
 const AiUploadBody = z.object({
@@ -103,18 +106,20 @@ adminApp.openapi(aiParamsRoute, async (c) => {
     // selectModels() returns candidates sorted by priority ascending (1 = best).
     // Filter by provider key if specified via ?provider=<key> query param.
     const candidates = selectModels(config, providerFilter ? { providerKey: providerFilter } : {});
-
     // Iterate through candidates (in priority order) and find the first provider with non-expired keys.
-    for (const { provider, model } of candidates) {
+    for (const { providerKey, provider, model } of candidates) {
       const validKeys = provider.keys.filter(k => k.type !== 'expired');
       if (validKeys.length === 0) continue; // Skip if all keys are expired.
 
       // Random selection from valid (non-expired) keys for load-balancing.
       const keyObj = validKeys[Math.floor(Math.random() * validKeys.length)];
       return c.json({
+        providerName: providerKey,
         apiKey: keyObj.key,
         model: model.id,
         url: provider.endpoint,
+        cloudflareAigToken: c.env.CLOUDFLARE_AIG_TOKEN || null,
+        cloudflareAigUrl: provider.gatewayEndpoint || null,
       }, 200);
     }
 

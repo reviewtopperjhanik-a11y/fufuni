@@ -27,7 +27,7 @@
   "vectorize": [
     {
       "binding": "VECTORIZE", // available in your Worker on env.VECTORIZE
-      "index_name": "fufuni-mcp"
+      "index_name": "fufuni-mcp" // created via Wrangler CLI: `npx wrangler vectorize create fufuni-mcp  --dimensions=256 --metric=cosine`
     }
   ],
   "migrations": [
