@@ -98,6 +98,7 @@ jobs:
           source .env && npm run mcp:bm25-index:build
         env:
           CRYPTOKEN: ${{ secrets.CRYPTOKEN }}
+          CLOUDFLARE_AIG_TOKEN: ${{ secrets.CLOUDFLARE_AIG_TOKEN }}
 
       - name: Set Wrangler secrets in bulk from secrets.json
         env:
