@@ -105,6 +105,7 @@ import {
   selectEmbeddingModels,
   type ModelBudget,
   getModelBudget as getModelBudgetImpl,
+  maskAiConfig,
 } from '../lib/ai-enc.js';
 import {
   buildHeader,
@@ -121,6 +122,7 @@ import {
   buildManifest,
   buildApiKeyPool,
   createRoundRobinKeyProvider,
+  maskApiKey
 } from '../lib/generate-knowledge.js';
 import type { Topic } from './base.js';
 
@@ -163,6 +165,7 @@ const topicFlags = argv
 const aiJsonEncFlag = argv.find(a => a.startsWith('--ai-json-enc='))?.split('=')[1];
 const showKeyOwner = argv.includes('--show-key-owner');
 const showKeyUsageSummary = argv.includes('--key-usage-summary');
+const exportMaskedAiJson = argv.includes('--export-masked-ai-json');
 const dryRun = argv.includes('--dry-run');
 const skipAI = argv.includes('--skip-ai');
 const force = argv.includes('--force');
@@ -398,6 +401,7 @@ const VALID_FLAGS = new Set([
   '--no-model-fallback',
   '--fetch-timeout',
   '--max-token-override',
+  '--export-masked-ai-json',
   '--manifest-only',
   '--bm25-index-only',
   '--provider',
@@ -417,6 +421,7 @@ Options:
   --ai-json-enc=<file> Specify an alternative ai.json.enc config file path
   --show-key-owner     Print the owner of the API key used for each AI call
   --key-usage-summary  Print a summary of each API key's success/failure counts at the end of execution
+  --export-masked-ai-json  Decrypt ai.json.enc and print a masked JSON export to stdout
   --provider=<key>     Only use models from the specified provider key
   --dry-run            Build prompts without calling the AI or writing files
   --skip-ai            Build files from extracted source only, no AI call
@@ -838,6 +843,10 @@ async function loadAiConfigOverride(): Promise<void> {
       process.exit(1);
     }
   } else if (!cryptoken || !existsSync(configPath)) {
+    if (exportMaskedAiJson) {
+      console.error('Error: --export-masked-ai-json requires ai.json.enc and CRYPTOKEN to be available.');
+      process.exit(1);
+    }
     return;
   }
 
@@ -845,12 +854,18 @@ async function loadAiConfigOverride(): Promise<void> {
   try {
     config = await decryptAiConfig(readFileSync(configPath, 'utf8'), cryptoken);
   } catch (err) {
-    if (aiJsonEncFlag) {
+    if (aiJsonEncFlag || exportMaskedAiJson) {
       console.error(`Error: failed to decrypt or parse ${configPath}: ${err}`);
       process.exit(1);
     }
     console.warn(`[config] Failed to decrypt ai.json.enc: ${err}. Falling back to env vars.`);
     return;
+  }
+
+  if (exportMaskedAiJson) {
+    const maskedConfig = maskAiConfig(config);
+    console.log(JSON.stringify(maskedConfig, null, 2));
+    process.exit(0);
   }
 
   decryptedAiKeys.length = 0;

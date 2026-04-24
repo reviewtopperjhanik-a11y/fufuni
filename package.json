@@ -43,6 +43,7 @@
     "mcp:bm25-index:build": "tsx apps/mcp/src/knowledge/generate.ts --bm25-index-only",
     "mcp:generate": "tsx apps/mcp/src/knowledge/generate.ts",
     "mcp:generate:force": "tsx apps/mcp/src/knowledge/generate.ts --force",
+    "mcp:auto:openrouter": "AI_MODEL='' AI_API_KEY='' AI_API_URL='' npx tsx apps/mcp/src/knowledge/generate.ts --max-token-override=99000 --auto-refresh --no-model-fallback --provider=openrouter && cd apps/mcp && npm run gen-knowledge",
     "mcp:auto:mistral": "AI_MODEL='' AI_API_KEY='' AI_API_URL='' npx tsx apps/mcp/src/knowledge/generate.ts --max-token-override=99000 --auto-refresh --no-model-fallback --provider=mistral && cd apps/mcp && npm run gen-knowledge",
     "mcp:auto:flash": "AI_MODEL='' AI_API_KEY='' AI_API_URL='' tsx apps/mcp/src/knowledge/generate.ts --auto-refresh --max-token-override=30000 --no-model-fallback --provider=gemini && cd apps/mcp && npm run gen-knowledge",
     "ai:encrypt": "bash -c 'if [ -n \"${CRYPTOKEN}\" ]; then openssl enc -aes-256-cbc -a -pbkdf2 -iter 100000 -salt -in ai.json -out ai.json.enc -pass pass:\"${CRYPTOKEN}\" && echo \"✓ ai.json.enc written\"; else echo \"Skipping ai:encrypt because CRYPTOKEN is not defined or empty\"; fi'",
