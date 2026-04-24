@@ -11,7 +11,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function generateIndexHTML(env: Env): string  {
+function generateIndexHTML(env: Env): string {
   const topicListItems = MANIFEST.topics.map(topic => {
     const title = escapeHtml(topic.title);
     const description = escapeHtml(topic.description);
@@ -51,6 +51,7 @@ function generateIndexHTML(env: Env): string  {
       <title>Fufuni MCP Server - Knowledge Base</title>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha256-2FMn2Zx6PuH5tdBQDRNwrOo60ts5wWPC9R8jK67b3t4=" crossorigin="anonymous">
       <link id="mainstyle" rel="stylesheet" type="text/css" href="${env.STORE_URL}/styles/github-updated.css">
+      <link href="https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/styles/github.min.css" rel="stylesheet">
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #111827; background: #f8fafc; }
         h1 { color: #111827; margin-bottom: 1rem; }
@@ -62,8 +63,22 @@ function generateIndexHTML(env: Env): string  {
         .topic-content { border-top: 1px solid #e5e7eb; padding-top: 1rem; }
       </style>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js" integrity="sha256-ew8UiV1pJH/YjpOEBInP1HxVvT/SfrCmwSoUzF9JIgc=" crossorigin="anonymous"></script>
+      
       <script type="module">
-        import { marked } from "https://cdn.jsdelivr.net/npm/marked@5.1.1/lib/marked.esm.js";
+        import { Marked } from "https://cdn.jsdelivr.net/npm/marked@5.1.1/lib/marked.esm.js";
+        import {markedHighlight} from 'https://cdn.jsdelivr.net/npm/marked-highlight@2.2.4/+esm'
+        import highlightJs from 'https://cdn.jsdelivr.net/npm/highlight.js@11.11.1/+esm'
+
+        const marked = new Marked(
+            markedHighlight({
+            emptyLangClass: 'hljs',
+              langPrefix: 'hljs language-',
+              highlight(code, lang, info) {
+                const language = highlightJs.getLanguage(lang) ? lang : 'plaintext';
+                return highlightJs.highlight(code, { language }).value;
+              }
+            })
+          );
         marked.setOptions({ mangle: false, headerIds: false });
 
         const topicCache = new Map();
