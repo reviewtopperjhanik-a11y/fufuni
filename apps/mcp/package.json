@@ -23,6 +23,7 @@
     "@cloudflare/workers-types": "^4.20260421.1",
     "@faker-js/faker": "^10.4.0",
     "@modelcontextprotocol/inspector": "^0.21.2",
+    "gitlog": "^5.1.0",
     "nanoid": "^5.1.9",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",

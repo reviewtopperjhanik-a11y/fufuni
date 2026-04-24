@@ -91,6 +91,7 @@
 
 import { faker } from '@faker-js/faker';
 import { nanoid } from 'nanoid';
+import gitlog from 'gitlog';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
 import { execSync } from 'child_process';
 import { join, resolve, dirname } from 'path';
@@ -1043,13 +1044,29 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
 
   // ─── generate manifest ──────────────────────────────────────────────────────
   console.log('\nGenerating manifest...');
-  const commit = (() => {
+  const generatedAt = new Date().toISOString();
+  const commit = await (async () => {
     try {
-      return execSync('git rev-parse --short HEAD', { encoding: 'utf8' }).trim();
+      const commits = await gitlog({
+        repo: ROOT,
+        number: 1,
+        fields: ['abbrevHash'] as const,
+        execOptions: { cwd: ROOT, maxBuffer: 1000 * 1024 },
+      });
+      return commits[0]?.abbrevHash ?? 'unknown';
     } catch {
       return 'unknown';
     }
   })();
+
+  const status = (() => {
+    try {
+      return execSync('git status --porcelain', { cwd: ROOT, encoding: 'utf8' }).trim();
+    } catch {
+      return '';
+    }
+  })();
+  const commitRef = status ? `${commit}-dirty` : commit;
 
   const generatedTopicNames = readdirSync(MCP_DIR)
     .filter((file) => file.endsWith('.md'))
@@ -1073,8 +1090,8 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
   }
 
   const manifestData = buildManifest(generatedTopics, {
-    commit,
-    now: new Date().toISOString(),
+    commit: commitRef,
+    now: generatedAt,
     getTopicMarkdown: (topicName) => {
       const path = join(MCP_DIR, `${topicName}.md`);
       return existsSync(path) ? readFileSync(path, 'utf8') : '';
@@ -1086,6 +1103,9 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
  * This file is gitignored; it is rebuilt before every deploy.
  */
 import type { TopicManifest } from './index.js';
+
+export const MANIFEST_GENERATED_AT = ${JSON.stringify(generatedAt)};
+export const MANIFEST_COMMIT = ${JSON.stringify(commitRef)};
 
 export const MANIFEST: TopicManifest = ${JSON.stringify(manifestData, null, 2)};
 `;

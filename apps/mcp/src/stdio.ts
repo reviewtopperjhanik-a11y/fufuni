@@ -26,7 +26,7 @@ import { fileURLToPath } from "node:url";
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const aiJsonEnc = readFileSync(join(__dirname, "config/ai.json.enc"), "utf-8");
 
-const VERBOSE_LOGGING = true; // set to true for debugging MCP server issues
+const VERBOSE_LOGGING = process.env.MCP_VERBOSE === "1" || process.env.DEBUG?.includes("mcp") || false;
 
 class LoggingStdioServerTransport {
   readonly transport = new StdioServerTransport();

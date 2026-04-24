@@ -23,6 +23,7 @@ import { READABLE_SOURCES } from "./sources-whitelist.js";
 import { parseSchema } from "./lib/schema-parser.js";
 import { ROUTES } from "./search/routes.js";
 import { extractMigrations } from "./lib/migration-parser.js";
+import { MANIFEST_GENERATED_AT, MANIFEST_COMMIT } from "./manifest.js";
 
 export type ToolDeps = {
   manifest: TopicManifest;
@@ -170,14 +171,22 @@ export function registerFufuniTools(
     description:
       "Return the manifest (schema version, commit, topics list). " +
       "Used by CI/CD to track versioning and cache invalidation.",
-  }, async () => ({
-    content: [
-      {
+  }, async () => {
+    const ageMs = Date.now() - new Date(MANIFEST_GENERATED_AT).getTime();
+    const staleDays = Math.floor(ageMs / 86_400_000);
+    const content = [] as Array<{ type: "text"; text: string }>;
+    content.push({
         type: "text",
         text: JSON.stringify(manifest, null, 2),
-      },
-    ],
-  }));
+      });
+    if (staleDays > 28) {
+      content.push({
+        type: "text",
+        text: `⚠️ Manifest is ${staleDays} days old. Consider regenerating it with the latest knowledge.`,
+      });
+    }
+    return { content };
+  });
 
   // ── Tool 5: retrieve_knowledge ───────────────────────────────────────────
   // Hybrid BM25 + embeddings search (Phase 2)
