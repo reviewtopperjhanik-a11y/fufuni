@@ -1,0 +1,1 @@
+Never include apps/mcp/src/sources.ts, apps/mcp/src/knowledge.ts, apps/mcp/src/search/bm25-index.ts and apps/mcp/src/search/chunks.ts files in context. They are auto-generated artifacts.

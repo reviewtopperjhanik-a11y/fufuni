@@ -30,9 +30,16 @@
     }
   ],
   "settings": {
+    "search.exclude": {
+      "apps/mcp/src/sources.ts": true,
+      "apps/mcp/src/knowledge.ts": true,
+      "apps/mcp/src/search/bm25-index.ts": true,
+      "apps/mcp/src/search/chunks.ts": true
+    },
     "github.copilot.selectedCompletionModel": "raptor-mini",
-  "github.copilot.chat.localeOverride": "en",
-    "editor.maxTokenizationLineLength":1000000,
+    "github.copilot.chat.localeOverride": "en",
+    "github.copilot.chat.codeGeneration.useInstructionFiles": true,
+    "editor.maxTokenizationLineLength": 1000000,
     "git.openRepositoryInParentFolders": "always",
     "terminal.integrated.defaultProfile.linux": "bash",
     "terminal.integrated.defaultProfile.osx": "zsh",

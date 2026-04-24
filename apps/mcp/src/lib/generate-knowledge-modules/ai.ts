@@ -143,8 +143,8 @@ export async function callAi(
  * Shows a small prefix and suffix while hiding the middle portion.
  *
  * @param key - Full API key string.
- * @param keepStart - Number of leading characters to keep.
- * @param keepEnd - Number of trailing characters to keep.
+ * @param keepStart - Number of leading characters to keep. Default is 6.
+ * @param keepEnd - Number of trailing characters to keep. Default is 8.
  * @returns The masked key string.
  */
 export function maskApiKey(key: string, keepStart = 6, keepEnd = 8): string {
