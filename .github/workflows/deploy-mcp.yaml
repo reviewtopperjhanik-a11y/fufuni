@@ -94,6 +94,8 @@ jobs:
           source .env && cd apps/merchant && npm run gen:openapi && cd ../..
           source .env && cd apps/mcp && npm run gen-knowledge && cd ../..
           source .env && cd apps/mcp && npm run build:sources && cd ../..
+          source .env && npm run mcp:manifest:build
+          source .env && npm run mcp:bm25-index:build
         env:
           CRYPTOKEN: ${{ secrets.CRYPTOKEN }}
 
