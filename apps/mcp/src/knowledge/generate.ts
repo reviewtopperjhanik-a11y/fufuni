@@ -914,7 +914,24 @@ async function main() {
     }
   })();
 
-  const manifestData = buildManifest(topics, {
+  const generatedTopicNames = readdirSync(MCP_DIR)
+    .filter((file) => file.endsWith('.md'))
+    .map((file) => file.slice(0, -3))
+    .sort();
+
+  const generatedTopics = generatedTopicNames.map((name) => {
+    const topic = ALL_TOPICS.find((t) => t.name === name);
+    return topic ?? {
+      name,
+      description: name,
+      tags: [],
+      sources: [],
+      systemPrompt: '',
+      buildPrompt: () => '',
+    };
+  });
+
+  const manifestData = buildManifest(generatedTopics, {
     commit,
     now: new Date().toISOString(),
     getTopicMarkdown: (topicName) => {
@@ -940,7 +957,7 @@ export const MANIFEST: TopicManifest = ${JSON.stringify(manifestData, null, 2)};
   console.log('\nGenerating search indexes...');
 
   // Generate chunks first (needed for BM25 indexing)
-  const chunks = generateChunks(topics, (topicName) => {
+  const chunks = generateChunks(generatedTopics, (topicName) => {
     const path = join(MCP_DIR, `${topicName}.md`);
     return existsSync(path) ? readFileSync(path, 'utf8') : '';
   });

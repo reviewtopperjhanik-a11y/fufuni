@@ -53,6 +53,7 @@ WRITING RULES:
 - When "## Verified facts" are provided, they have PRIORITY over the source code — treat them as absolute truth
 - NEVER start with a generic introductory sentence — jump straight into the topic
 - NEVER add a final note such as "I hope this documentation is helpful"
+- NEVER expose secret or sensitive information, even if it appears in the source code. Secret values must be replaced with placeholders
 
 REQUIRED FIRST LINE: Before any Markdown heading, output exactly one HTML comment:
 <!--mcp-description: <one sentence ≤ 200 chars answering "when should an AI call this tool?">-->
