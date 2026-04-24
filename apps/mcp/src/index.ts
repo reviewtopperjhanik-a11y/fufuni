@@ -17,6 +17,8 @@ import { KNOWLEDGE } from "./knowledge.js";
 import { MANIFEST } from "./manifest.js";
 import { registerFufuniTools } from "./tools.js";
 import aiJsonEnc from "./config/ai.json.enc" with { type:"text" };
+import { serveIndex } from "./doc/index.js";
+import { serve404 } from "./doc/404.js";
 
 export interface TopicMeta {
   slug: string;
@@ -70,6 +72,21 @@ export class FufuniMCP extends McpAgent {
   }
 }
 
+function serveRawMarkdown(slug: string) {
+  const markdown = KNOWLEDGE[slug];
+  if (!markdown) {
+    return new Response('Topic not found', {
+      status: 404,
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    });
+  }
+
+  return new Response(markdown, {
+    status: 200,
+    headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+  });
+}
+
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext) {
     const rateLimitResponse = await checkRateLimit(request, env);
@@ -85,9 +102,15 @@ export default {
       return FufuniMCP.serveSSE("/sse").fetch(request, env, ctx);
     }
 
-    return new Response("Fufuni MCP Server for https://github.com/sctg-development/fufuni — connect via /mcp (Streamable HTTP) or /sse (SSE)", {
-      status: 200,
-      headers: { "Content-Type": "text/plain" },
-    });
+    if (url.pathname.startsWith("/topic/") && url.pathname.endsWith(".md")) {
+      const slug = url.pathname.slice("/topic/".length, -3);
+      return serveRawMarkdown(slug);
+    }
+
+    if (url.pathname === "/" || url.pathname === "/index.html" || url.pathname === "/index.htm") {
+      return serveIndex();
+    }
+
+    return serve404();
   },
 };
