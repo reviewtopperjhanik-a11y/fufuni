@@ -24,6 +24,7 @@ import { parseSchema } from "./lib/schema-parser.js";
 import { ROUTES } from "./search/routes.js";
 import { extractMigrations } from "./lib/migration-parser.js";
 import { MANIFEST_GENERATED_AT, MANIFEST_COMMIT } from "./manifest.js";
+import { makeCacheKey, withKvCache } from "./lib/kv-cache.js";
 
 export type ToolDeps = {
   manifest: TopicManifest;
@@ -49,21 +50,24 @@ export function registerFufuniTools(
       "Returns structured JSON so you can filter by tag without another call. " +
       "Prefer `get_topic` if you already know the slug you need.",
   }, async () => {
-    const topics = manifest.topics.map((t: any) => ({
-      slug: t.slug,
-      title: t.title,
-      description: t.description,
-      tags: t.tags,
-      word_count: t.word_count,
-    }));
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify({ count: topics.length, topics }, null, 2),
-        },
-      ],
-    };
+    const cacheKey = makeCacheKey("list_topics", {});
+    return withKvCache(env.KV_CACHE, cacheKey, 86_400, async () => {
+      const topics = manifest.topics.map((t: any) => ({
+        slug: t.slug,
+        title: t.title,
+        description: t.description,
+        tags: t.tags,
+        word_count: t.word_count,
+      }));
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify({ count: topics.length, topics }, null, 2),
+          },
+        ],
+      };
+    });
   });
 
   // ── Tool 2: get_topic ────────────────────────────────────────────────────
@@ -92,32 +96,35 @@ export function registerFufuniTools(
         isError: true,
       };
     }
-    
-    // If no section specified, return full topic
-    if (!section) {
-      return { content: [{ type: "text", text: content }] };
-    }
 
-    // Find chunk matching the section heading
-    const chunks = Object.values(CHUNKS).filter((c) => c.topic === slug);
-    const hit = chunks.find((c) =>
-      c.heading.toLowerCase().includes(section.toLowerCase()),
-    );
+    const cacheKey = makeCacheKey("get_topic", { slug, section: section ?? null });
+    return withKvCache(env.KV_CACHE, cacheKey, 86_400, async () => {
+      // If no section specified, return full topic
+      if (!section) {
+        return { content: [{ type: "text" as const, text: content }] };
+      }
 
-    if (!hit) {
-      const available = chunks.map((c) => c.heading.trim()).join(", ");
-      return {
-        content: [
-          {
-            type: "text",
-            text: `Section "${section}" not found in "${slug}". Available sections: ${available}`,
-          },
-        ],
-        isError: true,
-      };
-    }
+      // Find chunk matching the section heading
+      const chunks = Object.values(CHUNKS).filter((c) => c.topic === slug);
+      const hit = chunks.find((c) =>
+        c.heading.toLowerCase().includes(section.toLowerCase()),
+      );
 
-    return { content: [{ type: "text", text: hit.text }] };
+      if (!hit) {
+        const available = chunks.map((c) => c.heading.trim()).join(", ");
+        return {
+          content: [
+            {
+              type: "text" as const,
+              text: `Section "${section}" not found in "${slug}". Available sections: ${available}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+
+      return { content: [{ type: "text" as const, text: hit.text }] };
+    });
   });
 
   // ── Tool 3: search_topics ────────────────────────────────────────────────
@@ -172,20 +179,23 @@ export function registerFufuniTools(
       "Return the manifest (schema version, commit, topics list). " +
       "Used by CI/CD to track versioning and cache invalidation.",
   }, async () => {
-    const ageMs = Date.now() - new Date(MANIFEST_GENERATED_AT).getTime();
-    const staleDays = Math.floor(ageMs / 86_400_000);
-    const content = [] as Array<{ type: "text"; text: string }>;
-    content.push({
+    const cacheKey = makeCacheKey("get_manifest", {});
+    return withKvCache(env.KV_CACHE, cacheKey, 3_600, async () => {
+      const ageMs = Date.now() - new Date(MANIFEST_GENERATED_AT).getTime();
+      const staleDays = Math.floor(ageMs / 86_400_000);
+      const content = [] as Array<{ type: "text"; text: string }>;
+      content.push({
         type: "text",
         text: JSON.stringify(manifest, null, 2),
       });
-    if (staleDays > 28) {
-      content.push({
-        type: "text",
-        text: `⚠️ Manifest is ${staleDays} days old. Consider regenerating it with the latest knowledge.`,
-      });
-    }
-    return { content };
+      if (staleDays > 28) {
+        content.push({
+          type: "text",
+          text: `⚠️ Manifest is ${staleDays} days old. Consider regenerating it with the latest knowledge.`,
+        });
+      }
+      return { content };
+    });
   });
 
   // ── Tool 5: retrieve_knowledge ───────────────────────────────────────────
@@ -210,98 +220,105 @@ export function registerFufuniTools(
         .describe("Restrict to these topic slugs (from list_topics)."),
     },
   }, async ({ query, k = 5, topic_filter }) => {
-    const tokens = tokenise(query);
-    const bm25Hits = bm25.search(tokens, 20);
+    const cacheKey = makeCacheKey("retrieve_knowledge", {
+      query,
+      k,
+      topic_filter: topic_filter ?? null,
+    });
+    return withKvCache(env.KV_CACHE, cacheKey, 3_600, async () => {
+      const tokens = tokenise(query);
+      const bm25Hits = bm25.search(tokens, 20);
 
-    // Try vector search via Gemini embedding; fall back to BM25-only otherwise
-    let vecHits: Array<{ id: string; score: number }> = [];
-    let usingVectors = false;
-    let embeddingStats: Array<{ key: string; nb_try: number; nb_success: number; nb_fail: number }> = [];
-    let connectedViaGateway = false;
-    if (aiEncJson && env.CRYPTOKEN && VECTOR_COUNT > 0 && VECTORS_B64) {
-      try {
-        const aiConfig = await decryptAiConfig(aiEncJson, env.CRYPTOKEN);
-        const apiKeys = buildApiKeyPool(aiConfig, { protocol: 'gemini' });
-        // Resolve gateway base URL from the embedding model's provider config
-        const embCandidates = selectEmbeddingModels(aiConfig, 'gemini');
-        const embProvider = embCandidates[0]?.provider;
-        const { endpoint: embEndpoint, useGateway } = embProvider
-          ? resolveProviderEndpoint(embProvider, env.CLOUDFLARE_AIG_TOKEN)
-          : { endpoint: '', useGateway: false };
-        // Strip /compat suffix — native Gemini embedContent path is rooted at the gateway base
-        const gatewayBaseUrl = useGateway ? embEndpoint.replace(/\/compat$/, '') : undefined;
-        const result = await generateEmbedding(query, {
-          apiKeys,
-          model: VECTOR_MODEL,
-          vectorDimension: VECTOR_DIM,
-          taskType: 'RETRIEVAL_QUERY',
-          aigToken: env.CLOUDFLARE_AIG_TOKEN,
-          gatewayBaseUrl,
-        });
-        if (result) {
-          connectedViaGateway = result.connection === 'gateway';
-          embeddingStats = result.stats
-            .filter((s) => s.nbTry > 0)
-            .map((s) => ({
-              key: maskApiKey(s.key),
-              nb_try: s.nbTry,
-              nb_success: s.nbSuccess,
-              nb_fail: s.nbFail,
-            }));
-          if (result.vector.length === VECTOR_DIM) {
-            const queryVec = new Float32Array(normalizeVector(result.vector));
-            const vectorIndex: VectorIndex = { VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS };
-            vecHits = cosineTopK(vectorIndex, queryVec, 20);
-            usingVectors = true;
+      // Try vector search via Gemini embedding; fall back to BM25-only otherwise
+      let vecHits: Array<{ id: string; score: number }> = [];
+      let usingVectors = false;
+      let embeddingStats: Array<{ key: string; nb_try: number; nb_success: number; nb_fail: number }> = [];
+      let connectedViaGateway = false;
+      if (aiEncJson && env.CRYPTOKEN && VECTOR_COUNT > 0 && VECTORS_B64) {
+        try {
+          const aiConfig = await decryptAiConfig(aiEncJson, env.CRYPTOKEN);
+          const apiKeys = buildApiKeyPool(aiConfig, { protocol: 'gemini' });
+          // Resolve gateway base URL from the embedding model's provider config
+          const embCandidates = selectEmbeddingModels(aiConfig, 'gemini');
+          const embProvider = embCandidates[0]?.provider;
+          const { endpoint: embEndpoint, useGateway } = embProvider
+            ? resolveProviderEndpoint(embProvider, env.CLOUDFLARE_AIG_TOKEN)
+            : { endpoint: '', useGateway: false };
+          // Strip /compat suffix — native Gemini embedContent path is rooted at the gateway base
+          const gatewayBaseUrl = useGateway ? embEndpoint.replace(/\/compat$/, '') : undefined;
+          const result = await generateEmbedding(query, {
+            apiKeys,
+            model: VECTOR_MODEL,
+            vectorDimension: VECTOR_DIM,
+            taskType: 'RETRIEVAL_QUERY',
+            aigToken: env.CLOUDFLARE_AIG_TOKEN,
+            gatewayBaseUrl,
+          });
+          if (result) {
+            connectedViaGateway = result.connection === 'gateway';
+            embeddingStats = result.stats
+              .filter((s) => s.nbTry > 0)
+              .map((s) => ({
+                key: maskApiKey(s.key),
+                nb_try: s.nbTry,
+                nb_success: s.nbSuccess,
+                nb_fail: s.nbFail,
+              }));
+            if (result.vector.length === VECTOR_DIM) {
+              const queryVec = new Float32Array(normalizeVector(result.vector));
+              const vectorIndex: VectorIndex = { VECTOR_DIM, VECTOR_COUNT, VECTORS_B64, CHUNK_IDS };
+              vecHits = cosineTopK(vectorIndex, queryVec, 20);
+              usingVectors = true;
+            }
           }
+        } catch (e) {
+          console.error('[MCP] Vector embedding failed, falling back to BM25-only', e);
         }
-      } catch (e) {
-        console.error('[MCP] Vector embedding failed, falling back to BM25-only', e);
       }
-    }
 
-    const fused = usingVectors
-      ? reciprocalRankFusion([bm25Hits, vecHits], 60)
-      : bm25Hits;
+      const fused = usingVectors
+        ? reciprocalRankFusion([bm25Hits, vecHits], 60)
+        : bm25Hits;
 
-    const filtered = topic_filter
-      ? fused.filter((h) => topic_filter.includes(h.id.split("#")[0]))
-      : fused;
+      const filtered = topic_filter
+        ? fused.filter((h) => topic_filter.includes(h.id.split("#")[0]))
+        : fused;
 
-    const top = filtered.slice(0, k);
-    const chunks = top
-      .map((hit) => CHUNKS[hit.id])
-      .filter((c) => c !== undefined)
-      .map((chunk) => ({
-        id: chunk.id,
-        topic: chunk.topic,
-        heading: chunk.heading,
-        heading_path: chunk.heading_path,
-        score: top.find((h) => h.id === chunk.id)?.score ?? 0,
-        word_count: chunk.word_count,
-        text: chunk.text,
-      }));
+      const top = filtered.slice(0, k);
+      const chunks = top
+        .map((hit) => CHUNKS[hit.id])
+        .filter((c) => c !== undefined)
+        .map((chunk) => ({
+          id: chunk.id,
+          topic: chunk.topic,
+          heading: chunk.heading,
+          heading_path: chunk.heading_path,
+          score: top.find((h) => h.id === chunk.id)?.score ?? 0,
+          word_count: chunk.word_count,
+          text: chunk.text,
+        }));
 
-    const mode = usingVectors ? "hybrid (BM25 + vectors)" : "BM25-only";
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              query,
-              mode,
-              count: chunks.length,
-              chunks,
-              stats: embeddingStats,
-              connection: connectedViaGateway === true ? "gateway" : "direct",
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
+      const mode = usingVectors ? "hybrid (BM25 + vectors)" : "BM25-only";
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                query,
+                mode,
+                count: chunks.length,
+                chunks,
+                stats: embeddingStats,
+                connection: connectedViaGateway === true ? "gateway" : "direct",
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    });
   });
 
   // ── Tool 6: read_source ─────────────────────────────────────────────────
@@ -342,14 +359,17 @@ export function registerFufuniTools(
       };
     }
 
-    const lines = content.split("\n");
-    const from = Math.max(0, (start_line ?? 1) - 1);
-    const to = Math.min(lines.length, end_line ?? lines.length);
-    const slice = lines.slice(from, to).join("\n");
-    const commit = SOURCE_COMMITS[path] ?? "unknown";
-    const header = `// File: ${path} (commit ${commit}), lines ${from + 1}-${to}\n`;
+    const cacheKey = makeCacheKey("read_source", { path, start_line: start_line ?? null, end_line: end_line ?? null });
+    return withKvCache(env.KV_CACHE, cacheKey, 86_400, async () => {
+      const lines = content.split("\n");
+      const from = Math.max(0, (start_line ?? 1) - 1);
+      const to = Math.min(lines.length, end_line ?? lines.length);
+      const slice = lines.slice(from, to).join("\n");
+      const commit = SOURCE_COMMITS[path] ?? "unknown";
+      const header = `// File: ${path} (commit ${commit}), lines ${from + 1}-${to}\n`;
 
-    return { content: [{ type: "text", text: header + slice }] };
+      return { content: [{ type: "text" as const, text: header + slice }] };
+    });
   });
 
   // ── Tool 7: inspect_schema ──────────────────────────────────────────────
@@ -365,18 +385,21 @@ export function registerFufuniTools(
       table: z.string().optional().describe("Optional table name; when omitted, returns every table."),
     }),
   }, async ({ table }) => {
-    if (table) {
-      const t = schema[table];
-      if (!t) {
-        const available = Object.keys(schema).join(", ");
-        return {
-          content: [{ type: "text", text: `Table "${table}" not found. Available: ${available}` }],
-          isError: true,
-        };
+    const cacheKey = makeCacheKey("inspect_schema", { table: table ?? null });
+    return withKvCache(env.KV_CACHE, cacheKey, 86_400, async () => {
+      if (table) {
+        const t = schema[table];
+        if (!t) {
+          const available = Object.keys(schema).join(", ");
+          return {
+            content: [{ type: "text" as const, text: `Table "${table}" not found. Available: ${available}` }],
+            isError: true,
+          };
+        }
+        return { content: [{ type: "text" as const, text: JSON.stringify(t, null, 2) }] };
       }
-      return { content: [{ type: "text", text: JSON.stringify(t, null, 2) }] };
-    }
-    return { content: [{ type: "text", text: JSON.stringify(schema, null, 2) }] };
+      return { content: [{ type: "text" as const, text: JSON.stringify(schema, null, 2) }] };
+    });
   });
 
   // ── Tool 8: list_routes ────────────────────────────────────────────────
@@ -396,30 +419,33 @@ export function registerFufuniTools(
         .describe("Optional tag filter (e.g. 'orders', 'products')."),
     }),
   }, async ({ method_filter, tag_filter }) => {
-    let filtered = ROUTES;
+    const cacheKey = makeCacheKey("list_routes", { method_filter: method_filter ?? null, tag_filter: tag_filter ?? null });
+    return withKvCache(env.KV_CACHE, cacheKey, 86_400, async () => {
+      let filtered = ROUTES;
 
-    if (method_filter) {
-      filtered = filtered.filter((r) => r.method === method_filter);
-    }
-    if (tag_filter) {
-      filtered = filtered.filter((r) => r.tags?.includes(tag_filter));
-    }
+      if (method_filter) {
+        filtered = filtered.filter((r) => r.method === method_filter);
+      }
+      if (tag_filter) {
+        filtered = filtered.filter((r) => r.tags?.includes(tag_filter));
+      }
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              count: filtered.length,
-              routes: filtered,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                count: filtered.length,
+                routes: filtered,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    });
   });
 
   // ── Tool 9: list_migrations ────────────────────────────────────────────
@@ -439,24 +465,26 @@ export function registerFufuniTools(
       "Use this when the user asks 'what migrations have been applied?' or 'what changed in the schema recently?'",
     inputSchema: z.object({}),
   }, async () => {
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              count: migrations.length,
-              migrations,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
+    const cacheKey = makeCacheKey("list_migrations", {});
+    return withKvCache(env.KV_CACHE, cacheKey, 86_400, async () => {
+      return {
+        content: [
+          {
+            type: "text" as const,
+            text: JSON.stringify(
+              {
+                count: migrations.length,
+                migrations,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    });
   });
 
-  // ── Reserved: Phase 5+ (caching, observability, etc.) ──────────────────
-  // TODO Phase 5: KV cache + prompt caching
+  // ── Phase 7: Observability + telemetry ─────────────────────────────────
   // TODO Phase 7: Observability + telemetry
 }
