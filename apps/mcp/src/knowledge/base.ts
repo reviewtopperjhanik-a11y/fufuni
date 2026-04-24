@@ -39,8 +39,8 @@ export type Topic = {
 
 // ── Shared system prompt fragment reused across topics ──────────────────────
 
-export const BASE_SYSTEM = `You are a senior TypeScript developer documenting the Fufuni e‑commerce framework.
-Fufuni runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod‑OpenAPI),
+export const BASE_SYSTEM = `You are a senior TypeScript developer documenting the Fufuni e-commerce framework.
+Fufuni runs on Cloudflare Workers + Durable Objects (SQLite) for the backend (Hono + Zod-OpenAPI),
 and React 19 + Vite + HeroUI v3 for the frontend.
 
 WRITING RULES:
