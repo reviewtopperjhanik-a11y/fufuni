@@ -187,11 +187,30 @@ const decryptedOwnerEmails: string[] = [];
 const aiKeyReplacements = new Map<string, string>();
 const ownerEmailReplacements = new Map<string, string>();
 
+/**
+ * Return a stable synthetic replacement for a decrypted AI API key.
+ *
+ * @param key - The original decrypted API key.
+ * @returns A deterministic synthetic key for masking in generated output.
+ */
 function getAiKeyReplacement(key: string): string {
   if (!aiKeyReplacements.has(key)) {
     aiKeyReplacements.set(key, nanoid(16));
   }
   return aiKeyReplacements.get(key)!;
+}
+
+/**
+ * Return a stable synthetic replacement for a decrypted owner email.
+ *
+ * @param email - The original decrypted owner email.
+ * @returns A deterministic synthetic email for masking in generated output.
+ */
+function getOwnerEmailReplacement(email: string): string {
+  if (!ownerEmailReplacements.has(email)) {
+    ownerEmailReplacements.set(email, faker.internet.email());
+  }
+  return ownerEmailReplacements.get(email)!;
 }
 
 type GitignorePattern = {
@@ -205,13 +224,12 @@ type GitignorePattern = {
 
 const gitignoreCache = new Map<string, GitignorePattern[]>();
 
-function getOwnerEmailReplacement(email: string): string {
-  if (!ownerEmailReplacements.has(email)) {
-    ownerEmailReplacements.set(email, faker.internet.email());
-  }
-  return ownerEmailReplacements.get(email)!;
-}
-
+/**
+ * Parse the contents of a .gitignore file into matchable patterns.
+ *
+ * @param content - The raw text of a .gitignore file.
+ * @returns Parsed gitignore patterns with matching metadata.
+ */
 function parseGitignorePatterns(content: string): GitignorePattern[] {
   return content.split(/\r?\n/)
     .map(line => line.trim())
@@ -230,6 +248,15 @@ function parseGitignorePatterns(content: string): GitignorePattern[] {
     });
 }
 
+/**
+ * Convert a gitignore-style pattern into a regular expression.
+ *
+ * @param pattern - The gitignore pattern text.
+ * @param anchored - Whether the pattern is anchored to the current directory.
+ * @param directoryOnly - Whether the pattern matches directories only.
+ * @param hasSlash - Whether the pattern includes a slash.
+ * @returns A RegExp that matches paths affected by the pattern.
+ */
 function gitignorePatternToRegex(pattern: string, anchored: boolean, directoryOnly: boolean, hasSlash: boolean): RegExp {
   let regex = '^';
   const escaped = pattern.split('**').map(escapeRegExp).join('.*');
@@ -251,10 +278,22 @@ function gitignorePatternToRegex(pattern: string, anchored: boolean, directoryOn
   return new RegExp(regex);
 }
 
+/**
+ * Escape special regex characters in a string.
+ *
+ * @param value - The string to escape.
+ * @returns The escaped string safe for inclusion in a RegExp.
+ */
 function escapeRegExp(value: string): string {
   return value.replace(/[.+^${}()|[\]\\]/g, '\\$&');
 }
 
+/**
+ * Load and cache .gitignore patterns for a directory.
+ *
+ * @param dir - The directory in which to look for .gitignore.
+ * @returns Parsed patterns from the .gitignore file, or an empty array.
+ */
 function loadGitignorePatterns(dir: string): GitignorePattern[] {
   if (gitignoreCache.has(dir)) return gitignoreCache.get(dir)!;
   const patterns: GitignorePattern[] = [];
@@ -266,6 +305,12 @@ function loadGitignorePatterns(dir: string): GitignorePattern[] {
   return patterns;
 }
 
+/**
+ * Determine whether a path is ignored by any .gitignore file in its ancestry.
+ *
+ * @param relativePath - A path relative to the repo root.
+ * @returns True when the file is matched by .gitignore patterns.
+ */
 function isGitignored(relativePath: string): boolean {
   const normalizedPath = relativePath.split('\\').join('/');
   const pathSegments = normalizedPath.split('/');
@@ -288,12 +333,25 @@ function isGitignored(relativePath: string): boolean {
   return ignored;
 }
 
+/**
+ * Mask gitignored source content before sending it to AI.
+ *
+ * @param relativePath - The relative path of the source file.
+ * @param content - The raw file contents.
+ * @returns The original content when not ignored, or a sanitized version when ignored.
+ */
 function getAiSafeContent(relativePath: string, content: string): string {
   if (!isGitignored(relativePath)) return content;
   console.warn(`Warning: file "${relativePath}" is gitignored. Masking sensitive content for AI input.`);
   return sanitizeGeneratedContent(content);
 }
 
+/**
+ * Sanitize generated content by masking sensitive environment values and decrypted secrets.
+ *
+ * @param content - The raw content to sanitize.
+ * @returns The sanitized content safe for writing or sending to AI.
+ */
 function sanitizeGeneratedContent(content: string): string {
   let sanitized = content.replaceAll('process.env.CLOUDFLARE_ACCOUNT_ID', '___cloudflare_account_id___');
 
@@ -315,6 +373,12 @@ function sanitizeGeneratedContent(content: string): string {
   return sanitized;
 }
 
+/**
+ * Write a generated file to disk after applying sanitization.
+ *
+ * @param filePath - The absolute path to the target file.
+ * @param content - The content to write.
+ */
 function writeGeneratedFile(filePath: string, content: string): void {
   writeFileSync(filePath, sanitizeGeneratedContent(content), 'utf8');
 }
@@ -339,6 +403,11 @@ const VALID_FLAGS = new Set([
   '--provider',
 ]);
 
+/**
+ * Print CLI usage help and exit.
+ *
+ * @param exitCode - Exit code to use when terminating the process.
+ */
 function printHelp(exitCode = 0): void {
   console.log(`Usage: npx tsx ${RELATIVE_PATH} [options]
 
@@ -399,9 +468,12 @@ if (unknownFlags.length > 0) {
   printHelp(1);
 }
 
-// ─── load .env from project root ────────────────────────────────────────────
-// We do a minimal manual parse rather than importing dotenv to keep this script
-// self-contained.
+/**
+ * Load a simple env file without pulling in dotenv as a dependency.
+ *
+ * @param envPath - Absolute path to the .env file.
+ * @returns Parsed key/value pairs from the file.
+ */
 function loadDotenv(envPath: string): Record<string, string> {
   const env: Record<string, string> = {};
   if (!existsSync(envPath)) return env;
@@ -461,6 +533,12 @@ const apiKeyOwnerByKey = new Map<string, string>();
 const apiKeyUsageSummary = new Map<string, { owner: string; success: number; failure: number }>();
 const expiredApiKeys = new Set<string>();
 
+/**
+ * Get or initialize usage summary metadata for an API key.
+ *
+ * @param key - The AI API key to summarize.
+ * @returns The usage summary entry for the key.
+ */
 function getKeySummary(key: string) {
   let summary = apiKeyUsageSummary.get(key);
   if (!summary) {
@@ -475,6 +553,8 @@ function getKeySummary(key: string) {
  * comma-separated AI_API_KEY list.  Every key is used once before any key is
  * reused, giving the most uniform distribution of requests across rate-limit
  * buckets.
+ *
+ * @returns The selected API key and its owner.
  */
 function nextApiKey(): { key: string; owner: string } {
   const raw = process.env.AI_API_KEY ?? '';
@@ -541,6 +621,10 @@ let modelIndex = 0;
  * Return the next model using strict round-robin rotation across modelPool.
  * Falls back to the AI_MODEL env var (or Groq's flagship default) when the pool
  * is empty (e.g. discovery failed, --skip-ai mode, or non-Groq endpoint).
+ *
+ * Falls back to AI_MODEL or a default model when no discovery results exist.
+ *
+ * @returns The selected model ID.
  */
 function nextModel(): string {
   if (modelPool.length > 0) {
@@ -575,7 +659,9 @@ let learnedRequestTokensCap: number | null =
 /**
  * Try to extract the provider's hard per-request token limit from a 413 body.
  * Groq format: "Limit 12000, Requested 15101"
- * Returns null when not found.
+ *
+ * @param errorMsg - The raw error string returned by the API.
+ * @returns The token cap or null when no cap can be extracted.
  */
 function parseRequestTokensCap(errorMsg: string): number | null {
   const m = errorMsg.match(/Limit\s+(\d[\d,]+)[,\s]/i);
@@ -587,6 +673,9 @@ function parseRequestTokensCap(errorMsg: string): number | null {
 /**
  * Wrapper around the shared getModelBudget() implementation, bound to this script's
  * global state (modelMeta, learnedRequestTokensCap, etc.).
+ *
+ * @param modelId - The ID of the model being used.
+ * @returns The budget settings used for prompt/source sizing.
  */
 function getModelBudget(modelId: string): ModelBudget {
   return getModelBudgetImpl(modelId, modelMeta, {
@@ -599,7 +688,8 @@ function getModelBudget(modelId: string): ModelBudget {
 }
 
 /**
- * Query the /models endpoint once at startup to build the modelPool.
+ * Initialize the model pool by querying the provider's /models endpoint
+ * or respecting a pinned AI_MODEL when discovery is disabled.
  */
 async function initModels(): Promise<void> {
   if (process.env.AI_MODEL && !discoverModels) {
@@ -665,7 +755,12 @@ async function initModels(): Promise<void> {
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
-/** Read a file relative to the project root. Returns '' if not found. */
+/**
+ * Read a source file from the repo root.
+ *
+ * @param relativePath - File path relative to the repository root.
+ * @returns File contents as a string, or an empty string if the file is missing.
+ */
 function readSrc(relativePath: string): string {
   const abs = join(ROOT, relativePath);
   try {
@@ -692,6 +787,8 @@ if (!dryRun) {
  * Each file must export a default Topic object.
  * Files are sorted alphabetically, but topic execution order follows
  * their file names (add a numeric prefix if order matters).
+ * 
+ * @returns An array of Topic objects exported by the discovered files.
  */
 async function loadTopics(): Promise<Topic[]> {
   if (!existsSync(TOPICS_DIR)) {
@@ -721,6 +818,12 @@ async function loadTopics(): Promise<Topic[]> {
 }
 
 // ─── AI config from ai.json.enc ───────────────────────────────────────────────
+/**
+ * Load and apply AI configuration overrides from ai.json.enc.
+ *
+ * This can populate AI_API_KEY, AI_MODEL, and AI_API_URL from encrypted
+ * provider config instead of relying solely on environment variables.
+ */
 async function loadAiConfigOverride(): Promise<void> {
   const cryptoken = process.env.CRYPTOKEN;
   const configPath = aiJsonEncFlag ? join(ROOT, aiJsonEncFlag) : join(ROOT, 'ai.json.enc');
@@ -844,6 +947,12 @@ async function loadAiConfigOverride(): Promise<void> {
 }
 
 // ─── main ─────────────────────────────────────────────────────────────────────
+/**
+ * Main script entry point.
+ *
+ * Coordinates topic discovery, optional manifest/bm25-only modes, source-
+ * based prompt generation, AI calls, and generated artifact output.
+ */
 async function main() {
   // Load encrypted AI config first (populates env vars + modelPool before initModels).
   await loadAiConfigOverride();
@@ -989,6 +1098,12 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
         }
       }
 
+      /**
+       * Build the per-topic prompt payload from source files.
+       *
+       * @param maxChars - Maximum characters to include from each source file.
+       * @returns Combined source text and the assembled user prompt.
+       */
       function buildContent(maxChars: number): { combinedSources: string; userPrompt: string } {
         let combined = '';
         for (const srcPath of topic.sources) {
