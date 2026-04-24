@@ -184,18 +184,21 @@ if (keyPool.length === 0) {
   process.exit(0);
 }
 
-// We will generate one embedding per topic file here.
+// Generate one embedding per chunk (not per topic) so that vector search can
+// return fine-grained results aligned with the chunks returned by retrieve_knowledge.
+// allChunks was computed above during the Phase 3 chunk generation step.
 const embeddings: number[][] = [];
 const chunkIds: string[] = [];
 const embedddingStats: EmbeddingResult['stats'][] = [];
 
-for (const [slug, content] of entries) {
-  process.stdout.write(`Embedding ${slug}... `);
+console.log(`Generating embeddings for ${allChunks.length} chunks across ${entries.length} topics...`);
 
-  // Use the list of Gemini keys to generate an embedding for this topic.
-  // generateEmbedding will try the keys sequentially, rotating on retryable failures.
-  // We request a fixed 768-dimensional embedding vector here.
-  const result = await generateEmbedding(content, {
+for (const chunk of allChunks) {
+  process.stdout.write(`Embedding ${chunk.id}... `);
+
+  // Embed the chunk text (150–400 words), not the full topic Markdown.
+  // generateEmbedding truncates at 500 words so all chunks fit within budget.
+  const result = await generateEmbedding(chunk.text, {
     fetch,
     apiKeys: keyPool,
     model: resolvedVectorModel,
@@ -215,7 +218,7 @@ for (const [slug, content] of entries) {
   // This makes cosine similarity calculation at query time simpler.
   const normalized = normalizeVector(vector);
   embeddings.push(normalized);
-  chunkIds.push(`${slug}#0`);
+  chunkIds.push(chunk.id); // e.g. "admin-crud-pattern#0", "#1", "#2" …
   console.log('ok');
 }
 
@@ -259,6 +262,15 @@ if (embeddings.length > 0) {
   }
 
   console.log(`✓ Generated ${embeddings.length} embeddings → src/search/vectors.ts`);
+
+  // Alignment check: every chunk must have a corresponding vector.
+  const missingVectors = allChunks.filter(c => !chunkIds.includes(c.id));
+  if (missingVectors.length > 0) {
+    console.warn(`⚠ ${missingVectors.length} chunks have no vector (embedding failed):`);
+    for (const c of missingVectors) console.warn(`  - ${c.id}`);
+  } else {
+    console.log(`✓ Alignment OK: ${chunkIds.length} vectors match ${allChunks.length} chunks.`);
+  }
 } else {
   console.warn('⚠ No embeddings generated; skipping src/search/vectors.ts creation.');
 }
