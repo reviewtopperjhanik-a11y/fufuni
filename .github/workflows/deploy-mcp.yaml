@@ -89,6 +89,8 @@ jobs:
       - name: build auto-generated source for MCP Worker
         run: |
           source .env
+          rm -f apps/mcp/src/config/ai.json.enc
+          cp ai.json.enc apps/mcp/src/config/ai.json.enc
           cd apps/merchant && npm run gen:openapi && cd ../..
           cd apps/mcp && npm run gen-knowledge && cd ../..
           cd apps/mcp && npm run build:sources && cd ../..
