@@ -14,7 +14,7 @@ const topic: Topic = {
   manualFacts: [
     'The MCP server lives in apps/mcp/. It exposes knowledge-base tools to AI assistants via Cloudflare Workers or stdio (for local Claude Desktop use).',
     'Topic files live in apps/mcp/knowledge/topics/. Each file exports a default Topic object. The generator auto-discovers them alphabetically.',
-    'To add a new topic: create apps/mcp/knowledge/topics/<topic-name>.ts exporting a default Topic. Import Topic type from "../base.js". Import BASE_SYSTEM and appendFacts from "../base.js".',
+    'To add a new topic: create apps/mcp/src/knowledge/topics/<topic-name>.ts exporting a default Topic. Import Topic type from "../base.js". Import BASE_SYSTEM and appendFacts from "../base.js".',
     'Topic required fields: name (string, matches filename without .ts), description (one sentence), sources (paths from repo root), systemPrompt, buildPrompt (function receiving concatenated source files).',
     'To regenerate the knowledge base: npm run mcp:generate (dry-run uses cache), npm run mcp:generate:force (forces regeneration of all topics).',
     'mcp:auto command: runs generate then knowledge only for modified topics to publish to the MCP server. It requires AI_MODEL, AI_API_KEY, AI_API_URL environment variables.',
@@ -30,7 +30,7 @@ const topic: Topic = {
 Task: Write a "MCP Server Quickstart" guide for contributors who want to extend the knowledge base.
 Include:
 1. What the MCP server is and how AI assistants consume it.
-2. Directory layout: apps/mcp/knowledge/topics/ (one .ts per topic), apps/mcp/src/knowledge/generate.ts (generator), apps/mcp/knowledge/base.ts (shared types).
+2. Directory layout: apps/mcp/src/knowledge/topics/ (one .ts per topic), apps/mcp/src/knowledge/generate.ts (generator), apps/mcp/src/knowledge/base.ts (shared types).
 3. Step-by-step: how to add a new topic file (with full template including copyright header).
 4. The Topic interface fields: name, description, sources, systemPrompt, manualFacts, buildPrompt, maxSourceChars.
 5. The generate commands: mcp:generate, mcp:generate:force, mcp:auto. What each does.
