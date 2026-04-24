@@ -89,6 +89,8 @@
  * constant if they exceed this budget.
  */
 
+import { faker } from '@faker-js/faker';
+import { nanoid } from 'nanoid';
 import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
 import { execSync } from 'child_process';
 import { join, resolve, dirname } from 'path';
@@ -178,6 +180,45 @@ const verbose = argv.includes('--verbose');
 const manifestOnly = argv.includes('--manifest-only');
 const bm25IndexOnly = argv.includes('--bm25-index-only');
 const showHelp = argv.includes('--help') || argv.includes('-h');
+
+const decryptedAiKeys: string[] = [];
+const decryptedOwnerEmails: string[] = [];
+const aiKeyReplacements = new Map<string, string>();
+const ownerEmailReplacements = new Map<string, string>();
+
+function getAiKeyReplacement(key: string): string {
+  if (!aiKeyReplacements.has(key)) {
+    aiKeyReplacements.set(key, nanoid(16));
+  }
+  return aiKeyReplacements.get(key)!;
+}
+
+function getOwnerEmailReplacement(email: string): string {
+  if (!ownerEmailReplacements.has(email)) {
+    ownerEmailReplacements.set(email, faker.internet.email());
+  }
+  return ownerEmailReplacements.get(email)!;
+}
+
+function sanitizeGeneratedContent(content: string): string {
+  let sanitized = content.replaceAll('process.env.CLOUDFLARE_ACCOUNT_ID', '___cloudflare_account_id___');
+
+  for (const key of decryptedAiKeys) {
+    if (!key) continue;
+    sanitized = sanitized.split(key).join(getAiKeyReplacement(key));
+  }
+
+  for (const email of decryptedOwnerEmails) {
+    if (!email) continue;
+    sanitized = sanitized.split(email).join(getOwnerEmailReplacement(email));
+  }
+
+  return sanitized;
+}
+
+function writeGeneratedFile(filePath: string, content: string): void {
+  writeFileSync(filePath, sanitizeGeneratedContent(content), 'utf8');
+}
 
 const VALID_FLAGS = new Set([
   '--help',
@@ -610,8 +651,19 @@ async function loadAiConfigOverride(): Promise<void> {
     return;
   }
 
+  decryptedAiKeys.length = 0;
+  decryptedOwnerEmails.length = 0;
   for (const provider of Object.values(config.providers)) {
     for (const keyObj of provider.keys) {
+      if (keyObj.key) {
+        decryptedAiKeys.push(keyObj.key);
+      }
+      if (keyObj.owner) {
+        const emails = keyObj.owner.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g);
+        if (emails) {
+          decryptedOwnerEmails.push(...emails);
+        }
+      }
       apiKeyOwnerByKey.set(keyObj.key, keyObj.owner ?? 'unknown');
       if (keyObj.type === 'expired') {
         expiredApiKeys.add(keyObj.key);
@@ -773,7 +825,7 @@ export const BM25_INDEX: BM25Index = {
 };
 `;
     const bm25IndexPath = join(ROOT, 'apps/mcp/src/search/bm25-index.ts');
-    writeFileSync(bm25IndexPath, bm25IndexCode, 'utf8');
+    writeGeneratedFile(bm25IndexPath, bm25IndexCode);
     console.log(`  → written BM25 index (${bm25Docs.length} documents)`);
 
     const chunksCode = `/**
@@ -795,7 +847,7 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
     )};
 `;
     const chunksPath = join(ROOT, 'apps/mcp/src/search/chunks.ts');
-    writeFileSync(chunksPath, chunksCode, 'utf8');
+    writeGeneratedFile(chunksPath, chunksCode);
     console.log(`  → written chunks index (${chunks.length} chunks)`);
 
     console.log('\n' + '─'.repeat(60));
@@ -1039,7 +1091,7 @@ export const MANIFEST: TopicManifest = ${JSON.stringify(manifestData, null, 2)};
 `;
 
   const manifestPath = join(ROOT, 'apps/mcp/src/manifest.ts');
-  writeFileSync(manifestPath, manifestCode, 'utf8');
+  writeGeneratedFile(manifestPath, manifestCode);
   console.log(`  → written to apps/mcp/src/manifest.ts`);
 
   if (manifestOnly) {
@@ -1084,7 +1136,7 @@ export const BM25_INDEX: BM25Index = {
 `;
 
   const bm25IndexPath = join(ROOT, 'apps/mcp/src/search/bm25-index.ts');
-  writeFileSync(bm25IndexPath, bm25IndexCode, 'utf8');
+  writeGeneratedFile(bm25IndexPath, bm25IndexCode);
   console.log(`  → written BM25 index (${bm25Docs.length} documents)`);
 
   // Write chunks
@@ -1108,7 +1160,7 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
 `;
 
   const chunksPath = join(ROOT, 'apps/mcp/src/search/chunks.ts');
-  writeFileSync(chunksPath, chunksCode, 'utf8');
+  writeGeneratedFile(chunksPath, chunksCode);
   console.log(`  → written chunks index (${chunks.length} chunks)`);
 
   console.log('\n' + '─'.repeat(60));
