@@ -55,9 +55,19 @@ WRITING RULES:
 - NEVER add a final note such as "I hope this documentation is helpful"
 - NEVER expose secret or sensitive information, even if it appears in the source code. Secret values must be replaced with placeholders
 
-REQUIRED FIRST LINE: Before any Markdown heading, output exactly one HTML comment:
+REQUIRED FIRST TWO LINES: Before any Markdown heading, output exactly these two HTML comments (one per line, nothing else before them):
 <!--mcp-description: <one sentence ≤ 200 chars answering "when should an AI call this tool?">-->
-Example: <!--mcp-description: Call this when adding a Hono route, middleware, or sub-router to the Fufuni backend.-->`;
+<!--mcp-tags: ["tag1","tag2","tag3"]-->
+Tags rules: 3–6 items, lowercase kebab-case, chosen ONLY from this approved vocabulary:
+  admin, ai, api, auth, auth0, backend, catalog, checkout, ci, cloudflare,
+  commerce, crud, data, database, design, documents, durable-object, e2e,
+  email, events, frontend, general, hono, i18n, images, integration, inventory,
+  invoicing, localization, migrations, moderation, observability, orders,
+  payments, products, react, reviews, schema, security, setup, storage, stripe,
+  testing, theming, ucp, ui, user, webhooks
+Example:
+<!--mcp-description: Call this when adding a Hono route, middleware, or sub-router to the Fufuni backend.-->
+<!--mcp-tags: ["backend","api","hono"]-->`;
 
 // ── Helper ────────────────────────────────────────────────────────────────────
 

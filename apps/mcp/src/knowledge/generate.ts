@@ -194,6 +194,17 @@ function getAiKeyReplacement(key: string): string {
   return aiKeyReplacements.get(key)!;
 }
 
+type GitignorePattern = {
+  raw: string;
+  negative: boolean;
+  directoryOnly: boolean;
+  anchored: boolean;
+  hasSlash: boolean;
+  regex: RegExp;
+};
+
+const gitignoreCache = new Map<string, GitignorePattern[]>();
+
 function getOwnerEmailReplacement(email: string): string {
   if (!ownerEmailReplacements.has(email)) {
     ownerEmailReplacements.set(email, faker.internet.email());
@@ -201,8 +212,95 @@ function getOwnerEmailReplacement(email: string): string {
   return ownerEmailReplacements.get(email)!;
 }
 
+function parseGitignorePatterns(content: string): GitignorePattern[] {
+  return content.split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line !== '' && !line.startsWith('#'))
+    .map(raw => {
+      let line = raw;
+      const negative = line.startsWith('!');
+      if (negative) line = line.slice(1);
+      const directoryOnly = line.endsWith('/');
+      if (directoryOnly) line = line.slice(0, -1);
+      const anchored = line.startsWith('/');
+      if (anchored) line = line.slice(1);
+      const hasSlash = line.includes('/');
+      const regex = gitignorePatternToRegex(line, anchored, directoryOnly, hasSlash);
+      return { raw, negative, directoryOnly, anchored, hasSlash, regex };
+    });
+}
+
+function gitignorePatternToRegex(pattern: string, anchored: boolean, directoryOnly: boolean, hasSlash: boolean): RegExp {
+  let regex = '^';
+  const escaped = pattern.split('**').map(escapeRegExp).join('.*');
+  const withWildcards = escaped.replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]');
+
+  if (anchored || hasSlash) {
+    regex += withWildcards;
+  } else {
+    regex += '(.*/)?' + withWildcards + '($|/.*)';
+  }
+
+  if (directoryOnly) {
+    if (!regex.endsWith('(/.*)')) {
+      regex += '(/.*)?';
+    }
+  }
+
+  regex += '$';
+  return new RegExp(regex);
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.+^${}()|[\]\\]/g, '\\$&');
+}
+
+function loadGitignorePatterns(dir: string): GitignorePattern[] {
+  if (gitignoreCache.has(dir)) return gitignoreCache.get(dir)!;
+  const patterns: GitignorePattern[] = [];
+  const gitignorePath = join(dir, '.gitignore');
+  if (existsSync(gitignorePath)) {
+    patterns.push(...parseGitignorePatterns(readFileSync(gitignorePath, 'utf8')));
+  }
+  gitignoreCache.set(dir, patterns);
+  return patterns;
+}
+
+function isGitignored(relativePath: string): boolean {
+  const normalizedPath = relativePath.split('\\').join('/');
+  const pathSegments = normalizedPath.split('/');
+  const dirs = [''];
+  for (let i = 0; i < pathSegments.length - 1; i++) {
+    dirs.push(dirs[i] ? `${dirs[i]}/${pathSegments[i]}` : pathSegments[i]);
+  }
+
+  let ignored = false;
+  for (const dirRel of dirs) {
+    const dir = dirRel ? join(ROOT, dirRel) : ROOT;
+    const patterns = loadGitignorePatterns(dir);
+    const relativeToGitignore = dirRel ? normalizedPath.slice(dirRel.length + 1) : normalizedPath;
+    for (const pattern of patterns) {
+      if (pattern.regex.test(relativeToGitignore)) {
+        ignored = !pattern.negative;
+      }
+    }
+  }
+  return ignored;
+}
+
+function getAiSafeContent(relativePath: string, content: string): string {
+  if (!isGitignored(relativePath)) return content;
+  console.warn(`Warning: file "${relativePath}" is gitignored. Masking sensitive content for AI input.`);
+  return sanitizeGeneratedContent(content);
+}
+
 function sanitizeGeneratedContent(content: string): string {
   let sanitized = content.replaceAll('process.env.CLOUDFLARE_ACCOUNT_ID', '___cloudflare_account_id___');
+
+  const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
+  if (cloudflareAccountId) {
+    sanitized = sanitized.split(cloudflareAccountId).join('___cloudflare_account_id___');
+  }
 
   for (const key of decryptedAiKeys) {
     if (!key) continue;
@@ -660,7 +758,8 @@ async function loadAiConfigOverride(): Promise<void> {
         decryptedAiKeys.push(keyObj.key);
       }
       if (keyObj.owner) {
-        const emails = keyObj.owner.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g);
+        const ownerPrefix = keyObj.owner.split('|')[0];
+        const emails = ownerPrefix.match(/[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}/g);
         if (emails) {
           decryptedOwnerEmails.push(...emails);
         }
@@ -893,9 +992,10 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
       function buildContent(maxChars: number): { combinedSources: string; userPrompt: string } {
         let combined = '';
         for (const srcPath of topic.sources) {
-          const content = readSrc(srcPath);
-          if (!content) continue;
-          const snippet = truncate(content, maxChars);
+          const originalContent = readSrc(srcPath);
+          if (!originalContent) continue;
+          const safeContent = getAiSafeContent(srcPath, originalContent);
+          const snippet = truncate(safeContent, maxChars);
           combined += `\n\n### Source: ${srcPath}\n\`\`\`\n${snippet}\n\`\`\`\n`;
         }
         const rawPrompt = topic.buildPrompt(combined);
@@ -1036,7 +1136,7 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
       const fileContent = header + aiContent +
         (topic.staticAppend ? '\n\n' + topic.staticAppend : '');
 
-      writeFileSync(outPath, fileContent, 'utf8');
+      writeGeneratedFile(outPath, fileContent);
       console.log(`  → written to mcp/${topic.name}.md`);
       generated++;
     }

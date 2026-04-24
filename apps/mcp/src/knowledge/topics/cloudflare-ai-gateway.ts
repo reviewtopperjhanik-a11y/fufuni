@@ -7,8 +7,8 @@ import { BASE_SYSTEM, appendFacts } from '../base.js';
 
 const topic: Topic = {
   name: 'cloudflare-ai-gateway',
-  description: 'Unified AI access via Cloudflare AI Gateway — encrypted ai.json config, gateway routing in the Worker and MCP server, model prefixing, embedding support, and the browser CORS limitation.',
-  tags: ["ai", "cloudflare", "gateway", "api", "backend", "embeddings", "mcp", "security"],
+  description: "Call this when configuring or troubleshooting the Cloudflare AI Gateway for unified AI access.",
+  tags: ["ai","cloudflare","backend","frontend","mcp"],
   sources: [
     'ai.json',
     'apps/merchant/src/routes/ai.ts',
