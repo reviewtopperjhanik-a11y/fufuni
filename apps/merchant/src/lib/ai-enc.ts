@@ -143,6 +143,60 @@ export async function decryptAiConfig(
   return JSON.parse(new TextDecoder().decode(plaintext)) as AiConfig;
 }
 
+/**
+ * Mask a secret string by preserving a small prefix and suffix.
+ *
+ * @param value - The original secret value.
+ * @param keepStart - Number of characters to keep from the start.
+ * @param keepEnd - Number of characters to keep from the end.
+ * @returns The masked value.
+ */
+function maskSecretValue(value: string, keepStart = 3, keepEnd = 3): string {
+  if (value.length <= keepStart + keepEnd) {
+    return '*'.repeat(value.length);
+  }
+  return `${value.slice(0, keepStart)}...${value.slice(-keepEnd)}`;
+}
+
+/**
+ * Return a shallow copy of decrypted ai.json config with sensitive values masked.
+ *
+ * @param config - The decrypted ai.json configuration object.
+ * @returns A masked copy suitable for safe stdout export.
+ */
+export function maskAiConfig(config: AiConfig): AiConfig {
+  const masked = JSON.parse(JSON.stringify(config)) as AiConfig;
+  const aigToken = process.env.CLOUDFLARE_AIG_TOKEN;
+
+  for (const provider of Object.values(masked.providers ?? {})) {
+    if (aigToken) {
+      if (typeof provider.endpoint === 'string') {
+        provider.endpoint = provider.endpoint.split(aigToken).join(maskSecretValue(aigToken));
+      }
+    }
+
+    if (typeof provider.gatewayEndpoint === 'string') {
+      const match = provider.gatewayEndpoint.match(/^(https:\/\/gateway\.ai\.cloudflare\.com\/v1\/)([^/]+)\/([^/]+)(\/compat.*)$/);
+      if (match) {
+        provider.gatewayEndpoint = `${match[1]}${maskSecretValue(match[2], 3, 3)}/${maskSecretValue(match[3], 3, 3)}${match[4]}`;
+      } else if (aigToken) {
+        provider.gatewayEndpoint = provider.gatewayEndpoint.split(aigToken).join(maskSecretValue(aigToken));
+      }
+    }
+
+    if (!Array.isArray(provider.keys)) continue;
+    for (const keyObj of provider.keys) {
+      if (typeof keyObj.key === 'string') {
+        keyObj.key = maskSecretValue(keyObj.key, 3, 3);
+      }
+      if (typeof keyObj.owner === 'string') {
+        keyObj.owner = maskSecretValue(keyObj.owner, 3, 3);
+      }
+    }
+  }
+  return masked;
+}
+
 // ─── Selection helpers ────────────────────────────────────────────────────────
 
 export interface ModelCandidate {
@@ -224,8 +278,9 @@ export function resolveModelId(
   useGateway: boolean,
 ): string {
   if (useGateway && provider.gatewayModelPrefix) {
-    // Avoid double-prefixing if the model ID already contains a slash
-    if (modelId.includes('/')) return modelId;
+    const prefix = `${provider.gatewayModelPrefix}/`;
+    // Avoid double-prefixing only when the model ID is already prefixed with the provider.
+    if (modelId.startsWith(prefix)) return modelId;
     return `${provider.gatewayModelPrefix}/${modelId}`;
   }
   return modelId;
