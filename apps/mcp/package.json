@@ -24,6 +24,6 @@
     "@modelcontextprotocol/inspector": "^0.21.2",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
-    "wrangler": "^4.84.0"
+    "wrangler": "^4.84.1"
   }
 }
