@@ -89,6 +89,7 @@ jobs:
       - name: build auto-generated source for MCP Worker
         run: |
           source .env
+          cd apps/merchant && npm run gen:openapi && cd ../..
           cd apps/mcp && npm run gen-knowledge && cd ../..
           cd apps/mcp && npm run build:sources && cd ../..
 
@@ -106,4 +107,3 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/mcp
-          preCommands: npm run gen-knowledge
