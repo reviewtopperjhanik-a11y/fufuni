@@ -11,7 +11,7 @@ function escapeHtml(value: string): string {
     .replace(/'/g, "&#39;");
 }
 
-function generateIndexHTML() {
+function generateIndexHTML(env: Env): string  {
   const topicListItems = MANIFEST.topics.map(topic => {
     const title = escapeHtml(topic.title);
     const description = escapeHtml(topic.description);
@@ -50,7 +50,7 @@ function generateIndexHTML() {
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <title>Fufuni MCP Server - Knowledge Base</title>
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/css/bootstrap.min.css" integrity="sha256-2FMn2Zx6PuH5tdBQDRNwrOo60ts5wWPC9R8jK67b3t4=" crossorigin="anonymous">
-      <link id="mainstyle" rel="stylesheet" type="text/css" href="https://marked2app.com/styles/styles/github-updated.css">
+      <link id="mainstyle" rel="stylesheet" type="text/css" href="${env.STORE_URL}/styles/github-updated.css">
       <style>
         body { font-family: Arial, sans-serif; margin: 20px; color: #111827; background: #f8fafc; }
         h1 { color: #111827; margin-bottom: 1rem; }
@@ -59,6 +59,7 @@ function generateIndexHTML() {
         .topic-meta { font-size: 0.95rem; color: #6b7280; margin-bottom: 0.75rem; }
         .topic-description { margin-bottom: 1rem; }
         .loading-placeholder { font-style: italic; color: #374151; }
+        .topic-content { border-top: 1px solid #e5e7eb; padding-top: 1rem; }
       </style>
       <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.8/dist/js/bootstrap.min.js" integrity="sha256-ew8UiV1pJH/YjpOEBInP1HxVvT/SfrCmwSoUzF9JIgc=" crossorigin="anonymous"></script>
       <script type="module">
@@ -126,8 +127,8 @@ function generateIndexHTML() {
   `;
 }
 
-export function serveIndex() {
-  return new Response(generateIndexHTML(), {
+export function serveIndex(env: Env) {
+  return new Response(generateIndexHTML(env), {
     status: 200,
     headers: { "Content-Type": "text/html; charset=utf-8" },
   });

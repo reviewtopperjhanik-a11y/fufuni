@@ -108,7 +108,7 @@ export default {
     }
 
     if (url.pathname === "/" || url.pathname === "/index.html" || url.pathname === "/index.htm") {
-      return serveIndex();
+      return serveIndex(env);
     }
 
     return serve404();
