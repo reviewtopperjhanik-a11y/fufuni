@@ -130,9 +130,9 @@ jobs:
           cd apps/mcp
           # Path the version "0\.1\.0-beta\..*"" to a version like "0.1.0-beta.20260426" in package.json, then build stdio and publish to npm
           export DATE=$(date +%Y%m%d)
-          #check if the same version already exists on npm, if so add a random suffix to the version to avoid npm publish failure
+          #check if the same version already exists on npm, if so add the 8 first chars of the git sha to the version to make it unique, e.g. "0.1.0-beta.20260426-1a2b3c4d"
           if npm view @sctg/fufuni-mcp@0.1.0-beta.${DATE} > /dev/null 2>&1; then
-            export DATE="${DATE}-$(openssl rand -hex 4)"
+            export DATE="${DATE}-$(git rev-parse --short HEAD)"
           fi
           sed -i "s/\"0\.1\.0-beta\..*\"/\"0.1.0-beta.${DATE}\"/" package.json
           npm run build:stdio:esm
