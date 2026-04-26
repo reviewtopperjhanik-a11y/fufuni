@@ -78,3 +78,27 @@ export type TopicChecksumResult = {
   sourcesChecksum: string;
   sourceFileHashes: Record<string, string>;
 };
+
+export type OfflineRequestMeta = {
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+  model: string;
+  isAnthropic: boolean;
+  isGemini: boolean;
+  usesApiKeyInUrl: boolean;
+  includeAigHeader: boolean;
+  apiKey: string;
+  aigToken?: string;
+};
+
+/** Shape returned by GET /openai/v1/models on Groq and other OAI-compatible APIs. */
+export type GroqModel = {
+  id: string;
+  object: 'model';
+  created: number;
+  owned_by: string;
+  active: boolean;
+  context_window: number;
+  max_completion_tokens?: number;
+};

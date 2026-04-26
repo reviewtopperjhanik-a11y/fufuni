@@ -459,6 +459,18 @@ export function getModelBudget(
   };
 }
 
+/**
+ * Try to extract the provider's hard per-request token limit from a 413 body.
+ * Groq format: "Limit 12000, Requested 15101"
+ *
+ * @param errorMsg - The raw error string returned by the API.
+ * @returns The token cap or null when no cap can be extracted.
+ */
+export function parseRequestTokensCap(errorMsg: string): number | null {
+  const m = errorMsg.match(/Limit\s+(\d[\d,]+)[,\s]/i);
+  return m ? parseInt(m[1].replace(/,/g, ''), 10) : null;
+}
+
 // ─── Model selection and filtering ─────────────────────────────────────────
 
 export interface ModelWithProvider {

@@ -134,7 +134,7 @@ app.onError((err, c) => {
   return c.json({ error: { code: 'internal', message } }, 500);
 });
 
-app.get('/', (c) => c.json({ name: 'merchant', version: '0.1.0', ok: true }));
+app.get('/', (c) => c.json({ name: 'fufuni', version: '0.1.0', ok: true }));
 
 app.route('/v1/setup', adminSetup);
 app.route('/v1/ai', adminAi);

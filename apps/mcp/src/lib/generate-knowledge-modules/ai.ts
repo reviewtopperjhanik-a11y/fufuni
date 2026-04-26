@@ -131,7 +131,17 @@ export async function callAi(
     usage?: { prompt_tokens?: number; completion_tokens?: number };
   };
 
-  const content = data.choices?.[0]?.message?.content ?? '';
+  const rawContent = data.choices?.[0]?.message?.content;
+  // Some reasoning models (e.g. Mistral Magistral) return content as an array
+  // of content blocks rather than a plain string.
+  const content = typeof rawContent === 'string'
+    ? rawContent
+    : Array.isArray(rawContent)
+      ? (rawContent as Array<{ type?: string; text?: string }>)
+          .filter(block => !block.type || block.type === 'text')
+          .map(block => block.text ?? '')
+          .join('')
+      : (rawContent != null ? String(rawContent) : '');
   const tokensIn = data.usage?.prompt_tokens ?? estimateTokens(systemPrompt + userPrompt);
   const tokensOut = data.usage?.completion_tokens ?? estimateTokens(content);
   return { content, tokensIn, tokensOut };

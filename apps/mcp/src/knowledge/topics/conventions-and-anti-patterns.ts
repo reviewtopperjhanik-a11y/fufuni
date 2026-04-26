@@ -14,7 +14,7 @@ const topic: Topic = {
   manualFacts: [
     'ALWAYS add new topic files in apps/mcp/knowledge/topics/ when adding major new features. Each topic file must export a default Topic object with name, description, sources, systemPrompt, and buildPrompt. To add source files to an existing topic, edit the relevant apps/mcp/knowledge/topics/<topic-name>.ts file.',
     'ALWAYS run npm run mcp:generate:force after editing a topic file. This regenerates the .md knowledge file in mcp/. Then run npm run mcp:gen-knowledge to publish to the MCP server.',
-    'DO NOT edit apps/mcp/src/knowledge.ts directly — it is auto-generated from mcp/*.md files by gen-knowledge.ts.',
+    'DO NOT edit apps/mcp/src/knowledge.ts directly — it is auto-generated from apps/mcp/src/knowledge/generated/*.md files by gen-knowledge.ts.',
     'NEVER use onClick on interactive elements — always use onPress (HeroUI/React Aria requirement).',
     'NEVER use variant="bordered" (does not exist in HeroUI v3) — use variant="outline" instead.',
     'NEVER add radius prop to Button — use Tailwind classes (rounded-none, rounded-full, etc.) in className.',

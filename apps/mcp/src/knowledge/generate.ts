@@ -89,25 +89,22 @@
  * constant if they exceed this budget.
  */
 
-import { faker } from '@faker-js/faker';
-import { nanoid } from 'nanoid';
 import gitlog from 'gitlog';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, chmodSync } from 'fs';
+import { readFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
 import { execSync } from 'child_process';
 import { join, resolve, dirname } from 'path';
-import { fileURLToPath, pathToFileURL } from 'url';
+import { fileURLToPath } from 'url';
 import {
   decryptAiConfig,
   selectModels,
   collectKeys,
   resolveProviderEndpoint,
   resolveModelId,
-  selectEmbeddingModels,
   type ModelBudget,
   getModelBudget as getModelBudgetImpl,
+  parseRequestTokensCap,
   maskAiConfig,
 } from '../lib/ai-enc.js';
-import { isAnthropicApi, isGeminiApi } from '../lib/generate-knowledge-modules/ai.js';
 import {
   buildHeader,
   callAi,
@@ -115,15 +112,19 @@ import {
   estimateTokens,
   generateBm25Index,
   generateChunks,
-  generateEmbedding,
-  normalizeVector,
   parseHeaderChecksums,
-  parseRetryAfterMs,
   truncate,
   buildManifest,
-  buildApiKeyPool,
-  createRoundRobinKeyProvider,
-  maskApiKey
+  isGitignored,
+  createSanitizer,
+  buildOfflineRequestMeta,
+  writeOfflineScripts,
+  parseCliArgs,
+  printHelp,
+  validateCliArgs,
+  loadDotenv,
+  loadTopics,
+  type GroqModel,
 } from '../lib/generate-knowledge.js';
 import type { Topic } from './base.js';
 
@@ -159,559 +160,43 @@ const TOPICS_DIR = join(__dirname, 'topics');
 const RELATIVE_PATH = 'apps/mcp/src/knowledge/generate.ts';
 // ─── CLI flags ────────────────────────────────────────────────────────────────
 const argv = process.argv.slice(2);
-const topicFlags = argv
-  .filter(a => a.startsWith('--topic='))
-  .map(a => a.split('=')[1])
-  .filter(Boolean);
-const aiJsonEncFlag = argv.find(a => a.startsWith('--ai-json-enc='))?.split('=')[1];
-const showKeyOwner = argv.includes('--show-key-owner');
-const showKeyUsageSummary = argv.includes('--key-usage-summary');
-const exportMaskedAiJson = argv.includes('--export-masked-ai-json');
-const dryRun = argv.includes('--dry-run');
-const skipAI = argv.includes('--skip-ai');
-const offlineFetch = argv.includes('--offline-fetch');
-const offlineBash = argv.includes('--offline-bash');
-const offlineYaml = argv.includes('--offline-yaml');
-const offlineMode = offlineFetch || offlineBash || offlineYaml;
-const skipNetwork = skipAI || offlineMode;
-const force = argv.includes('--force');
-const autoRefresh = argv.includes('--auto-refresh');
-const discoverModels = argv.includes('--discover-models');
-const noModelFallback = argv.includes('--no-model-fallback');
-const fetchTimeoutMs = (() => {
-  const f = argv.find(a => a.startsWith('--fetch-timeout='));
-  return f ? parseInt(f.split('=')[1], 10) * 1_000 : 90_000;
-})();
-const maxTokenOverride = (() => {
-  const f = argv.find(a => a.startsWith('--max-token-override='));
-  return f ? parseInt(f.split('=')[1], 10) : null;
-})();
-const verbose = argv.includes('--verbose');
-const manifestOnly = argv.includes('--manifest-only');
-const bm25IndexOnly = argv.includes('--bm25-index-only');
-const showHelp = argv.includes('--help') || argv.includes('-h');
+const {
+  topicFlags,
+  aiJsonEncFlag,
+  showKeyOwner,
+  showKeyUsageSummary,
+  exportMaskedAiJson,
+  dryRun,
+  skipAI,
+  offlineFetch,
+  offlineBash,
+  offlineYaml,
+  offlineMode,
+  skipNetwork,
+  force,
+  autoRefresh,
+  discoverModels,
+  noModelFallback,
+  fetchTimeoutMs,
+  maxTokenOverride,
+  verbose,
+  manifestOnly,
+  bm25IndexOnly,
+  showHelp,
+  providerArgFromCli,
+} = parseCliArgs(argv);
+
+if (showHelp) {
+  printHelp(RELATIVE_PATH, 0);
+}
+validateCliArgs(argv, RELATIVE_PATH);
 
 const decryptedAiKeys: string[] = [];
 const decryptedOwnerEmails: string[] = [];
-const aiKeyReplacements = new Map<string, string>();
-const ownerEmailReplacements = new Map<string, string>();
 
-/**
- * Return a stable synthetic replacement for a decrypted AI API key.
- *
- * @param key - The original decrypted API key.
- * @returns A deterministic synthetic key for masking in generated output.
- */
-function getAiKeyReplacement(key: string): string {
-  if (!aiKeyReplacements.has(key)) {
-    aiKeyReplacements.set(key, nanoid(16));
-  }
-  return aiKeyReplacements.get(key)!;
-}
-
-/**
- * Return a stable synthetic replacement for a decrypted owner email.
- *
- * @param email - The original decrypted owner email.
- * @returns A deterministic synthetic email for masking in generated output.
- */
-function getOwnerEmailReplacement(email: string): string {
-  if (!ownerEmailReplacements.has(email)) {
-    ownerEmailReplacements.set(email, faker.internet.email());
-  }
-  return ownerEmailReplacements.get(email)!;
-}
-
-type GitignorePattern = {
-  raw: string;
-  negative: boolean;
-  directoryOnly: boolean;
-  anchored: boolean;
-  hasSlash: boolean;
-  regex: RegExp;
-};
-
-const gitignoreCache = new Map<string, GitignorePattern[]>();
-
-/**
- * Parse the contents of a .gitignore file into matchable patterns.
- *
- * @param content - The raw text of a .gitignore file.
- * @returns Parsed gitignore patterns with matching metadata.
- */
-function parseGitignorePatterns(content: string): GitignorePattern[] {
-  return content.split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line !== '' && !line.startsWith('#'))
-    .map(raw => {
-      let line = raw;
-      const negative = line.startsWith('!');
-      if (negative) line = line.slice(1);
-      const directoryOnly = line.endsWith('/');
-      if (directoryOnly) line = line.slice(0, -1);
-      const anchored = line.startsWith('/');
-      if (anchored) line = line.slice(1);
-      const hasSlash = line.includes('/');
-      const regex = gitignorePatternToRegex(line, anchored, directoryOnly, hasSlash);
-      return { raw, negative, directoryOnly, anchored, hasSlash, regex };
-    });
-}
-
-/**
- * Convert a gitignore-style pattern into a regular expression.
- *
- * @param pattern - The gitignore pattern text.
- * @param anchored - Whether the pattern is anchored to the current directory.
- * @param directoryOnly - Whether the pattern matches directories only.
- * @param hasSlash - Whether the pattern includes a slash.
- * @returns A RegExp that matches paths affected by the pattern.
- */
-function gitignorePatternToRegex(pattern: string, anchored: boolean, directoryOnly: boolean, hasSlash: boolean): RegExp {
-  let regex = '^';
-  const escaped = pattern.split('**').map(escapeRegExp).join('.*');
-  const withWildcards = escaped.replace(/\*/g, '[^/]*').replace(/\?/g, '[^/]');
-
-  if (anchored || hasSlash) {
-    regex += withWildcards;
-  } else {
-    regex += '(.*/)?' + withWildcards + '($|/.*)';
-  }
-
-  if (directoryOnly) {
-    if (!regex.endsWith('(/.*)')) {
-      regex += '(/.*)?';
-    }
-  }
-
-  regex += '$';
-  return new RegExp(regex);
-}
-
-/**
- * Escape special regex characters in a string.
- *
- * @param value - The string to escape.
- * @returns The escaped string safe for inclusion in a RegExp.
- */
-function escapeRegExp(value: string): string {
-  return value.replace(/[.+^${}()|[\]\\]/g, '\\$&');
-}
-
-/**
- * Load and cache .gitignore patterns for a directory.
- *
- * @param dir - The directory in which to look for .gitignore.
- * @returns Parsed patterns from the .gitignore file, or an empty array.
- */
-function loadGitignorePatterns(dir: string): GitignorePattern[] {
-  if (gitignoreCache.has(dir)) return gitignoreCache.get(dir)!;
-  const patterns: GitignorePattern[] = [];
-  const gitignorePath = join(dir, '.gitignore');
-  if (existsSync(gitignorePath)) {
-    patterns.push(...parseGitignorePatterns(readFileSync(gitignorePath, 'utf8')));
-  }
-  gitignoreCache.set(dir, patterns);
-  return patterns;
-}
-
-/**
- * Determine whether a path is ignored by any .gitignore file in its ancestry.
- *
- * @param relativePath - A path relative to the repo root.
- * @returns True when the file is matched by .gitignore patterns.
- */
-function isGitignored(relativePath: string): boolean {
-  const normalizedPath = relativePath.split('\\').join('/');
-  const pathSegments = normalizedPath.split('/');
-  const dirs = [''];
-  for (let i = 0; i < pathSegments.length - 1; i++) {
-    dirs.push(dirs[i] ? `${dirs[i]}/${pathSegments[i]}` : pathSegments[i]);
-  }
-
-  let ignored = false;
-  for (const dirRel of dirs) {
-    const dir = dirRel ? join(ROOT, dirRel) : ROOT;
-    const patterns = loadGitignorePatterns(dir);
-    const relativeToGitignore = dirRel ? normalizedPath.slice(dirRel.length + 1) : normalizedPath;
-    for (const pattern of patterns) {
-      if (pattern.regex.test(relativeToGitignore)) {
-        ignored = !pattern.negative;
-      }
-    }
-  }
-  return ignored;
-}
-
-/**
- * Mask gitignored source content before sending it to AI.
- *
- * @param relativePath - The relative path of the source file.
- * @param content - The raw file contents.
- * @returns The original content when not ignored, or a sanitized version when ignored.
- */
-function getAiSafeContent(relativePath: string, content: string): string {
-  if (!isGitignored(relativePath)) return content;
-  console.warn(`Warning: file "${relativePath}" is gitignored. Masking sensitive content for AI input.`);
-  return sanitizeGeneratedContent(content);
-}
-
-/**
- * Sanitize generated content by masking sensitive environment values and decrypted secrets.
- *
- * @param content - The raw content to sanitize.
- * @returns The sanitized content safe for writing or sending to AI.
- */
-function sanitizeGeneratedContent(content: string): string {
-  let sanitized = content.replaceAll('process.env.CLOUDFLARE_ACCOUNT_ID', '___cloudflare_account_id___');
-
-  const cloudflareAccountId = process.env.CLOUDFLARE_ACCOUNT_ID;
-  if (cloudflareAccountId) {
-    sanitized = sanitized.split(cloudflareAccountId).join('___cloudflare_account_id___');
-  }
-
-  for (const key of decryptedAiKeys) {
-    if (!key) continue;
-    sanitized = sanitized.split(key).join(getAiKeyReplacement(key));
-  }
-
-  for (const email of decryptedOwnerEmails) {
-    if (!email) continue;
-    sanitized = sanitized.split(email).join(getOwnerEmailReplacement(email));
-  }
-
-  return sanitized;
-}
-
-/**
- * Write a generated file to disk after applying sanitization.
- *
- * @param filePath - The absolute path to the target file.
- * @param content - The content to write.
- */
-function writeGeneratedFile(filePath: string, content: string): void {
-  writeFileSync(filePath, sanitizeGeneratedContent(content), 'utf8');
-}
-
-function writeGeneratedScript(filePath: string, content: string): void {
-  writeFileSync(filePath, content, 'utf8');
-  try {
-    chmodSync(filePath, 0o755);
-  } catch {
-    // best-effort only; existing permissions may be preserved on some platforms.
-  }
-}
-
-type OfflineRequestMeta = {
-  url: string;
-  headers: Record<string, string>;
-  body: unknown;
-  model: string;
-  isAnthropic: boolean;
-  isGemini: boolean;
-  usesApiKeyInUrl: boolean;
-  includeAigHeader: boolean;
-  apiKey: string;
-  aigToken?: string;
-};
-
-function buildOfflineRequestMeta(systemPrompt: string, userPrompt: string, model: string, apiKey: string): OfflineRequestMeta {
-  const isAnthropic = isAnthropicApi(AI_API_URL);
-  const isGemini = isGeminiApi(AI_API_URL);
-  const includeAigHeader = Boolean(AIG_TOKEN);
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-  };
-
-  let url = '';
-  let usesApiKeyInUrl = false;
-  let body: unknown;
-  const aigToken = process.env.CLOUDFLARE_AIG_TOKEN;
-
-  if (includeAigHeader && aigToken) {
-    headers['cf-aig-authorization'] = `Bearer ${aigToken}`;
-  }
-
-  if (isAnthropic) {
-    url = `${AI_API_URL}/messages`;
-    headers['x-api-key'] = apiKey;
-    headers['anthropic-version'] = '2023-06-01';
-    body = {
-      model,
-      max_tokens: getModelBudget(model).maxOutputTokens,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: userPrompt }],
-    };
-  } else if (isGemini) {
-    url = `${AI_API_URL}/models/${model}:generateContent`;
-    usesApiKeyInUrl = true;
-    body = {
-      systemInstruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-      generationConfig: { maxOutputTokens: getModelBudget(model).maxOutputTokens },
-    };
-  } else {
-    url = `${AI_API_URL}/chat/completions`;
-    headers['Authorization'] = `Bearer ${apiKey}`;
-    body = {
-      model,
-      max_tokens: getModelBudget(model).maxOutputTokens,
-      messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
-      ],
-    };
-  }
-
-  return { url, headers, body, model, isAnthropic, isGemini, usesApiKeyInUrl, includeAigHeader, apiKey, aigToken };
-}
-
-function buildOfflineFetchScript(topicName: string, meta: OfflineRequestMeta): string {
-  const urlExpression = meta.usesApiKeyInUrl
-    ? `const url = new URL(${JSON.stringify(meta.url)});
-url.searchParams.set('key', ${JSON.stringify(meta.apiKey)});`
-    : `const url = ${JSON.stringify(meta.url)};`;
-
-  const headersEntries = Object.entries(meta.headers)
-    .map(([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)}`)
-    .join(',\n');
-
-  return `#!/usr/bin/env npx tsx
-
-const url = (() => {
-${urlExpression}
-  return typeof url === 'string' ? url : url.toString();
-})();
-
-const headers = {
-${headersEntries}
-};
-
-const body = ${JSON.stringify(meta.body, null, 2)};
-
-const response = await fetch(url, {
-  method: 'POST',
-  headers,
-  body: JSON.stringify(body),
-});
-
-if (!response.ok) {
-  const text = await response.text();
-  throw new Error('Request failed: ' + response.status + ' ' + text);
-}
-
-const output = await response.text();
-console.log(output);
-`;
-}
-
-function buildOfflineBashScript(topicName: string, meta: OfflineRequestMeta): string {
-  const authHeader = meta.isAnthropic
-    ? `-H 'x-api-key: ${meta.apiKey}'`
-    : meta.isGemini
-      ? ''
-      : `-H 'Authorization: Bearer ${meta.apiKey}'`;
-  const aigHeader = meta.includeAigHeader && meta.aigToken
-    ? `-H 'cf-aig-authorization: Bearer ${meta.aigToken}'`
-    : '';
-  const url = meta.usesApiKeyInUrl
-    ? `${meta.url}?key=${encodeURIComponent(meta.apiKey)}`
-    : meta.url;
-
-  return `#!/usr/bin/env bash
-set -euo pipefail
-
-curl -sS -X POST ${JSON.stringify(url)} \
-  -H 'Content-Type: application/json' \
-  ${authHeader ? `${authHeader} \
-  ` : ''}${aigHeader ? `${aigHeader} \
-  ` : ''}-d @- <<'EOF'
-${JSON.stringify(meta.body, null, 2)}
-EOF
-`;
-}
-
-function buildOfflineYamlScript(topicName: string, meta: OfflineRequestMeta): string {
-  const toYamlScalar = (value: string): string => {
-    const escaped = value.replace(/"/g, '\\"');
-    return `"${escaped}"`;
-  };
-
-  const yamlBlock = (text: string): string => {
-    const lines = text.split('\n');
-    const indented = lines.map(line => `    ${line}`).join('\n');
-    return `|\n${indented}`;
-  };
-
-  const messages = [] as string[];
-  if (meta.isAnthropic) {
-    messages.push(`- role: system\n  content: ${yamlBlock((meta.body as any).system ?? '')}`);
-    const anthroMessages = (meta.body as any).messages ?? [];
-    for (const msg of anthroMessages) {
-      messages.push(`- role: ${msg.role}\n  content: ${yamlBlock(msg.content ?? '')}`);
-    }
-  } else if (meta.isGemini) {
-    messages.push(`- role: system\n  content: ${yamlBlock((meta.body as any).systemInstruction?.parts?.[0]?.text ?? '')}`);
-    const contents = (meta.body as any).contents ?? [];
-    for (const msg of contents) {
-      const role = msg.role ?? 'user';
-      const content = msg.parts?.[0]?.text ?? '';
-      messages.push(`- role: ${role}\n  content: ${yamlBlock(content)}`);
-    }
-  } else {
-    const openaiMessages = (meta.body as any).messages ?? [];
-    for (const msg of openaiMessages) {
-      messages.push(`- role: ${msg.role}\n  content: ${yamlBlock(msg.content ?? '')}`);
-    }
-  }
-
-  const header = `url: ${toYamlScalar(meta.url)}\nmethod: POST\nmodel: ${toYamlScalar(meta.model)}\nheaders:\n`;
-  const headerLines = Object.entries(meta.headers)
-    .map(([name, value]) => `  ${name}: ${toYamlScalar(value)}`)
-    .join('\n');
-
-  return `${header}${headerLines}\nmessages:\n${messages.join('\n')}`;
-}
-
-function writeOfflineScripts(topicName: string, meta: OfflineRequestMeta): void {
-  if (offlineFetch) {
-    const scriptPath = join(MCP_DIR, `${topicName}.ts`);
-    const content = buildOfflineFetchScript(topicName, meta);
-    writeGeneratedScript(scriptPath, content);
-    console.log(`  → written offline fetch script ${topicName}.ts`);
-  }
-  if (offlineBash) {
-    const scriptPath = join(MCP_DIR, `${topicName}.sh`);
-    const content = buildOfflineBashScript(topicName, meta);
-    writeGeneratedScript(scriptPath, content);
-    console.log(`  → written offline bash script ${topicName}.sh`);
-  }
-  if (offlineYaml) {
-    const yamlPath = join(MCP_DIR, `${topicName}.yaml`);
-    const content = buildOfflineYamlScript(topicName, meta);
-    writeGeneratedFile(yamlPath, content);
-    console.log(`  → written offline yaml ${topicName}.yaml`);
-  }
-}
-
-const VALID_FLAGS = new Set([
-  '--help',
-  '-h',
-  '--dry-run',
-  '--skip-ai',
-  '--offline-fetch',
-  '--offline-bash',
-  '--offline-yaml',
-  '--force',
-  '--auto-refresh',
-  '--discover-models',
-  '--verbose',
-  '--ai-json-enc',
-  '--show-key-owner',
-  '--key-usage-summary',
-  '--no-model-fallback',
-  '--fetch-timeout',
-  '--max-token-override',
-  '--export-masked-ai-json',
-  '--manifest-only',
-  '--bm25-index-only',
-  '--provider',
-]);
-
-/**
- * Print CLI usage help and exit.
- *
- * @param exitCode - Exit code to use when terminating the process.
- */
-function printHelp(exitCode = 0): void {
-  console.log(`Usage: npx tsx ${RELATIVE_PATH} [options]
-
-Options:
-  --help, -h           Show this help message and exit
-  --topic=<name>       Generate the named topic (use the topic slug from the topic list). Can be specified multiple times.
-  --ai-json-enc=<file> Specify an alternative ai.json.enc config file path
-  --show-key-owner     Print the owner of the API key used for each AI call
-  --key-usage-summary  Print a summary of each API key's success/failure counts at the end of execution
-  --export-masked-ai-json  Decrypt ai.json.enc and print a masked JSON export to stdout
-  --provider=<key>     Only use models from the specified provider key
-  --dry-run            Build prompts without calling the AI or writing files
-  --skip-ai            Build files from extracted source only, no AI call
-  --offline-fetch      Do not call the network; generate per-topic TypeScript fetch scripts instead
-  --offline-bash       Do not call the network; generate per-topic bash curl scripts instead
-  --offline-yaml        Do not call the network; generate per-topic YAML request descriptions instead
-  --manifest-only      Build only the manifest from existing generated topic markdown files
-  --bm25-index-only    Build only the BM25 index and chunk files from existing generated topic markdown files
-  --force              Overwrite existing mcp/*.md files
-  --auto-refresh       Only regenerate topics whose source/manualFacts checksum changed
-  --discover-models    Ignore AI_MODEL and force discovery via GET /models
-  --no-model-fallback  Never switch to another model on error; retry transient failures on the same model only
-  --fetch-timeout=<s>       Abort a stalled AI request after this many seconds and retry (default: 90)
-  --max-token-override=<n>  Override the per-request token cap (like MAX_TOKENS_PER_REQUEST env var)
-  --verbose                 Show additional debug logs
-
-Environment variables:
-  AI_API_KEY           Comma-separated list of Groq API keys
-  AI_MODEL             Optional pinned model ID
-  AI_API_URL           Optional API endpoint override
-  CRYPTOKEN            Password used to encrypt/decrypt ai.json.enc
-
-Topics are auto-discovered from apps/mcp/src/knowledge/topics/*.ts
-Each file must export a default Topic object.
-
-Examples:
-npx tsx ${RELATIVE_PATH} --topic=migrations
-npx tsx ${RELATIVE_PATH} --topic=migrations --topic=do-schemas
-npx tsx ${RELATIVE_PATH} --discover-models
-npx tsx ${RELATIVE_PATH} --dry-run
-npx tsx ${RELATIVE_PATH} --force
-AI_MODEL="" AI_API_KEY="" AI_API_URL="" npx tsx ${RELATIVE_PATH} --auto-refresh --provider=gemini
-`);
-  process.exit(exitCode);
-}
-
-const unknownFlags = argv.filter(arg =>
-  !VALID_FLAGS.has(arg) &&
-  !arg.startsWith('--topic=') &&
-  !arg.startsWith('--ai-json-enc=') &&
-  !arg.startsWith('--provider=') &&
-  !arg.startsWith('--fetch-timeout=') &&
-  !arg.startsWith('--max-token-override='),
-);
-
-if (showHelp) {
-  printHelp(0);
-}
-
-if (unknownFlags.length > 0) {
-  console.error(`Error: unknown flag${unknownFlags.length > 1 ? 's' : ''}: ${unknownFlags.join(', ')}`);
-  printHelp(1);
-}
-
-/**
- * Load a simple env file without pulling in dotenv as a dependency.
- *
- * @param envPath - Absolute path to the .env file.
- * @returns Parsed key/value pairs from the file.
- */
-function loadDotenv(envPath: string): Record<string, string> {
-  const env: Record<string, string> = {};
-  if (!existsSync(envPath)) return env;
-  const lines = readFileSync(envPath, 'utf8').split('\n');
-  for (const raw of lines) {
-    const line = raw.trim();
-    if (!line || line.startsWith('#')) continue;
-    const eqIdx = line.indexOf('=');
-    if (eqIdx === -1) continue;
-    const key = line.slice(0, eqIdx).trim();
-    // Strip optional surrounding quotes from values
-    let value = line.slice(eqIdx + 1).trim();
-    if ((value.startsWith('"') && value.endsWith('"')) ||
-      (value.startsWith("'") && value.endsWith("'"))) {
-      value = value.slice(1, -1);
-    }
-    env[key] = value;
-  }
-  return env;
-}
+// ─── Sanitizer — bound to the mutable secret arrays above ────────────────────
+const sanitizer = createSanitizer({ decryptedAiKeys, decryptedOwnerEmails });
+const boundIsGitignored = (path: string) => isGitignored(path, ROOT);
 
 const dotenv = loadDotenv(join(ROOT, '.env'));
 
@@ -799,17 +284,6 @@ const AIG_TOKEN = process.env.CLOUDFLARE_AIG_TOKEN ?? undefined;
 
 // ─── model discovery ─────────────────────────────────────────────────────────
 
-/** Shape returned by GET /openai/v1/models on Groq and other OAI-compatible APIs. */
-type GroqModel = {
-  id: string;
-  object: 'model';
-  created: number;
-  owned_by: string;
-  active: boolean;
-  context_window: number;
-  max_completion_tokens?: number;
-};
-
 /** Minimum context window (tokens) required to qualify as a text-generation model. */
 const MIN_CONTEXT_WINDOW = 8_192;
 
@@ -873,18 +347,6 @@ let learnedRequestTokensCap: number | null =
   (process.env.MAX_TOKENS_PER_REQUEST
     ? parseInt(process.env.MAX_TOKENS_PER_REQUEST, 10)
     : null);
-
-/**
- * Try to extract the provider's hard per-request token limit from a 413 body.
- * Groq format: "Limit 12000, Requested 15101"
- *
- * @param errorMsg - The raw error string returned by the API.
- * @returns The token cap or null when no cap can be extracted.
- */
-function parseRequestTokensCap(errorMsg: string): number | null {
-  const m = errorMsg.match(/Limit\s+(\d[\d,]+)[,\s]/i);
-  return m ? parseInt(m[1].replace(/,/g, ''), 10) : null;
-}
 
 // ─── per-model budget ─────────────────────────────────────────────────────────
 
@@ -989,50 +451,10 @@ function readSrc(relativePath: string): string {
   }
 }
 
-/**
- * Truncate a string to maxChars, adding a `…[truncated]` marker if needed.
- * Truncation happens at a newline boundary when possible.
- */
 // ─── output directory ─────────────────────────────────────────────────────────
 const MCP_DIR = join(ROOT, 'apps/mcp/src/knowledge/generated');
 if (!dryRun) {
   mkdirSync(MCP_DIR, { recursive: true });
-}
-
-// ─── topic auto-discovery ─────────────────────────────────────────────────────
-/**
- * Dynamically import all *.ts files from apps/mcp/src/knowledge/topics/.
- * Each file must export a default Topic object.
- * Files are sorted alphabetically, but topic execution order follows
- * their file names (add a numeric prefix if order matters).
- * 
- * @returns An array of Topic objects exported by the discovered files.
- */
-async function loadTopics(): Promise<Topic[]> {
-  if (!existsSync(TOPICS_DIR)) {
-    console.warn(`  [warn] topics/ directory not found at ${TOPICS_DIR}`);
-    return [];
-  }
-
-  const files = readdirSync(TOPICS_DIR)
-    .filter(f => f.endsWith('.ts'))
-    .sort();
-
-  const topics: Topic[] = [];
-  for (const file of files) {
-    const filePath = join(TOPICS_DIR, file);
-    try {
-      const mod = await import(pathToFileURL(filePath).href);
-      if (!mod.default || typeof mod.default !== 'object' || !mod.default.name) {
-        console.warn(`  [warn] ${file} does not export a valid default Topic object — skipped.`);
-        continue;
-      }
-      topics.push(mod.default as Topic);
-    } catch (err) {
-      console.error(`  [error] Failed to load topic file ${file}: ${(err as Error).message}`);
-    }
-  }
-  return topics;
 }
 
 // ─── AI config from ai.json.enc ───────────────────────────────────────────────
@@ -1104,7 +526,7 @@ async function loadAiConfigOverride(): Promise<void> {
 
   // --provider=<key> or AI_PROVIDER env var narrow to one provider
   const providerArg =
-    argv.find(a => a.startsWith('--provider='))?.slice(11) ??
+    providerArgFromCli ??
     process.env.AI_PROVIDER;
 
   const candidates = selectModels(config, providerArg ? { providerKey: providerArg } : {})
@@ -1191,7 +613,7 @@ async function main() {
   }
 
   // Auto-discover all topics from apps/mcp/src/knowledge/topics/
-  const ALL_TOPICS = await loadTopics();
+  const ALL_TOPICS = await loadTopics(TOPICS_DIR);
 
   // Filter to the named topics if --topic= was provided one or more times.
   const topics = topicFlags.length > 0
@@ -1265,7 +687,7 @@ export const BM25_INDEX: BM25Index = {
 };
 `;
     const bm25IndexPath = join(ROOT, 'apps/mcp/src/search/bm25-index.ts');
-    writeGeneratedFile(bm25IndexPath, bm25IndexCode);
+    sanitizer.writeGeneratedFile(bm25IndexPath, bm25IndexCode);
     console.log(`  → written BM25 index (${bm25Docs.length} documents)`);
 
     const chunksCode = `/**
@@ -1287,7 +709,7 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
     )};
 `;
     const chunksPath = join(ROOT, 'apps/mcp/src/search/chunks.ts');
-    writeGeneratedFile(chunksPath, chunksCode);
+    sanitizer.writeGeneratedFile(chunksPath, chunksCode);
     console.log(`  → written chunks index (${chunks.length} chunks)`);
 
     console.log('\n' + '─'.repeat(60));
@@ -1340,7 +762,7 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
         for (const srcPath of topic.sources) {
           const originalContent = readSrc(srcPath);
           if (!originalContent) continue;
-          const safeContent = getAiSafeContent(srcPath, originalContent);
+          const safeContent = sanitizer.getAiSafeContent(srcPath, originalContent, boundIsGitignored);
           const snippet = truncate(safeContent, maxChars);
           combined += `\n\n### Source: ${srcPath}\n\`\`\`\n${snippet}\n\`\`\`\n`;
         }
@@ -1354,7 +776,11 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
       let charsPerSource = topic.maxSourceChars ?? Math.floor(initialBudget.maxSourceCharsTotal / numSources);
       let { combinedSources, userPrompt } = buildContent(charsPerSource);
       const apiKeyEntry = nextApiKey();
-      const requestMeta = buildOfflineRequestMeta(topic.systemPrompt, userPrompt, modelsToTryForBudget[0], apiKeyEntry.key);
+      const requestMeta = buildOfflineRequestMeta(topic.systemPrompt, userPrompt, modelsToTryForBudget[0], apiKeyEntry.key, {
+        apiUrl: AI_API_URL,
+        aigToken: AIG_TOKEN,
+        getModelBudget,
+      });
 
       if (verbose) {
         console.log('  User prompt preview:');
@@ -1484,10 +910,17 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
       const fileContent = header + aiContent +
         (topic.staticAppend ? '\n\n' + topic.staticAppend : '');
 
-      writeGeneratedFile(outPath, fileContent);
+      sanitizer.writeGeneratedFile(outPath, fileContent);
       console.log(`  → written to mcp/${topic.name}.md`);
       if (!dryRun && offlineMode) {
-        writeOfflineScripts(topic.name, requestMeta);
+        writeOfflineScripts(topic.name, requestMeta, {
+          offlineFetch,
+          offlineBash,
+          offlineYaml,
+          mcpDir: MCP_DIR,
+          writeGeneratedFile: sanitizer.writeGeneratedFile,
+          writeGeneratedScript: sanitizer.writeGeneratedScript,
+        });
       }
       generated++;
     }
@@ -1562,7 +995,7 @@ export const MANIFEST: TopicManifest = ${JSON.stringify(manifestData, null, 2)};
 `;
 
   const manifestPath = join(ROOT, 'apps/mcp/src/manifest.ts');
-  writeGeneratedFile(manifestPath, manifestCode);
+  sanitizer.writeGeneratedFile(manifestPath, manifestCode);
   console.log(`  → written to apps/mcp/src/manifest.ts`);
 
   if (manifestOnly) {
@@ -1607,7 +1040,7 @@ export const BM25_INDEX: BM25Index = {
 `;
 
   const bm25IndexPath = join(ROOT, 'apps/mcp/src/search/bm25-index.ts');
-  writeGeneratedFile(bm25IndexPath, bm25IndexCode);
+  sanitizer.writeGeneratedFile(bm25IndexPath, bm25IndexCode);
   console.log(`  → written BM25 index (${bm25Docs.length} documents)`);
 
   // Write chunks
@@ -1631,7 +1064,7 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
 `;
 
   const chunksPath = join(ROOT, 'apps/mcp/src/search/chunks.ts');
-  writeGeneratedFile(chunksPath, chunksCode);
+  sanitizer.writeGeneratedFile(chunksPath, chunksCode);
   console.log(`  → written chunks index (${chunks.length} chunks)`);
 
   console.log('\n' + '─'.repeat(60));
