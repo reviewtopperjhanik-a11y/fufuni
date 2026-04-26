@@ -92,7 +92,7 @@
 import { faker } from '@faker-js/faker';
 import { nanoid } from 'nanoid';
 import gitlog from 'gitlog';
-import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync } from 'fs';
+import { readFileSync, writeFileSync, mkdirSync, existsSync, readdirSync, chmodSync } from 'fs';
 import { execSync } from 'child_process';
 import { join, resolve, dirname } from 'path';
 import { fileURLToPath, pathToFileURL } from 'url';
@@ -107,6 +107,7 @@ import {
   getModelBudget as getModelBudgetImpl,
   maskAiConfig,
 } from '../lib/ai-enc.js';
+import { isAnthropicApi, isGeminiApi } from '../lib/generate-knowledge-modules/ai.js';
 import {
   buildHeader,
   callAi,
@@ -168,6 +169,11 @@ const showKeyUsageSummary = argv.includes('--key-usage-summary');
 const exportMaskedAiJson = argv.includes('--export-masked-ai-json');
 const dryRun = argv.includes('--dry-run');
 const skipAI = argv.includes('--skip-ai');
+const offlineFetch = argv.includes('--offline-fetch');
+const offlineBash = argv.includes('--offline-bash');
+const offlineYaml = argv.includes('--offline-yaml');
+const offlineMode = offlineFetch || offlineBash || offlineYaml;
+const skipNetwork = skipAI || offlineMode;
 const force = argv.includes('--force');
 const autoRefresh = argv.includes('--auto-refresh');
 const discoverModels = argv.includes('--discover-models');
@@ -386,11 +392,215 @@ function writeGeneratedFile(filePath: string, content: string): void {
   writeFileSync(filePath, sanitizeGeneratedContent(content), 'utf8');
 }
 
+function writeGeneratedScript(filePath: string, content: string): void {
+  writeFileSync(filePath, content, 'utf8');
+  try {
+    chmodSync(filePath, 0o755);
+  } catch {
+    // best-effort only; existing permissions may be preserved on some platforms.
+  }
+}
+
+type OfflineRequestMeta = {
+  url: string;
+  headers: Record<string, string>;
+  body: unknown;
+  model: string;
+  isAnthropic: boolean;
+  isGemini: boolean;
+  usesApiKeyInUrl: boolean;
+  includeAigHeader: boolean;
+  apiKey: string;
+  aigToken?: string;
+};
+
+function buildOfflineRequestMeta(systemPrompt: string, userPrompt: string, model: string, apiKey: string): OfflineRequestMeta {
+  const isAnthropic = isAnthropicApi(AI_API_URL);
+  const isGemini = isGeminiApi(AI_API_URL);
+  const includeAigHeader = Boolean(AIG_TOKEN);
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+
+  let url = '';
+  let usesApiKeyInUrl = false;
+  let body: unknown;
+  const aigToken = process.env.CLOUDFLARE_AIG_TOKEN;
+
+  if (includeAigHeader && aigToken) {
+    headers['cf-aig-authorization'] = `Bearer ${aigToken}`;
+  }
+
+  if (isAnthropic) {
+    url = `${AI_API_URL}/messages`;
+    headers['x-api-key'] = apiKey;
+    headers['anthropic-version'] = '2023-06-01';
+    body = {
+      model,
+      max_tokens: getModelBudget(model).maxOutputTokens,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: userPrompt }],
+    };
+  } else if (isGemini) {
+    url = `${AI_API_URL}/models/${model}:generateContent`;
+    usesApiKeyInUrl = true;
+    body = {
+      systemInstruction: { parts: [{ text: systemPrompt }] },
+      contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+      generationConfig: { maxOutputTokens: getModelBudget(model).maxOutputTokens },
+    };
+  } else {
+    url = `${AI_API_URL}/chat/completions`;
+    headers['Authorization'] = `Bearer ${apiKey}`;
+    body = {
+      model,
+      max_tokens: getModelBudget(model).maxOutputTokens,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userPrompt },
+      ],
+    };
+  }
+
+  return { url, headers, body, model, isAnthropic, isGemini, usesApiKeyInUrl, includeAigHeader, apiKey, aigToken };
+}
+
+function buildOfflineFetchScript(topicName: string, meta: OfflineRequestMeta): string {
+  const urlExpression = meta.usesApiKeyInUrl
+    ? `const url = new URL(${JSON.stringify(meta.url)});
+url.searchParams.set('key', ${JSON.stringify(meta.apiKey)});`
+    : `const url = ${JSON.stringify(meta.url)};`;
+
+  const headersEntries = Object.entries(meta.headers)
+    .map(([key, value]) => `  ${JSON.stringify(key)}: ${JSON.stringify(value)}`)
+    .join(',\n');
+
+  return `#!/usr/bin/env npx tsx
+
+const url = (() => {
+${urlExpression}
+  return typeof url === 'string' ? url : url.toString();
+})();
+
+const headers = {
+${headersEntries}
+};
+
+const body = ${JSON.stringify(meta.body, null, 2)};
+
+const response = await fetch(url, {
+  method: 'POST',
+  headers,
+  body: JSON.stringify(body),
+});
+
+if (!response.ok) {
+  const text = await response.text();
+  throw new Error('Request failed: ' + response.status + ' ' + text);
+}
+
+const output = await response.text();
+console.log(output);
+`;
+}
+
+function buildOfflineBashScript(topicName: string, meta: OfflineRequestMeta): string {
+  const authHeader = meta.isAnthropic
+    ? `-H 'x-api-key: ${meta.apiKey}'`
+    : meta.isGemini
+      ? ''
+      : `-H 'Authorization: Bearer ${meta.apiKey}'`;
+  const aigHeader = meta.includeAigHeader && meta.aigToken
+    ? `-H 'cf-aig-authorization: Bearer ${meta.aigToken}'`
+    : '';
+  const url = meta.usesApiKeyInUrl
+    ? `${meta.url}?key=${encodeURIComponent(meta.apiKey)}`
+    : meta.url;
+
+  return `#!/usr/bin/env bash
+set -euo pipefail
+
+curl -sS -X POST ${JSON.stringify(url)} \
+  -H 'Content-Type: application/json' \
+  ${authHeader ? `${authHeader} \
+  ` : ''}${aigHeader ? `${aigHeader} \
+  ` : ''}-d @- <<'EOF'
+${JSON.stringify(meta.body, null, 2)}
+EOF
+`;
+}
+
+function buildOfflineYamlScript(topicName: string, meta: OfflineRequestMeta): string {
+  const toYamlScalar = (value: string): string => {
+    const escaped = value.replace(/"/g, '\\"');
+    return `"${escaped}"`;
+  };
+
+  const yamlBlock = (text: string): string => {
+    const lines = text.split('\n');
+    const indented = lines.map(line => `    ${line}`).join('\n');
+    return `|\n${indented}`;
+  };
+
+  const messages = [] as string[];
+  if (meta.isAnthropic) {
+    messages.push(`- role: system\n  content: ${yamlBlock((meta.body as any).system ?? '')}`);
+    const anthroMessages = (meta.body as any).messages ?? [];
+    for (const msg of anthroMessages) {
+      messages.push(`- role: ${msg.role}\n  content: ${yamlBlock(msg.content ?? '')}`);
+    }
+  } else if (meta.isGemini) {
+    messages.push(`- role: system\n  content: ${yamlBlock((meta.body as any).systemInstruction?.parts?.[0]?.text ?? '')}`);
+    const contents = (meta.body as any).contents ?? [];
+    for (const msg of contents) {
+      const role = msg.role ?? 'user';
+      const content = msg.parts?.[0]?.text ?? '';
+      messages.push(`- role: ${role}\n  content: ${yamlBlock(content)}`);
+    }
+  } else {
+    const openaiMessages = (meta.body as any).messages ?? [];
+    for (const msg of openaiMessages) {
+      messages.push(`- role: ${msg.role}\n  content: ${yamlBlock(msg.content ?? '')}`);
+    }
+  }
+
+  const header = `url: ${toYamlScalar(meta.url)}\nmethod: POST\nmodel: ${toYamlScalar(meta.model)}\nheaders:\n`;
+  const headerLines = Object.entries(meta.headers)
+    .map(([name, value]) => `  ${name}: ${toYamlScalar(value)}`)
+    .join('\n');
+
+  return `${header}${headerLines}\nmessages:\n${messages.join('\n')}`;
+}
+
+function writeOfflineScripts(topicName: string, meta: OfflineRequestMeta): void {
+  if (offlineFetch) {
+    const scriptPath = join(MCP_DIR, `${topicName}.ts`);
+    const content = buildOfflineFetchScript(topicName, meta);
+    writeGeneratedScript(scriptPath, content);
+    console.log(`  → written offline fetch script ${topicName}.ts`);
+  }
+  if (offlineBash) {
+    const scriptPath = join(MCP_DIR, `${topicName}.sh`);
+    const content = buildOfflineBashScript(topicName, meta);
+    writeGeneratedScript(scriptPath, content);
+    console.log(`  → written offline bash script ${topicName}.sh`);
+  }
+  if (offlineYaml) {
+    const yamlPath = join(MCP_DIR, `${topicName}.yaml`);
+    const content = buildOfflineYamlScript(topicName, meta);
+    writeGeneratedFile(yamlPath, content);
+    console.log(`  → written offline yaml ${topicName}.yaml`);
+  }
+}
+
 const VALID_FLAGS = new Set([
   '--help',
   '-h',
   '--dry-run',
   '--skip-ai',
+  '--offline-fetch',
+  '--offline-bash',
+  '--offline-yaml',
   '--force',
   '--auto-refresh',
   '--discover-models',
@@ -425,6 +635,9 @@ Options:
   --provider=<key>     Only use models from the specified provider key
   --dry-run            Build prompts without calling the AI or writing files
   --skip-ai            Build files from extracted source only, no AI call
+  --offline-fetch      Do not call the network; generate per-topic TypeScript fetch scripts instead
+  --offline-bash       Do not call the network; generate per-topic bash curl scripts instead
+  --offline-yaml        Do not call the network; generate per-topic YAML request descriptions instead
   --manifest-only      Build only the manifest from existing generated topic markdown files
   --bm25-index-only    Build only the BM25 index and chunk files from existing generated topic markdown files
   --force              Overwrite existing mcp/*.md files
@@ -973,7 +1186,7 @@ async function main() {
   await loadAiConfigOverride();
 
   // Discover usable models from the API before printing the summary.
-  if (!dryRun && !skipAI && !bm25IndexOnly && modelPool.length === 0) {
+  if (!dryRun && !skipNetwork && !bm25IndexOnly && modelPool.length === 0) {
     await initModels();
   }
 
@@ -1003,6 +1216,9 @@ async function main() {
   console.log(`AI endpoint: ${AI_API_URL}`);
   console.log(`Dry run    : ${dryRun}`);
   console.log(`Skip AI    : ${skipAI}`);
+  console.log(`Offline fetch: ${offlineFetch}`);
+  console.log(`Offline bash : ${offlineBash}`);
+  console.log(`Offline yaml : ${offlineYaml}`);
   console.log(`Manifest only: ${manifestOnly}`);
   console.log(`BM25 index only: ${bm25IndexOnly}`);
   if (!manifestOnly && !bm25IndexOnly) {
@@ -1137,6 +1353,8 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
       const numSources = Math.max(1, topic.sources.length);
       let charsPerSource = topic.maxSourceChars ?? Math.floor(initialBudget.maxSourceCharsTotal / numSources);
       let { combinedSources, userPrompt } = buildContent(charsPerSource);
+      const apiKeyEntry = nextApiKey();
+      const requestMeta = buildOfflineRequestMeta(topic.systemPrompt, userPrompt, modelsToTryForBudget[0], apiKeyEntry.key);
 
       if (verbose) {
         console.log('  User prompt preview:');
@@ -1154,7 +1372,7 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
       let aiContent = '';
       let aiMeta: { model: string; tokensIn: number; tokensOut: number } | undefined;
 
-      if (skipAI) {
+      if (skipNetwork) {
         aiContent = `# ${topic.description}\n\n> Auto-generated from source (no AI call).\n\n${combinedSources}`;
       } else {
         try {
@@ -1268,6 +1486,9 @@ export const CHUNKS: Record<string, Chunk> = ${JSON.stringify(
 
       writeGeneratedFile(outPath, fileContent);
       console.log(`  → written to mcp/${topic.name}.md`);
+      if (!dryRun && offlineMode) {
+        writeOfflineScripts(topic.name, requestMeta);
+      }
       generated++;
     }
   }
