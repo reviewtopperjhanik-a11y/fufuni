@@ -126,6 +126,7 @@ jobs:
 
       - name: Publish stdio build to npm
         run : |
+          # Note for ci/cd to work you need to go to https://www.npmjs.com/package/@sctg/fufuni-mcp/access and set "Trusted publisher to Github Actions"
           cd apps/mcp
           # Path the version "0\.1\.0-beta\..*"" to a version like "0.1.0-beta.20260426" in package.json, then build stdio and publish to npm
           export DATE=$(date +%Y%m%d)
