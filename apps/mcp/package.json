@@ -6,6 +6,9 @@
   "files": [
     "dist"
   ],
+  "repository": {
+    "url": "https://github.com/sctg-development/fufuni.git"
+  },
   "scripts": {
     "dev": "(trap 'kill 0' EXIT; npx wrangler dev --port 8788 --inspector-port 9230 & sleep 2 && npx @modelcontextprotocol/inspector http://localhost:8788/mcp; wait)",
     "dev:env": "(trap 'kill 0' EXIT; npx wrangler dev --port 8788 --inspector-port 9230 & sleep 2 && npx @modelcontextprotocol/inspector http://localhost:8788/mcp; wait)",
