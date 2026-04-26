@@ -13,7 +13,7 @@ function escapeHtml(value: string): string {
 
 function generateIndexHTML(env: Env): string {
   const topicListItems = MANIFEST.topics.map(topic => {
-    const title = escapeHtml(topic.title);
+    const title = `${escapeHtml(topic.slug)} - ${escapeHtml(topic.title)}`;
     const description = escapeHtml(topic.description);
     const tags = escapeHtml(topic.tags.join(", "));
     const updatedAt = escapeHtml(new Date(topic.updated_at).toLocaleDateString());
