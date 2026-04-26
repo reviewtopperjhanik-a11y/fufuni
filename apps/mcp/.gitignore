@@ -8,3 +8,4 @@ src/search/bm25-index.ts
 src/search/chunks.ts
 src/search/vectors.ts
 src/search/routes.ts
+dist/

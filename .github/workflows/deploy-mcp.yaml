@@ -34,6 +34,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write  # Required for OIDC
 
 jobs:
   create-env:
@@ -55,6 +56,7 @@ jobs:
         uses: actions/setup-node@v6
         with:
           node-version: "24"
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Cache Turborepo
         uses: actions/cache@v5
@@ -121,3 +123,16 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: apps/mcp
+
+      - name: Publish stdio build to npm
+        run : |
+          cd apps/mcp
+          # Path the version "0\.1\.0-beta\..*"" to a version like "0.1.0-beta.20260426" in package.json, then build stdio and publish to npm
+          export DATE=$(date +%Y%m%d)
+          #check if the same version already exists on npm, if so add a random suffix to the version to avoid npm publish failure
+          if npm view @sctg/fufuni-mcp@0.1.0-beta.${DATE} > /dev/null 2>&1; then
+            export DATE="${DATE}-$(openssl rand -hex 4)"
+          fi
+          sed -i "s/\"0\.1\.0-beta\..*\"/\"0.1.0-beta.${DATE}\"/" package.json
+          npm run build:stdio:esm
+          npm publish --access public --tag beta
