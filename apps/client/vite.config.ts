@@ -152,6 +152,7 @@ export default defineConfig({
   },
   resolve: {
     tsconfigPaths: true,
+    dedupe: ["react", "react-dom"],
   },
   plugins: [react(), tailwindcss(), githubPagesSpa()],
   build: {

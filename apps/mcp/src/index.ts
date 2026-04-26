@@ -94,6 +94,13 @@ export default {
 
     const url = new URL(request.url);
 
+    if (url.pathname === "/ai.json.enc") {
+      return new Response(aiJsonEnc, {
+        status: 200,
+        headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+      });
+    }
+
     if (url.pathname === "/mcp") {
       return FufuniMCP.serve("/mcp").fetch(request, env, ctx);
     }
