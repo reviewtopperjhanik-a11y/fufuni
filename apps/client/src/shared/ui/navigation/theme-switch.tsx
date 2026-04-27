@@ -61,7 +61,7 @@ export const ThemeSwitch: FC<ThemeSwitchProps> = ({ className }) => {
       }
       onClick={toggleTheme}
       className={clsx(
-        "inline-flex items-center justify-center",
+        "relative inline-flex items-center justify-center",
         "rounded-md p-2 transition-colors",
         "hover:bg-default-100 active:bg-default-200",
         "text-foreground",

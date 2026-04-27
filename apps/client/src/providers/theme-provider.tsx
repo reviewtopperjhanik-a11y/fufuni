@@ -121,6 +121,12 @@ export function useStoreTheme(): UseStoreThemeReturn {
       const normalized = !slug || slug === "default" ? null : slug;
 
       if (auth.isAuthenticated) {
+        // Optimistic update: apply immediately for a responsive UI
+        setThemeData(normalized);
+        window.dispatchEvent(
+          new CustomEvent(THEME_UPDATED_EVENT, { detail: normalized }),
+        );
+
         try {
           await auth.patchJson(`${apiBase}/v1/me/preferences`, {
             theme: normalized ?? "",
@@ -128,12 +134,16 @@ export function useStoreTheme(): UseStoreThemeReturn {
           const newToken = await refreshToken();
           const newTheme = getThemeFromToken(newToken ?? null);
 
+          // Reconcile with server-confirmed value
           setThemeData(newTheme);
-          window.dispatchEvent(
-            new CustomEvent(THEME_UPDATED_EVENT, { detail: newTheme }),
-          );
+          if (newTheme !== normalized) {
+            window.dispatchEvent(
+              new CustomEvent(THEME_UPDATED_EVENT, { detail: newTheme }),
+            );
+          }
         } catch (err) {
           console.error("[useStoreTheme] Failed to persist theme:", err);
+          // Keep the optimistic state; theme will re-sync on next token refresh
         }
       } else {
         // Guest: persist to localStorage and broadcast
