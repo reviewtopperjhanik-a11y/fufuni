@@ -121,7 +121,7 @@ jobs:
       - name: Copy inspector build to client dist
         run: |
           mkdir -p apps/client/dist/inspector
-          cp -v apps/inspector/dist/* apps/client/dist/inspector/
+          cp -a apps/inspector/dist/* apps/client/dist/inspector/
           ls -lR apps/client/dist/
       - name: Upload pages artifact
         uses: actions/upload-pages-artifact@v4
