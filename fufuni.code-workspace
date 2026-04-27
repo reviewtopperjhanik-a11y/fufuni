@@ -17,6 +17,10 @@
       "path": "./apps/mcp"
     },
     {
+      "name": "Inspector",
+      "path": "./apps/inspector"
+    },
+    {
       "name": "Sensitive datas",
       "path": "./_sensitive_datas"
     },

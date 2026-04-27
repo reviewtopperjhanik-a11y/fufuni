@@ -9,6 +9,7 @@
     "apps/client",
     "apps/cloudflare-worker",
     "apps/mcp",
+    "apps/inspector",
     "e2e"
   ],
   "overrides": {
