@@ -78,6 +78,10 @@ export interface AiProvider {
    * Required when gatewayEndpoint is set.
    */
   gatewayModelPrefix?: string;
+  /** 
+   * Optional API key for the gateway. 
+   */
+  gatewayKey?: string; 
   /** All valid API keys for this provider (round-robin via pickKey()). */
   keys: AiKey[];
   /** Available models with their constraints and priority. */
