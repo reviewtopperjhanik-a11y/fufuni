@@ -21,6 +21,7 @@ on:
     branches:
       - main
     paths:
+      - ai.json.enc
       - apps/mcp/**
       - mcp/**
       - package-lock.json
