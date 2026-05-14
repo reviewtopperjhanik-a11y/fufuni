@@ -135,7 +135,7 @@ export async function analyzeReviewWithAi(
           "x-api-key": aiParams.apiKey,
           "Content-Type": "application/json",
           "anthropic-version": "2023-06-01",
-          ...(aiParams.cloudflareAigToken
+          ...(aiParams.cloudflareAigToken && aiParams.url === aiParams.cloudflareAigUrl
             ? {
                 "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}`,
               }
@@ -164,7 +164,7 @@ export async function analyzeReviewWithAi(
         headers: {
           Authorization: `Bearer ${aiParams.apiKey}`,
           "Content-Type": "application/json",
-          ...(aiParams.cloudflareAigToken
+          ...(useGateway && aiParams.cloudflareAigToken
             ? {
                 "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}`,
               }
@@ -311,7 +311,11 @@ export async function translateWithAi(
 ): Promise<TranslationResult> {
   // When the Cloudflare AI Gateway is configured, route all calls through the
   // compat endpoint using OpenAI format (avoids provider-specific header logic).
-  if (aiParams.cloudflareAigUrl && aiParams.cloudflareAigToken) {
+  if (
+    aiParams.cloudflareAigUrl &&
+    aiParams.cloudflareAigToken &&
+    !import.meta.env.DISABLE_CLOUDFLARE_AIG
+  ) {
     const provider = detectProvider(aiParams.url, aiParams.provider);
     const prefix = gatewayModelPrefix(provider);
     const prefixedModel = aiParams.model.includes("/")
@@ -405,7 +409,7 @@ async function callOpenAiCompatibleApi(
     headers: {
       Authorization: `Bearer ${aiParams.apiKey}`,
       "Content-Type": "application/json",
-      ...(aiParams.cloudflareAigToken
+      ...(aiParams.cloudflareAigToken && aiParams.url === aiParams.cloudflareAigUrl
         ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` }
         : {}),
     },
@@ -498,7 +502,7 @@ async function callAnthropicApi(
       "x-api-key": aiParams.apiKey,
       "Content-Type": "application/json",
       "anthropic-version": "2023-06-01",
-      ...(aiParams.cloudflareAigToken
+      ...(aiParams.cloudflareAigToken && aiParams.url === aiParams.cloudflareAigUrl
         ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` }
         : {}),
     },
