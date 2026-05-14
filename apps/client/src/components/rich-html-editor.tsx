@@ -24,9 +24,9 @@
  * the stored value is plain HTML (e.g. email templates).
  */
 import { useEditor, EditorContent } from '@tiptap/react';
-import StarterKit from '@tiptap/starter-kit';
-import Placeholder from '@tiptap/extension-placeholder';
-import Link from '@tiptap/extension-link';
+import { StarterKit } from '@tiptap/starter-kit';
+import { Placeholder } from '@tiptap/extension-placeholder';
+import { Link } from '@tiptap/extension-link';
 import { useEffect, useRef, useCallback } from 'react';
 import { Button } from '@heroui/react';
 import { Tooltip } from '@heroui/react';
