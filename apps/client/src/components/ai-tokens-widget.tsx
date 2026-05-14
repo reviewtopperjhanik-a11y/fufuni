@@ -7,7 +7,7 @@
 
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
-import { Card, Button, Separator, Input, Chip } from "@heroui/react";
+import { Card, Button, Separator, Input, Chip, Label, TextField } from "@heroui/react";
 
 import { useAiTokens } from "@/hooks/use-ai-tokens";
 
@@ -74,13 +74,15 @@ export function AiTokensWidget() {
             )}
 
             {!balance?.api_key_masked && (
-              <div className="flex gap-2">
-                <Input
+              <div className="flex gap-2 items-end">
+                <TextField
                   className="flex-1"
-                  label={t("ai-tokens-api-key-label")}
                   value={apiKeyInput}
-                  onChange={(e) => setApiKeyInput(e.target.value)}
-                />
+                  onChange={setApiKeyInput}
+                >
+                  <Label>{t("ai-tokens-api-key-label")}</Label>
+                  <Input />
+                </TextField>
                 <Button
                   isDisabled={working || !apiKeyInput.trim()}
                   onPress={handleLink}

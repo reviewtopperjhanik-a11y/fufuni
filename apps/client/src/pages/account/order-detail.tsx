@@ -302,15 +302,14 @@ export default function OrderDetail() {
             {downloads.map((dl, idx) => (
               <div key={idx} className="flex justify-between items-center">
                 <span className="text-sm">{dl.title}</span>
-                <Button
-                  as="a"
+                <a
                   href={dl.download_url}
                   rel="noopener noreferrer"
                   target="_blank"
-                  variant="outline"
+                  className="button button--outline"
                 >
                   {t("downloads-button")}
-                </Button>
+                </a>
               </div>
             ))}
           </Card.Content>
