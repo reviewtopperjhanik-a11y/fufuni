@@ -23,19 +23,19 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
-    "agents": "^0.12.3",
-    "zod": "^4.3.6"
+    "agents": "^0.12.4",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@cloudflare/workers-types": "^4.20260421.1",
+    "@cloudflare/workers-types": "^4.20260511.1",
     "@faker-js/faker": "^10.4.0",
     "@modelcontextprotocol/inspector": "^0.21.2",
     "esbuild": "^0.28.0",
     "gitlog": "^5.1.0",
-    "nanoid": "^5.1.9",
+    "nanoid": "^5.1.11",
     "tsx": "^4.21.0",
     "typescript": "^6.0.3",
-    "wrangler": "^4.85.0"
+    "wrangler": "^4.90.1"
   },
   "publishConfig": {
     "access": "public"

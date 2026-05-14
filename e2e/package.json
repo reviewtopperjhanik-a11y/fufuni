@@ -19,6 +19,6 @@
     "codegen:dev": "PLAYWRIGHT_ENV=local playwright codegen http://localhost:5173"
   },
   "devDependencies": {
-    "@playwright/test": "^1.59.1"
+    "@playwright/test": "^1.60.0"
   }
 }

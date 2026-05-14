@@ -17,14 +17,15 @@
  */
 
 import eslint from "@eslint/js";
+import stylistic from "@stylistic/eslint-plugin";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import tsParser from "@typescript-eslint/parser";
-import reactPlugin from "eslint-plugin-react";
 import reactHooksPlugin from "eslint-plugin-react-hooks";
-import jsxA11yPlugin from "eslint-plugin-jsx-a11y";
 import unusedImports from "eslint-plugin-unused-imports";
-import importPlugin from "eslint-plugin-import";
+import importPlugin from "eslint-plugin-import-x";
+import jsxA11yPlugin from "eslint-plugin-jsx-a11y-x";
 import prettierPlugin from "eslint-plugin-prettier";
+import perfectionistPlugin from "eslint-plugin-perfectionist";
 import globals from "globals";
 
 export default [
@@ -45,28 +46,24 @@ export default [
         },
       },
     },
-    settings: {
-      react: {
-        version: "detect",
-      },
-    },
     plugins: {
-      react: reactPlugin,
       "react-hooks": reactHooksPlugin,
-      "jsx-a11y": jsxA11yPlugin,
+      "@stylistic": stylistic,
+      "jsx-a11y-x": jsxA11yPlugin,
       "unused-imports": unusedImports,
-      import: importPlugin,
+      "import-x": importPlugin,
       "@typescript-eslint": tseslint,
       prettier: prettierPlugin,
+      "perfectionist": perfectionistPlugin,
     },
     rules: {
       "no-console": "warn",
-      "react/prop-types": "off",
-      "react/jsx-uses-react": "off",
-      "react/react-in-jsx-scope": "off",
+      "no-undef": "off",
+      "no-useless-assignment": "off",
+      "preserve-caught-error": "off",
       "react-hooks/exhaustive-deps": "off",
-      "jsx-a11y/click-events-have-key-events": "warn",
-      "jsx-a11y/interactive-supports-focus": "warn",
+      "jsx-a11y-x/click-events-have-key-events": "warn",
+      "jsx-a11y-x/interactive-supports-focus": "warn",
       "prettier/prettier": "warn",
       "no-unused-vars": "off",
       "unused-imports/no-unused-vars": "off",
@@ -79,7 +76,7 @@ export default [
           argsIgnorePattern: "^_.*?$",
         },
       ],
-      "import/order": [
+      "import-x/order": [
         "warn",
         {
           groups: [
@@ -102,14 +99,11 @@ export default [
           "newlines-between": "always",
         },
       ],
-      "react/self-closing-comp": "warn",
-      "react/jsx-sort-props": [
-        "warn",
+      "@stylistic/jsx-self-closing-comp": "warn",
+      "perfectionist/sort-jsx-props": [
+        'warn',
         {
-          callbacksLast: true,
-          shorthandFirst: true,
-          noSortAlphabetically: false,
-          reservedFirst: true,
+          type: 'unsorted'
         },
       ],
       "padding-line-between-statements": [

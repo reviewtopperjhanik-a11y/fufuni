@@ -1,7 +1,7 @@
 {
   "name": "fufuni",
   "private": true,
-  "packageManager": "npm@11.6.2",
+  "packageManager": "npm@11.14.1",
   "workspaces": [
     "apps/merchant",
     "apps/merchant/admin",
@@ -14,15 +14,15 @@
   ],
   "overrides": {
     "zod": "^4.3.6",
-    "reacgt": "19.2.5",
-    "react-dom": "19.2.5"
+    "reacgt": "19.2.6",
+    "react-dom": "19.2.6"
   },
   "devDependencies": {
     "@auth0/auth0-mcp-server": "^0.1.0-beta.12",
     "@heroui/react-mcp": "^1.1.0",
     "fast-glob": "^3.3.3",
     "jose": "^6.2.3",
-    "turbo": "^2.9.9",
+    "turbo": "^2.9.12",
     "typedoc": "^0.28.19",
     "typedoc-plugin-markdown": "^4.11.0",
     "vitepress": "^1.6.4"

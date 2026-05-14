@@ -107,7 +107,7 @@ export function LoginModal({ isOpen: _isOpen, onClose: _onClose, returnTo, pendi
     if (currentPath.startsWith(baseUrl)) {
       returnTo = currentPath.slice(baseUrl.length) || "/";
     } else {
-      returnTo = returnTo; // fallback to full path if it doesn't start with base URL
+      returnTo = currentPath; // fallback to full path if it doesn't start with base URL
     }
   }
 

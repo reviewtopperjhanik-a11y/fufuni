@@ -95,11 +95,16 @@ export async function analyzeReviewWithAi(
 
   // When the Cloudflare AI Gateway is configured, route through the compat
   // endpoint using OpenAI format and prefix the model with the provider slug.
-  const useGateway = !!(aiParams.cloudflareAigUrl && aiParams.cloudflareAigToken && !import.meta.env.DISABLE_CLOUDFLARE_AIG);
+  const useGateway = !!(
+    aiParams.cloudflareAigUrl &&
+    aiParams.cloudflareAigToken &&
+    !import.meta.env.DISABLE_CLOUDFLARE_AIG
+  );
   const effectiveUrl = useGateway ? aiParams.cloudflareAigUrl! : aiParams.url;
-  const effectiveModel = useGateway && !aiParams.model.includes("/")
-    ? `${gatewayModelPrefix(provider)}/${aiParams.model}`
-    : aiParams.model;
+  const effectiveModel =
+    useGateway && !aiParams.model.includes("/")
+      ? `${gatewayModelPrefix(provider)}/${aiParams.model}`
+      : aiParams.model;
 
   const prompt =
     `You are a content moderator for an e-commerce platform.\n` +
@@ -120,7 +125,9 @@ export async function analyzeReviewWithAi(
     let rawText: string | undefined;
 
     if (provider === "anthropic" && !useGateway) {
-      const baseUrl = effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/";
+      const baseUrl = effectiveUrl.endsWith("/")
+        ? effectiveUrl
+        : effectiveUrl + "/";
       const endpoint = new URL("messages", baseUrl).toString();
       const res = await fetch(endpoint, {
         method: "POST",
@@ -128,7 +135,11 @@ export async function analyzeReviewWithAi(
           "x-api-key": aiParams.apiKey,
           "Content-Type": "application/json",
           "anthropic-version": "2023-06-01",
-          ...(aiParams.cloudflareAigToken ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` } : {}),
+          ...(aiParams.cloudflareAigToken
+            ? {
+                "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}`,
+              }
+            : {}),
         },
         body: JSON.stringify({
           model: effectiveModel,
@@ -144,14 +155,20 @@ export async function analyzeReviewWithAi(
 
       rawText = data.content?.[0]?.text?.trim();
     } else {
-      const baseUrl = effectiveUrl.endsWith("/") ? effectiveUrl : effectiveUrl + "/";
+      const baseUrl = effectiveUrl.endsWith("/")
+        ? effectiveUrl
+        : effectiveUrl + "/";
       const endpoint = new URL("chat/completions", baseUrl).toString();
       const res = await fetch(endpoint, {
         method: "POST",
         headers: {
           Authorization: `Bearer ${aiParams.apiKey}`,
           "Content-Type": "application/json",
-          ...(aiParams.cloudflareAigToken ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` } : {}),
+          ...(aiParams.cloudflareAigToken
+            ? {
+                "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}`,
+              }
+            : {}),
         },
         body: JSON.stringify({
           model: effectiveModel,
@@ -252,6 +269,7 @@ function gatewayModelPrefix(provider: "openai" | "groq" | "anthropic"): string {
     anthropic: "anthropic",
     openai: "openai",
   };
+
   return map[provider] ?? provider;
 }
 
@@ -286,7 +304,10 @@ export async function translateWithAi(
   targetLanguage: string,
   aiParams: AiParams,
   isHtml = true,
-  options?: { maxTokens?: number; contentType?: "product_description" | "email_template" },
+  options?: {
+    maxTokens?: number;
+    contentType?: "product_description" | "email_template";
+  },
 ): Promise<TranslationResult> {
   // When the Cloudflare AI Gateway is configured, route all calls through the
   // compat endpoint using OpenAI format (avoids provider-specific header logic).
@@ -296,6 +317,7 @@ export async function translateWithAi(
     const prefixedModel = aiParams.model.includes("/")
       ? aiParams.model
       : `${prefix}/${aiParams.model}`;
+
     return await callOpenAiCompatibleApi(
       sourceContent,
       targetLanguage,
@@ -344,7 +366,10 @@ async function callOpenAiCompatibleApi(
   targetLanguage: string,
   aiParams: AiParams,
   isHtml = true,
-  options?: { maxTokens?: number; contentType?: "product_description" | "email_template" },
+  options?: {
+    maxTokens?: number;
+    contentType?: "product_description" | "email_template";
+  },
 ): Promise<TranslationResult> {
   const contentType = options?.contentType ?? "product_description";
   const systemPrompt = isHtml
@@ -380,7 +405,9 @@ async function callOpenAiCompatibleApi(
     headers: {
       Authorization: `Bearer ${aiParams.apiKey}`,
       "Content-Type": "application/json",
-      ...(aiParams.cloudflareAigToken ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` } : {}),
+      ...(aiParams.cloudflareAigToken
+        ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` }
+        : {}),
     },
     body: JSON.stringify({
       model: aiParams.model,
@@ -438,7 +465,10 @@ async function callAnthropicApi(
   targetLanguage: string,
   aiParams: AiParams,
   isHtml = true,
-  options?: { maxTokens?: number; contentType?: "product_description" | "email_template" },
+  options?: {
+    maxTokens?: number;
+    contentType?: "product_description" | "email_template";
+  },
 ): Promise<TranslationResult> {
   const contentType = options?.contentType ?? "product_description";
   const systemPrompt = isHtml
@@ -468,7 +498,9 @@ async function callAnthropicApi(
       "x-api-key": aiParams.apiKey,
       "Content-Type": "application/json",
       "anthropic-version": "2023-06-01",
-      ...(aiParams.cloudflareAigToken ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` } : {}),
+      ...(aiParams.cloudflareAigToken
+        ? { "cf-aig-authorization": `Bearer ${aiParams.cloudflareAigToken}` }
+        : {}),
     },
     body: JSON.stringify({
       model: aiParams.model,

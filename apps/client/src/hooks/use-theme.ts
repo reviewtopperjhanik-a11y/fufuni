@@ -66,11 +66,15 @@ export const useTheme = (defaultTheme?: Theme) => {
    */
   const _applyToDom = (newTheme: Theme) => {
     localStorage.setItem(ThemeProps.key, newTheme);
-    document.documentElement.classList.remove(ThemeProps.light, ThemeProps.dark);
+    document.documentElement.classList.remove(
+      ThemeProps.light,
+      ThemeProps.dark,
+    );
     document.documentElement.classList.add(newTheme);
 
     // Sync luxury data-theme variants with the new dark/light intent
-    const currentDataTheme = document.documentElement.getAttribute("data-theme");
+    const currentDataTheme =
+      document.documentElement.getAttribute("data-theme");
     let syncedDataTheme = currentDataTheme;
 
     if (
@@ -117,8 +121,10 @@ export const useTheme = (defaultTheme?: Theme) => {
 
   // Apply to DOM on mount and whenever the theme state is updated
   // (_applyToDom only touches DOM globals — safe to omit from deps)
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { _applyToDom(theme); }, [theme]);
+
+  useEffect(() => {
+    _applyToDom(theme);
+  }, [theme]);
 
   return { theme, isDark, isLight, setLightTheme, setDarkTheme, toggleTheme };
 };

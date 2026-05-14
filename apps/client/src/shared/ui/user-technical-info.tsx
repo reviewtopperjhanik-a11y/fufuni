@@ -106,9 +106,11 @@ async function exportAuth0PlaywrightSession(
 
   for (let i = 0; i < localStorage.length; i += 1) {
     const key = localStorage.key(i);
+
     if (!key) continue;
     if (key.startsWith("@@auth0spajs@@") || key.startsWith("auth0.")) {
       const value = localStorage.getItem(key);
+
       if (value !== null) {
         localStorageEntries.push({ name: key, value });
       }
@@ -121,6 +123,7 @@ async function exportAuth0PlaywrightSession(
     .filter(Boolean)
     .map((cookie) => {
       const separatorIndex = cookie.indexOf("=");
+
       if (separatorIndex === -1) {
         return {
           name: cookie,
@@ -189,6 +192,7 @@ async function exportAuth0PlaywrightSession(
 
   const JSZip = (await import("jszip")).default;
   const zip = new JSZip();
+
   zip.file("storage-state.json", JSON.stringify(storageState, null, 2));
   zip.file("README.md", readme);
 
@@ -196,6 +200,7 @@ async function exportAuth0PlaywrightSession(
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   const safeEmail = userEmail.replace(/[^a-z0-9]/gi, "-").toLowerCase();
+
   a.href = url;
   a.download = `auth0-session-${safeEmail}-${role}.zip`;
   a.click();
@@ -438,8 +443,9 @@ export const UserTechnicalInfoModal = memo<UserTechnicalInfoModalProps>(
                         </Tooltip>
                       </div>
                       <p className="text-xs text-default-400 leading-relaxed">
-                        Exporte les tokens Auth0 au format <code>storageState</code> Playwright.
-                        Réservé aux tests E2E — ne jamais committer.
+                        Exporte les tokens Auth0 au format{" "}
+                        <code>storageState</code> Playwright. Réservé aux tests
+                        E2E — ne jamais committer.
                       </p>
                     </div>
 

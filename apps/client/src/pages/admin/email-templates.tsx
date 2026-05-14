@@ -20,12 +20,25 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Button, Card, Switch, Tooltip } from "@heroui/react";
-import { TextField, Label, Input, TextArea, Select, ListBox } from "@heroui/react";
-import { CheckCircle, AlertCircle, Mail, SendHorizonal, Sparkles } from "lucide-react";
+import {
+  TextField,
+  Label,
+  Input,
+  TextArea,
+  Select,
+  ListBox,
+} from "@heroui/react";
+import {
+  CheckCircle,
+  AlertCircle,
+  Mail,
+  SendHorizonal,
+  Sparkles,
+} from "lucide-react";
+
 import { availableLanguages } from "@/i18n";
 import { getEditorContent, mergeLocale } from "@/utils/description";
 import { translateWithAi, type AiParams } from "@/utils/ai-client";
-
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
 import { getApiBase } from "@/lib/api-base";
@@ -73,13 +86,14 @@ export default function EmailTemplatesPage() {
   const queryClient = useQueryClient();
   const { getJson, putJson, postJson, hasPermission } = useSecuredApi();
 
-  const [selectedEvent, setSelectedEvent] =
-    useState<OrderEmailEvent>("global");
+  const [selectedEvent, setSelectedEvent] = useState<OrderEmailEvent>("global");
   const [savedEvent, setSavedEvent] = useState<OrderEmailEvent | null>(null);
 
   // ── Mail permission ───────────────────────────────────────────────────
   const [canSendTest, setCanSendTest] = useState(false);
-  const mailPermission = (import.meta as any).env?.MAIL_PERMISSION || "mail:api";
+  const mailPermission =
+    (import.meta as any).env?.MAIL_PERMISSION || "mail:api";
+
   useEffect(() => {
     hasPermission(mailPermission)
       .then(setCanSendTest)
@@ -87,10 +101,14 @@ export default function EmailTemplatesPage() {
   }, [hasPermission, mailPermission]);
 
   // ── Locale selector ────────────────────────────────────────────────────
-  const defaultLocale = availableLanguages.find((l) => l.isDefault)?.code ?? "en-US";
+  const defaultLocale =
+    availableLanguages.find((l) => l.isDefault)?.code ?? "en-US";
   const [selectedLocale, setSelectedLocale] = useState<string>(() => {
     const current = i18n.language;
-    return availableLanguages.some((l) => l.code === current) ? current : defaultLocale;
+
+    return availableLanguages.some((l) => l.code === current)
+      ? current
+      : defaultLocale;
   });
 
   // ── AI permission ─────────────────────────────────────────────────────
@@ -98,6 +116,7 @@ export default function EmailTemplatesPage() {
   const [isTranslating, setIsTranslating] = useState(false);
   const [isTranslatingSubject, setIsTranslatingSubject] = useState(false);
   const aiPermission = (import.meta as any).env?.AI_PERMISSION || "ai:api";
+
   useEffect(() => {
     hasPermission(aiPermission)
       .then(setCanUseAi)
@@ -121,6 +140,7 @@ export default function EmailTemplatesPage() {
   const settingsMap = (settingsList ?? []).reduce(
     (acc, s) => {
       acc[s.event] = s;
+
       return acc;
     },
     {} as Record<OrderEmailEvent, EmailSetting>,
@@ -146,6 +166,7 @@ export default function EmailTemplatesPage() {
   // Sync form state when selection or remote data changes
   const formKey = `${selectedEvent}-${settingsList ? "loaded" : "loading"}`;
   const [formInitKey, setFormInitKey] = useState(formKey);
+
   if (formKey !== formInitKey) {
     setFormInitKey(formKey);
     setForm({
@@ -177,7 +198,9 @@ export default function EmailTemplatesPage() {
     mutationFn: () =>
       postJson(`${apiBase}/v1/mails/send`, {
         to: testEmailAddress,
-        subject: getEditorContent(form.subject, selectedLocale) || `[Test] ${selectedEvent} — email template`,
+        subject:
+          getEditorContent(form.subject, selectedLocale) ||
+          `[Test] ${selectedEvent} — email template`,
         html: getEditorContent(form.html_body, selectedLocale) || undefined,
         text: getEditorContent(form.text_body, selectedLocale) || undefined,
       }),
@@ -205,16 +228,23 @@ export default function EmailTemplatesPage() {
   const htmlBodyRef = useRef(form.html_body);
   const subjectRef = useRef(form.subject);
   const selectedLocaleRef = useRef(selectedLocale);
-  useEffect(() => { htmlBodyRef.current = form.html_body; }, [form.html_body]);
-  useEffect(() => { subjectRef.current = form.subject; }, [form.subject]);
-  useEffect(() => { selectedLocaleRef.current = selectedLocale; }, [selectedLocale]);
+
+  useEffect(() => {
+    htmlBodyRef.current = form.html_body;
+  }, [form.html_body]);
+  useEffect(() => {
+    subjectRef.current = form.subject;
+  }, [form.subject]);
+  useEffect(() => {
+    selectedLocaleRef.current = selectedLocale;
+  }, [selectedLocale]);
 
   const handleAiTranslate = useCallback(async () => {
     setIsTranslating(true);
     try {
-      const params = await getJson(
+      const params = (await getJson(
         `${(import.meta as any).env?.API_BASE_URL}/v1/ai/parameters`,
-      ) as AiParams;
+      )) as AiParams;
 
       const FALLBACK = ["en-US", "fr-FR", "es-ES", "zh-CN", "ar-SA", "he-IL"];
       const raw = htmlBodyRef.current;
@@ -222,14 +252,23 @@ export default function EmailTemplatesPage() {
 
       // Parse the stored value (may be JSON locale map or plain HTML)
       let parsedMap: Record<string, string> | null = null;
+
       if (raw.trimStart().startsWith("{")) {
-        try { parsedMap = JSON.parse(raw) as Record<string, string>; } catch { /* ignore */ }
+        try {
+          parsedMap = JSON.parse(raw) as Record<string, string>;
+        } catch {
+          /* ignore */
+        }
       }
 
       // Always translate TO the current locale — find best source in another locale
       let sourceHtml = "";
+
       if (parsedMap) {
-        const sourceLang = FALLBACK.find((l) => l !== currentLocale && !!parsedMap![l]);
+        const sourceLang = FALLBACK.find(
+          (l) => l !== currentLocale && !!parsedMap![l],
+        );
+
         sourceHtml = sourceLang ? parsedMap[sourceLang] : "";
       } else {
         // Plain HTML stored (legacy) — use it as source only if current locale differs from default
@@ -238,6 +277,7 @@ export default function EmailTemplatesPage() {
 
       if (!sourceHtml) {
         alert(t("admin-email-templates-ai-no-source"));
+
         return;
       }
 
@@ -246,21 +286,34 @@ export default function EmailTemplatesPage() {
       let i = 0;
       const tokenized = sourceHtml.replace(/\{\{[^}]+\}\}/g, (m) => {
         const k = `TMPLVAR${i++}`;
+
         tokens[k] = m;
+
         return k;
       });
 
       const targetLangName =
-        availableLanguages.find((l) => l.code === currentLocale)?.nativeName ?? currentLocale;
+        availableLanguages.find((l) => l.code === currentLocale)?.nativeName ??
+        currentLocale;
 
-      const result = await translateWithAi(tokenized, targetLangName, params, true, {
-        maxTokens: 4096,
-        contentType: "email_template",
-      });
-      if (!result.success) throw new Error(result.error ?? "Translation failed");
+      const result = await translateWithAi(
+        tokenized,
+        targetLangName,
+        params,
+        true,
+        {
+          maxTokens: 4096,
+          contentType: "email_template",
+        },
+      );
+
+      if (!result.success)
+        throw new Error(result.error ?? "Translation failed");
 
       let restored = result.content ?? "";
-      for (const [k, v] of Object.entries(tokens)) restored = restored.split(k).join(v);
+
+      for (const [k, v] of Object.entries(tokens))
+        restored = restored.split(k).join(v);
 
       setForm((prev) => ({
         ...prev,
@@ -268,7 +321,12 @@ export default function EmailTemplatesPage() {
       }));
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
-      alert(t("admin-email-templates-ai-error", { defaultValue: `Translation failed: ${errorMsg}` }));
+
+      alert(
+        t("admin-email-templates-ai-error", {
+          defaultValue: `Translation failed: ${errorMsg}`,
+        }),
+      );
     } finally {
       setIsTranslating(false);
     }
@@ -277,22 +335,31 @@ export default function EmailTemplatesPage() {
   const handleAiTranslateSubject = useCallback(async () => {
     setIsTranslatingSubject(true);
     try {
-      const params = await getJson(
+      const params = (await getJson(
         `${(import.meta as any).env?.API_BASE_URL}/v1/ai/parameters`,
-      ) as AiParams;
+      )) as AiParams;
 
       const FALLBACK = ["en-US", "fr-FR", "es-ES", "zh-CN", "ar-SA", "he-IL"];
       const raw = subjectRef.current;
       const currentLocale = selectedLocaleRef.current;
 
       let parsedMap: Record<string, string> | null = null;
+
       if (raw.trimStart().startsWith("{")) {
-        try { parsedMap = JSON.parse(raw) as Record<string, string>; } catch { /* ignore */ }
+        try {
+          parsedMap = JSON.parse(raw) as Record<string, string>;
+        } catch {
+          /* ignore */
+        }
       }
 
       let sourceText = "";
+
       if (parsedMap) {
-        const sourceLang = FALLBACK.find((l) => l !== currentLocale && !!parsedMap![l]);
+        const sourceLang = FALLBACK.find(
+          (l) => l !== currentLocale && !!parsedMap![l],
+        );
+
         sourceText = sourceLang ? parsedMap[sourceLang] : "";
       } else {
         sourceText = raw;
@@ -300,6 +367,7 @@ export default function EmailTemplatesPage() {
 
       if (!sourceText) {
         alert(t("admin-email-templates-ai-no-source"));
+
         return;
       }
 
@@ -307,21 +375,34 @@ export default function EmailTemplatesPage() {
       let i = 0;
       const tokenized = sourceText.replace(/\{\{[^}]+\}\}/g, (m) => {
         const k = `TMPLVAR${i++}`;
+
         tokens[k] = m;
+
         return k;
       });
 
       const targetLangName =
-        availableLanguages.find((l) => l.code === currentLocale)?.nativeName ?? currentLocale;
+        availableLanguages.find((l) => l.code === currentLocale)?.nativeName ??
+        currentLocale;
 
-      const result = await translateWithAi(tokenized, targetLangName, params, false, {
-        maxTokens: 256,
-        contentType: "email_template",
-      });
-      if (!result.success) throw new Error(result.error ?? "Translation failed");
+      const result = await translateWithAi(
+        tokenized,
+        targetLangName,
+        params,
+        false,
+        {
+          maxTokens: 256,
+          contentType: "email_template",
+        },
+      );
+
+      if (!result.success)
+        throw new Error(result.error ?? "Translation failed");
 
       let restored = result.content ?? "";
-      for (const [k, v] of Object.entries(tokens)) restored = restored.split(k).join(v);
+
+      for (const [k, v] of Object.entries(tokens))
+        restored = restored.split(k).join(v);
 
       setForm((prev) => ({
         ...prev,
@@ -329,7 +410,12 @@ export default function EmailTemplatesPage() {
       }));
     } catch (err) {
       const errorMsg = err instanceof Error ? err.message : "Unknown error";
-      alert(t("admin-email-templates-ai-error", { defaultValue: `Translation failed: ${errorMsg}` }));
+
+      alert(
+        t("admin-email-templates-ai-error", {
+          defaultValue: `Translation failed: ${errorMsg}`,
+        }),
+      );
     } finally {
       setIsTranslatingSubject(false);
     }
@@ -337,12 +423,15 @@ export default function EmailTemplatesPage() {
 
   function handleGenerateTextFromHtml() {
     const htmlSource = getEditorContent(form.html_body, selectedLocale);
+
     if (!htmlSource) return;
     const div = document.createElement("div");
+
     div.innerHTML = htmlSource;
     const plain = (div.textContent || div.innerText || "")
       .replace(/\n{3,}/g, "\n\n")
       .trim();
+
     setForm((prev) => ({
       ...prev,
       text_body: mergeLocale(prev.text_body, selectedLocale, plain),
@@ -351,21 +440,86 @@ export default function EmailTemplatesPage() {
 
   // ── Default templates ────────────────────────────────────────────────────
   function getDefaultTemplate(event: OrderEmailEvent): string {
-    const cfg: Record<OrderEmailEvent, { badge: string; badgeBg: string; badgeColor: string; heading: string; body: string }> = {
-      global:         { badge: "📦 {{status}}",        badgeBg: "#f5f5f5", badgeColor: "#555",     heading: "An update about your order",            body: "We have an update about your order." },
-      pending:        { badge: "🕐 Pending",            badgeBg: "#f9fafb", badgeColor: "#6b7280",  heading: "We've received your order",             body: "Thank you for your purchase! We're getting your order ready." },
-      paid:           { badge: "💳 Paid",               badgeBg: "#e0f2fe", badgeColor: "#0369a1",  heading: "Your payment has been confirmed",       body: "Great news — your payment was successfully processed." },
-      payment_failed: { badge: "⚠️ Payment Failed",     badgeBg: "#fef2f2", badgeColor: "#b91c1c",  heading: "Payment failed for your order",        body: "Unfortunately, we were unable to process your payment. Please try again." },
-      processing:     { badge: "⏳ Processing",          badgeBg: "#fefce8", badgeColor: "#92400e",  heading: "Your order is being processed",        body: "Our team is preparing your order. We'll notify you when it ships." },
-      shipped:        { badge: "🚚 Shipped",             badgeBg: "#eff6ff", badgeColor: "#1d4ed8",  heading: "Your order has shipped!",              body: "Good news! Your order is on its way." },
-      delivered:      { badge: "✅ Delivered",           badgeBg: "#f0fdf4", badgeColor: "#16a34a",  heading: "Your order has been delivered",        body: "Your order has arrived. We hope you enjoy your purchase!" },
-      refunded:       { badge: "↩️ Refunded",            badgeBg: "#f5f3ff", badgeColor: "#7c3aed",  heading: "Your order has been refunded",         body: "Your refund has been processed. It may take a few business days to appear in your account." },
-      canceled:       { badge: "❌ Canceled",            badgeBg: "#fef2f2", badgeColor: "#b91c1c",  heading: "Your order has been canceled",         body: "Your order has been canceled. If you have any questions, please contact us." },
+    const cfg: Record<
+      OrderEmailEvent,
+      {
+        badge: string;
+        badgeBg: string;
+        badgeColor: string;
+        heading: string;
+        body: string;
+      }
+    > = {
+      global: {
+        badge: "📦 {{status}}",
+        badgeBg: "#f5f5f5",
+        badgeColor: "#555",
+        heading: "An update about your order",
+        body: "We have an update about your order.",
+      },
+      pending: {
+        badge: "🕐 Pending",
+        badgeBg: "#f9fafb",
+        badgeColor: "#6b7280",
+        heading: "We've received your order",
+        body: "Thank you for your purchase! We're getting your order ready.",
+      },
+      paid: {
+        badge: "💳 Paid",
+        badgeBg: "#e0f2fe",
+        badgeColor: "#0369a1",
+        heading: "Your payment has been confirmed",
+        body: "Great news — your payment was successfully processed.",
+      },
+      payment_failed: {
+        badge: "⚠️ Payment Failed",
+        badgeBg: "#fef2f2",
+        badgeColor: "#b91c1c",
+        heading: "Payment failed for your order",
+        body: "Unfortunately, we were unable to process your payment. Please try again.",
+      },
+      processing: {
+        badge: "⏳ Processing",
+        badgeBg: "#fefce8",
+        badgeColor: "#92400e",
+        heading: "Your order is being processed",
+        body: "Our team is preparing your order. We'll notify you when it ships.",
+      },
+      shipped: {
+        badge: "🚚 Shipped",
+        badgeBg: "#eff6ff",
+        badgeColor: "#1d4ed8",
+        heading: "Your order has shipped!",
+        body: "Good news! Your order is on its way.",
+      },
+      delivered: {
+        badge: "✅ Delivered",
+        badgeBg: "#f0fdf4",
+        badgeColor: "#16a34a",
+        heading: "Your order has been delivered",
+        body: "Your order has arrived. We hope you enjoy your purchase!",
+      },
+      refunded: {
+        badge: "↩️ Refunded",
+        badgeBg: "#f5f3ff",
+        badgeColor: "#7c3aed",
+        heading: "Your order has been refunded",
+        body: "Your refund has been processed. It may take a few business days to appear in your account.",
+      },
+      canceled: {
+        badge: "❌ Canceled",
+        badgeBg: "#fef2f2",
+        badgeColor: "#b91c1c",
+        heading: "Your order has been canceled",
+        body: "Your order has been canceled. If you have any questions, please contact us.",
+      },
     };
     const c = cfg[event];
-    const trackingSection = event === "shipped"
-      ? `<p style="color:#555;font-size:14px;">Tracking number: <strong>{{trackingNumber}}</strong></p>`
-      : "";
+    const trackingSection =
+      event === "shipped"
+        ? `<p style="color:#555;font-size:14px;">Tracking number: <strong>{{trackingNumber}}</strong></p>`
+        : "";
+
     return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -413,22 +567,25 @@ export default function EmailTemplatesPage() {
 
   function getDefaultSubject(event: OrderEmailEvent): string {
     const subjects: Record<OrderEmailEvent, string> = {
-      global:         "An update about your order \u2014 {{storeName}}",
-      pending:        "We've received your order \u2014 {{storeName}}",
-      paid:           "Payment confirmed \u2014 {{storeName}}",
+      global: "An update about your order \u2014 {{storeName}}",
+      pending: "We've received your order \u2014 {{storeName}}",
+      paid: "Payment confirmed \u2014 {{storeName}}",
       payment_failed: "Action required: payment failed \u2014 {{storeName}}",
-      processing:     "Your order is being prepared \u2014 {{storeName}}",
-      shipped:        "Your order has shipped! \u2014 {{storeName}}",
-      delivered:      "Your order has been delivered \u2014 {{storeName}}",
-      refunded:       "Your refund has been processed \u2014 {{storeName}}",
-      canceled:       "Your order has been canceled \u2014 {{storeName}}",
+      processing: "Your order is being prepared \u2014 {{storeName}}",
+      shipped: "Your order has shipped! \u2014 {{storeName}}",
+      delivered: "Your order has been delivered \u2014 {{storeName}}",
+      refunded: "Your refund has been processed \u2014 {{storeName}}",
+      canceled: "Your order has been canceled \u2014 {{storeName}}",
     };
+
     return subjects[event];
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────
   function eventLabel(event: OrderEmailEvent): string {
-    return t(`admin-email-templates-event-${event}` as any, { defaultValue: event });
+    return t(`admin-email-templates-event-${event}` as any, {
+      defaultValue: event,
+    });
   }
 
   function isEventEnabled(event: OrderEmailEvent): boolean {
@@ -489,6 +646,12 @@ export default function EmailTemplatesPage() {
                   {ORDER_EMAIL_EVENTS.map((event) => (
                     <button
                       key={event}
+                      className={[
+                        "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-between gap-2",
+                        selectedEvent === event
+                          ? "bg-primary/10 text-primary"
+                          : "text-default-700 hover:bg-default-100",
+                      ].join(" ")}
                       type="button"
                       onClick={() => {
                         setSelectedEvent(event);
@@ -500,6 +663,7 @@ export default function EmailTemplatesPage() {
                           html_body: "",
                           text_body: "",
                         };
+
                         setForm({
                           enabled: s.enabled,
                           subject: s.subject,
@@ -507,12 +671,6 @@ export default function EmailTemplatesPage() {
                           text_body: s.text_body,
                         });
                       }}
-                      className={[
-                        "w-full text-left px-3 py-2 rounded-lg text-sm font-medium transition-colors flex items-center justify-between gap-2",
-                        selectedEvent === event
-                          ? "bg-primary/10 text-primary"
-                          : "text-default-700 hover:bg-default-100",
-                      ].join(" ")}
                     >
                       <span>{eventLabel(event)}</span>
                       {isEventEnabled(event) && (
@@ -613,12 +771,16 @@ export default function EmailTemplatesPage() {
                           </Button>
                         )}
                         <button
-                          type="button"
                           className="text-xs text-primary hover:underline"
+                          type="button"
                           onClick={() =>
                             setForm((prev) => ({
                               ...prev,
-                              subject: mergeLocale(prev.subject, selectedLocale, getDefaultSubject(selectedEvent)),
+                              subject: mergeLocale(
+                                prev.subject,
+                                selectedLocale,
+                                getDefaultSubject(selectedEvent),
+                              ),
                             }))
                           }
                         >
@@ -635,7 +797,11 @@ export default function EmailTemplatesPage() {
                         }))
                       }
                     >
-                      <Input placeholder={t("admin-email-templates-subject-placeholder")} />
+                      <Input
+                        placeholder={t(
+                          "admin-email-templates-subject-placeholder",
+                        )}
+                      />
                     </TextField>
                   </div>
 
@@ -659,8 +825,8 @@ export default function EmailTemplatesPage() {
                           </Button>
                         )}
                         <button
-                          type="button"
                           className="text-xs text-primary hover:underline"
+                          type="button"
                           onClick={() =>
                             setForm((prev) => ({
                               ...prev,
@@ -677,12 +843,18 @@ export default function EmailTemplatesPage() {
                       </div>
                     </div>
                     <RichHtmlEditor
+                      placeholder={t(
+                        "admin-email-templates-html-body-placeholder",
+                      )}
                       value={getEditorContent(form.html_body, selectedLocale)}
-                      placeholder={t("admin-email-templates-html-body-placeholder")}
                       onChange={(html) =>
                         setForm((prev) => ({
                           ...prev,
-                          html_body: mergeLocale(prev.html_body, selectedLocale, html),
+                          html_body: mergeLocale(
+                            prev.html_body,
+                            selectedLocale,
+                            html,
+                          ),
                         }))
                       }
                     />
@@ -697,8 +869,8 @@ export default function EmailTemplatesPage() {
                       <Tooltip>
                         <Tooltip.Trigger>
                           <button
-                            type="button"
                             className="text-xs text-primary hover:underline"
+                            type="button"
                             onClick={handleGenerateTextFromHtml}
                           >
                             {t("admin-email-templates-generate-text")}
@@ -714,13 +886,19 @@ export default function EmailTemplatesPage() {
                       onChange={(v) =>
                         setForm((prev) => ({
                           ...prev,
-                          text_body: mergeLocale(prev.text_body, selectedLocale, v),
+                          text_body: mergeLocale(
+                            prev.text_body,
+                            selectedLocale,
+                            v,
+                          ),
                         }))
                       }
                     >
                       <TextArea
                         className="font-mono text-xs min-h-24"
-                        placeholder={t("admin-email-templates-text-body-placeholder")}
+                        placeholder={t(
+                          "admin-email-templates-text-body-placeholder",
+                        )}
                       />
                     </TextField>
                   </div>
@@ -761,13 +939,17 @@ export default function EmailTemplatesPage() {
                       <div className="flex items-end gap-2">
                         <TextField
                           className="flex-1"
+                          type="email"
                           value={testEmailAddress}
                           onChange={setTestEmailAddress}
-                          type="email"
                         >
-                          <Label>{t("admin-email-templates-test-address")}</Label>
+                          <Label>
+                            {t("admin-email-templates-test-address")}
+                          </Label>
                           <Input
-                            placeholder={t("admin-email-templates-test-address-placeholder")}
+                            placeholder={t(
+                              "admin-email-templates-test-address-placeholder",
+                            )}
                           />
                         </TextField>
                         <Button

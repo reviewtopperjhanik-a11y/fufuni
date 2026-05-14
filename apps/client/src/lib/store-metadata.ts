@@ -18,7 +18,7 @@ export const normalizeStoreUrl = (storeUrl?: string): string | undefined => {
   if (!storeUrl) return undefined;
   const normalized = storeUrl
     .replace(/\/$/, "") // Remove trailing slash
-    .replace(/[:.\/]/g, "_"); // Replace dots, colons, and slashes with underscores
+    .replace(/[:./]/g, "_"); // Replace dots, colons, and slashes with underscores
 
   return normalized || undefined;
 };
