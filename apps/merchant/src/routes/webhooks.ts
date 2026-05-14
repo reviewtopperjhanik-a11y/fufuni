@@ -30,6 +30,7 @@ import { ApiError, uuid, now, generateOrderNumber, type HonoEnv } from '../types
 import { dispatchWebhooks } from '../lib/webhooks';
 import { handleUCPStripeWebhook } from './ucp';
 import { sendOrderConfirmationEmail, sendOrderStatusEmail } from '../lib/order-email';
+import { creditAiTokens } from './ai-tokens';
 
 // ============================================================
 // WEBHOOK ROUTES
@@ -428,6 +429,31 @@ webhooks.post('/stripe', async (c) => {
           await db.run(
             `INSERT INTO inventory_logs (id, sku, delta, reason) VALUES (?, ?, ?, 'sale')`,
             [uuid(), item.sku, -item.qty]
+          );
+        }
+
+        // Credit AI token packages included in this order.
+        // Runs non-blocking so a failure here never aborts the webhook.
+        if (customerId) {
+          c.executionCtx.waitUntil(
+            (async () => {
+              try {
+                const aiTokenItems = await db.query<any>(
+                  `SELECT oi.qty, v.ai_token_units
+                   FROM order_items oi
+                   JOIN variants v ON v.sku = oi.sku
+                   WHERE oi.order_id = ? AND v.variant_type = 'ai_tokens'`,
+                  [orderId]
+                );
+                for (const aiItem of aiTokenItems) {
+                  if (aiItem.ai_token_units) {
+                    await creditAiTokens(db, customerId, orderId, aiItem.ai_token_units * aiItem.qty);
+                  }
+                }
+              } catch (err) {
+                console.warn('Failed to credit AI tokens for order', orderId, err);
+              }
+            })()
           );
         }
 

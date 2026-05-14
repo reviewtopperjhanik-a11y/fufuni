@@ -69,6 +69,8 @@ interface Variant {
   barcode?: string | null;
   compare_at_price_cents?: number | null;
   tax_code?: string | null;
+  variant_type?: 'physical' | 'digital' | 'ai_tokens';
+  ai_token_units?: number | null;
 }
 
 /**
@@ -157,6 +159,9 @@ export default function ProductsPage() {
   const [shippingClasses, setShippingClasses] = useState<ShippingClass[]>([]);
   const [taxRates, setTaxRates] = useState<TaxRate[]>([]);
   const [allCategories, setAllCategories] = useState<Category[]>([]);
+  const [variantCurrencies, setVariantCurrencies] = useState<
+    { id: string; code: string; display_name: string; symbol: string }[]
+  >([]);
 
   const [cursor, setCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
@@ -199,9 +204,12 @@ export default function ProductsPage() {
   const [variantDimsW, setVariantDimsW] = useState("");
   const [variantDimsH, setVariantDimsH] = useState("");
   const [variantRequiresShipping, setVariantRequiresShipping] = useState(true);
+  const [variantCurrency, setVariantCurrency] = useState("USD");
   const [variantBarcode, setVariantBarcode] = useState("");
   const [variantCompareAtPrice, setVariantCompareAtPrice] = useState("");
   const [variantTaxCode, setVariantTaxCode] = useState("");
+  const [variantType, setVariantType] = useState<'physical' | 'digital' | 'ai_tokens'>('physical');
+  const [variantAiTokenUnits, setVariantAiTokenUnits] = useState("");
 
   // fetch products from backend
   /**
@@ -298,6 +306,23 @@ export default function ProductsPage() {
     };
 
     loadTaxRates();
+  }, []);
+
+  // load currencies for variant base-price selector
+  useEffect(() => {
+    const loadCurrencies = async () => {
+      try {
+        const resp = await getJson(
+          `${apiBase}/v1/regions/currencies?limit=100&status=active`,
+        );
+
+        setVariantCurrencies(resp.items || []);
+      } catch (err) {
+        console.error("Failed to load currencies", err);
+      }
+    };
+
+    loadCurrencies();
   }, []);
 
   // load categories
@@ -618,9 +643,12 @@ export default function ProductsPage() {
     setVariantDimsW("");
     setVariantDimsH("");
     setVariantRequiresShipping(true);
+    setVariantCurrency("USD");
     setVariantBarcode("");
     setVariantCompareAtPrice("");
     setVariantTaxCode("");
+    setVariantType('physical');
+    setVariantAiTokenUnits("");
   };
 
   /**
@@ -648,9 +676,12 @@ export default function ProductsPage() {
     setVariantDimsW(String(v.dims_cm?.w || ""));
     setVariantDimsH(String(v.dims_cm?.h || ""));
     setVariantRequiresShipping(v.requires_shipping !== false);
+    setVariantCurrency(v.currency || "USD");
     setVariantBarcode(v.barcode || "");
     setVariantCompareAtPrice(String(v.compare_at_price_cents || ""));
     setVariantTaxCode(v.tax_code || "");
+    setVariantType(v.variant_type || 'physical');
+    setVariantAiTokenUnits(v.ai_token_units != null ? String(v.ai_token_units) : "");
     setVariantModal(true);
   };
 
@@ -685,10 +716,15 @@ export default function ProductsPage() {
         sku: variantSku,
         title: variantTitle,
         price_cents: price,
+        currency: variantCurrency,
         image_url: variantImage || undefined,
         thumbnail_url: variantThumbnail || undefined,
         weight_g: variantWeightG ? parseFloat(variantWeightG) : undefined,
         requires_shipping: variantRequiresShipping,
+        variant_type: variantType,
+        ai_token_units: variantType === 'ai_tokens' && variantAiTokenUnits
+          ? parseInt(variantAiTokenUnits, 10)
+          : undefined,
         barcode: variantBarcode || undefined,
         compare_at_price_cents: variantCompareAtPrice
           ? parseInt(variantCompareAtPrice, 10)
@@ -1296,6 +1332,44 @@ export default function ProductsPage() {
                         />
                       </div>
                       <div>
+                        <label className="block text-sm font-medium mb-1">
+                          {t("admin-products-field-currency")}
+                        </label>
+                        <Select
+                          value={variantCurrency}
+                          onChange={(value) =>
+                            setVariantCurrency((value as string) || "USD")
+                          }
+                        >
+                          <Label>{t("admin-products-field-currency")}</Label>
+                          <Select.Trigger>
+                            <Select.Value />
+                            <Select.Indicator />
+                          </Select.Trigger>
+                          <Select.Popover>
+                            <ListBox>
+                              {variantCurrencies.length === 0 ? (
+                                <ListBox.Item key="USD" id="USD" textValue="USD">
+                                  USD
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                              ) : (
+                                variantCurrencies.map((c) => (
+                                  <ListBox.Item
+                                    key={c.code}
+                                    id={c.code}
+                                    textValue={`${c.code} — ${c.display_name}`}
+                                  >
+                                    {c.code} — {c.display_name} ({c.symbol})
+                                    <ListBox.ItemIndicator />
+                                  </ListBox.Item>
+                                ))
+                              )}
+                            </ListBox>
+                          </Select.Popover>
+                        </Select>
+                      </div>
+                      <div>
                         <label className="block text-sm font-medium mb-2">
                           {t("admin-products-field-image")}
                         </label>
@@ -1375,6 +1449,61 @@ export default function ProductsPage() {
                             }
                           />
                         </div>
+
+                        {/* Variant Type */}
+                        <div className="mb-3">
+                          <label className="block text-sm font-medium mb-1">
+                            {t("admin-products-field-variant-type")}
+                          </label>
+                          <Select
+                            value={variantType}
+                            onChange={(value) => {
+                              const vt = (value as string) as 'physical' | 'digital' | 'ai_tokens';
+                              setVariantType(vt);
+                              if (vt !== 'physical') setVariantRequiresShipping(false);
+                              else setVariantRequiresShipping(true);
+                              if (vt !== 'ai_tokens') setVariantAiTokenUnits('');
+                            }}
+                          >
+                            <Label>{t("admin-products-field-variant-type")}</Label>
+                            <Select.Trigger>
+                              <Select.Value />
+                              <Select.Indicator />
+                            </Select.Trigger>
+                            <Select.Popover>
+                              <ListBox>
+                                <ListBox.Item key="physical" id="physical" textValue={t("admin-products-variant-type-physical")}>
+                                  {t("admin-products-variant-type-physical")}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                                <ListBox.Item key="digital" id="digital" textValue={t("admin-products-variant-type-digital")}>
+                                  {t("admin-products-variant-type-digital")}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                                <ListBox.Item key="ai_tokens" id="ai_tokens" textValue={t("admin-products-variant-type-ai-tokens")}>
+                                  {t("admin-products-variant-type-ai-tokens")}
+                                  <ListBox.ItemIndicator />
+                                </ListBox.Item>
+                              </ListBox>
+                            </Select.Popover>
+                          </Select>
+                        </div>
+
+                        {/* AI Token Units — shown only for ai_tokens type */}
+                        {variantType === 'ai_tokens' && (
+                          <div className="mb-3">
+                            <label className="block text-sm font-medium">
+                              {t("admin-products-field-ai-token-units")}
+                            </label>
+                            <Input
+                              min={1}
+                              placeholder={t("admin-products-field-ai-token-units-placeholder")}
+                              type="number"
+                              value={variantAiTokenUnits}
+                              onChange={(e) => setVariantAiTokenUnits(e.target.value)}
+                            />
+                          </div>
+                        )}
 
                         {/* Barcode */}
                         <div className="mb-3">

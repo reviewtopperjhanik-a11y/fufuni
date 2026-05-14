@@ -63,6 +63,15 @@ export const VariantResponse = z.object({
   currency: z.string().default('USD').openapi({ example: 'USD', description: 'ISO 4217 currency code (base price currency)' }),
   image_url: z.string().nullable().openapi({ example: 'https://example.com/image.jpg' }),
   shipping_class_id: z.string().uuid().nullable().optional().openapi({ example: null, description: 'Shipping class this variant belongs to (overrides product class)' }),
+  // Product type discriminator
+  variant_type: z.enum(['physical', 'digital', 'ai_tokens']).default('physical').openapi({
+    example: 'physical',
+    description: 'physical = shippable goods; digital = downloadable file; ai_tokens = AI credit package',
+  }),
+  ai_token_units: z.number().int().nullable().openapi({
+    example: 100,
+    description: 'Number of AI token units included in this package. Only set when variant_type is ai_tokens.',
+  }),
   // Shipping fields
   weight_g: z.number().int().openapi({ example: 500, description: 'Weight in grams. Used for shipping rate filtering.' }),
   dims_cm: z.object({ l: z.number(), w: z.number(), h: z.number() }).nullable().openapi({ example: { l: 30, w: 20, h: 5 }, description: 'Package dimensions in centimetres (L×W×H)' }),
@@ -84,6 +93,14 @@ export const CreateVariantBody = z.object({
   currency: z.string().length(3).optional().openapi({ example: 'EUR', description: 'ISO 4217 currency code for base price' }),
   image_url: z.string().url().optional().openapi({ example: 'https://example.com/image.jpg' }),
   shipping_class_id: z.string().uuid().nullable().optional().openapi({ example: null }),
+  // Product type discriminator
+  variant_type: z.enum(['physical', 'digital', 'ai_tokens']).default('physical').openapi({
+    description: 'physical = shippable goods; digital = downloadable file; ai_tokens = AI credit package',
+  }),
+  ai_token_units: z.number().int().min(1).optional().openapi({
+    example: 100,
+    description: 'Number of AI token units. Required when variant_type is ai_tokens.',
+  }),
   // Shipping fields
   weight_g: z.number().int().min(0).default(0).openapi({ example: 500, description: 'Weight in grams. Used for shipping rate filtering.' }),
   dims_cm: z.object({ l: z.number().min(0), w: z.number().min(0), h: z.number().min(0) }).nullable().optional().openapi({ example: { l: 30, w: 20, h: 5 }, description: 'Package dimensions in centimetres (L×W×H)' }),
@@ -103,6 +120,9 @@ export const UpdateVariantBody = z.object({
   currency: z.string().length(3).optional().openapi({ example: 'EUR', description: 'ISO 4217 currency code for base price' }),
   image_url: z.string().url().nullable().optional(),
   shipping_class_id: z.string().uuid().nullable().optional(),
+  // Product type discriminator — optional for PATCH
+  variant_type: z.enum(['physical', 'digital', 'ai_tokens']).optional(),
+  ai_token_units: z.number().int().min(1).nullable().optional(),
   // Shipping fields — all optional for PATCH
   weight_g: z.number().int().min(0).optional(),
   dims_cm: z.object({ l: z.number().min(0), w: z.number().min(0), h: z.number().min(0) }).nullable().optional(),

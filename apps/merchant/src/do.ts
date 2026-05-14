@@ -1181,6 +1181,86 @@ export class MerchantDO extends DurableObject<MerchantEnv> {
             CREATE INDEX IF NOT EXISTS idx_refunds_order_id_created ON refunds(order_id, created_at DESC);
           `,
         },
+        // ── Migration 035 ── Digital products and AI token packages ───────────
+        // Adds variant_type discriminator, downloadable asset metadata, and
+        // per-customer AI token balance + transaction ledger.
+        {
+          name: '035_variants_add_variant_type',
+          sql: `ALTER TABLE variants ADD COLUMN variant_type TEXT NOT NULL DEFAULT 'physical'
+                CHECK (variant_type IN ('physical', 'digital', 'ai_tokens'))`,
+        },
+        {
+          name: '035_variants_add_ai_token_units',
+          sql: 'ALTER TABLE variants ADD COLUMN ai_token_units INTEGER',
+        },
+        {
+          name: '035_idx_variants_type',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_variants_type ON variants (variant_type)',
+        },
+        {
+          name: '035_digital_assets_table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS digital_assets (
+              id            TEXT PRIMARY KEY,
+              sku           TEXT NOT NULL UNIQUE REFERENCES inventory (sku) ON DELETE CASCADE,
+              storage_type  TEXT NOT NULL DEFAULT 'url' CHECK (storage_type IN ('url', 'r2')),
+              storage_value TEXT NOT NULL,
+              filename      TEXT NOT NULL,
+              content_type  TEXT NOT NULL DEFAULT 'application/octet-stream',
+              created_at    TEXT NOT NULL DEFAULT (datetime('now')),
+              updated_at    TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+          `,
+        },
+        {
+          name: '035_trg_digital_assets_updated_at',
+          sql: `
+            CREATE TRIGGER IF NOT EXISTS trg_digital_assets_updated_at
+            AFTER UPDATE ON digital_assets
+            FOR EACH ROW
+            BEGIN
+              UPDATE digital_assets SET updated_at = datetime('now') WHERE id = NEW.id;
+            END
+          `,
+        },
+        {
+          name: '035_ai_token_balances_table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS ai_token_balances (
+              customer_id    TEXT PRIMARY KEY REFERENCES customers (id) ON DELETE CASCADE,
+              api_key        TEXT NOT NULL,
+              balance_units  INTEGER NOT NULL DEFAULT 0,
+              updated_at     TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+          `,
+        },
+        {
+          name: '035_idx_ai_token_balances_api_key',
+          sql: 'CREATE UNIQUE INDEX IF NOT EXISTS idx_ai_token_balances_api_key ON ai_token_balances (api_key)',
+        },
+        {
+          name: '035_ai_token_transactions_table',
+          sql: `
+            CREATE TABLE IF NOT EXISTS ai_token_transactions (
+              id           TEXT PRIMARY KEY,
+              api_key      TEXT NOT NULL,
+              customer_id  TEXT REFERENCES customers (id) ON DELETE SET NULL,
+              order_id     TEXT REFERENCES orders (id) ON DELETE SET NULL,
+              amount       INTEGER NOT NULL,
+              type         TEXT NOT NULL CHECK (type IN ('credit', 'debit')),
+              note         TEXT,
+              created_at   TEXT NOT NULL DEFAULT (datetime('now'))
+            )
+          `,
+        },
+        {
+          name: '035_idx_ai_token_transactions_api_key',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_ai_token_transactions_api_key ON ai_token_transactions (api_key, created_at DESC)',
+        },
+        {
+          name: '035_idx_ai_token_transactions_order',
+          sql: 'CREATE INDEX IF NOT EXISTS idx_ai_token_transactions_order ON ai_token_transactions (order_id)',
+        },
       ];
 
       for (const migration of migrations) {

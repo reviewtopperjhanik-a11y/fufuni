@@ -264,6 +264,8 @@ function mapVariant(
     weight_g: ((v.weight_g as number) ?? 0) as number,
     dims_cm: parseDimscm(v.dims_cm),
     requires_shipping: (v.requires_shipping !== 0) as boolean,   // SQLite stores 0/1
+    variant_type: ((v.variant_type as string) ?? 'physical') as 'physical' | 'digital' | 'ai_tokens',
+    ai_token_units: (v.ai_token_units ?? null) as number | null,
     barcode: (v.barcode ?? null) as string | null,
     compare_at_price_cents: (v.compare_at_price_cents ?? null) as number | null,
     tax_code: (v.tax_code ?? null) as string | null,
@@ -807,6 +809,7 @@ adminApp.openapi(createVariant, async (c) => {
   const {
     sku, title, price_cents, currency, image_url, thumbnail_url,
     weight_g, dims_cm, requires_shipping,
+    variant_type, ai_token_units,
     barcode, compare_at_price_cents, tax_code
   } = c.req.valid('json');
   const db = getDb(c.var.db);
@@ -814,31 +817,43 @@ adminApp.openapi(createVariant, async (c) => {
   const [product] = await db.query<any>(`SELECT * FROM products WHERE id = ?`, [productId]);
   if (!product) throw ApiError.notFound('Product not found');
 
+  if (variant_type === 'ai_tokens' && !ai_token_units) {
+    throw ApiError.invalidRequest('ai_token_units is required when variant_type is ai_tokens');
+  }
+
   const [existingSku] = await db.query<any>(`SELECT * FROM variants WHERE sku = ?`, [sku]);
   if (existingSku) throw ApiError.conflict(`SKU ${sku} already exists`);
 
   const id = uuid();
   const timestamp = now();
 
+  // Non-physical variants never require shipping.
+  const effectiveRequiresShipping = (variant_type !== 'physical') ? 0 : (requires_shipping === false ? 0 : 1);
+
   await db.run(
     `INSERT INTO variants (
       id, product_id, sku, title, price_cents, currency,
       weight_g, dims_cm, requires_shipping,
+      variant_type, ai_token_units,
       barcode, compare_at_price_cents, tax_code,
       image_url, thumbnail_url, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id, productId, sku, title, price_cents, currency ?? 'USD',
-      weight_g ?? 0, dims_cm ? JSON.stringify(dims_cm) : null, requires_shipping === false ? 0 : 1,
+      weight_g ?? 0, dims_cm ? JSON.stringify(dims_cm) : null, effectiveRequiresShipping,
+      variant_type ?? 'physical', ai_token_units ?? null,
       barcode ?? null, compare_at_price_cents ?? null, tax_code ?? null,
       image_url || null, thumbnail_url || null, timestamp
     ]
   );
 
-  await db.run(
-    `INSERT INTO inventory (id, sku, on_hand, reserved, updated_at) VALUES (?, ?, 0, 0, ?)`,
-    [uuid(), sku, timestamp]
-  );
+  // AI-token variants are virtual — no inventory row needed.
+  if (variant_type !== 'ai_tokens') {
+    await db.run(
+      `INSERT INTO inventory (id, sku, on_hand, reserved, updated_at) VALUES (?, ?, 0, 0, ?)`,
+      [uuid(), sku, timestamp]
+    );
+  }
 
   const [variant] = await db.query<any>(`SELECT * FROM variants WHERE id = ?`, [id]);
   return c.json(mapVariant(variant, null, false), 201);
@@ -910,6 +925,19 @@ adminApp.openapi(updateVariant, async (c) => {
   if (body.requires_shipping !== undefined) {
     updates.push('requires_shipping = ?');
     params.push(body.requires_shipping ? 1 : 0);
+  }
+  if (body.variant_type !== undefined) {
+    updates.push('variant_type = ?');
+    params.push(body.variant_type);
+    // Coerce requires_shipping when type changes away from physical.
+    if (body.variant_type !== 'physical') {
+      updates.push('requires_shipping = ?');
+      params.push(0);
+    }
+  }
+  if (body.ai_token_units !== undefined) {
+    updates.push('ai_token_units = ?');
+    params.push(body.ai_token_units ?? null);
   }
   if (body.barcode !== undefined) {
     updates.push('barcode = ?');

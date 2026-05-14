@@ -55,6 +55,9 @@ import { ApiError, type Env, type DOStub } from './types';
 import { MerchantDO } from './do';
 import { adminMails } from './routes/mails';
 import { sitemapRouter } from './routes/sitemap';
+import { adminDigitalAssetVariantRouter, adminDigitalAssetsRouter } from './routes/digital-assets';
+import { customerOrderDownloads, publicDownloads } from './routes/downloads';
+import { customerAiTokensRouter, proxyAiTokensRouter, adminAiTokensRouter } from './routes/ai-tokens';
 
 export { MerchantDO };
 
@@ -158,8 +161,15 @@ app.route('/v1/tax-rates', adminTaxRates);
 app.route('/v1/mails', adminMails);
 app.route('/v1/admin/order-email-settings', adminOrderEmailSettings);
 app.route('/v1/me', adminMe);
+app.route('/v1/me/ai-tokens', customerAiTokensRouter);
 app.route('/v1', adminUserPreferencesRouter);
 app.route('/v1', adminSavedCartsRouter);
+app.route('/v1/orders', customerOrderDownloads);
+app.route('/v1/downloads', publicDownloads);
+app.route('/v1/products', adminDigitalAssetVariantRouter);
+app.route('/v1/admin/digital-assets', adminDigitalAssetsRouter);
+app.route('/v1/ai-tokens/proxy', proxyAiTokensRouter);
+app.route('/v1/admin/ai-tokens', adminAiTokensRouter);
 app.route('/oauth', oauth);
 app.route('', oauth);
 app.route('/', ucp);

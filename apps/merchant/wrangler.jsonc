@@ -22,6 +22,9 @@
   "r2_buckets": [
     {
       "binding": "IMAGES"
+    },
+    {
+      "binding": "DIGITAL_ASSETS_BUCKET"
     }
   ],
 	"kv_namespaces": [

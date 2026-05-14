@@ -163,6 +163,20 @@ export type Env = {
   KV_CACHE_DEFAULT_TTL_SECONDS?: string;
 
   /**
+   * Cloudflare R2 bucket for downloadable product files.
+   * Optional — when absent, only external URL storage is supported.
+   */
+  DIGITAL_ASSETS_BUCKET?: R2Bucket;
+
+  /**
+   * Shared secret used to authenticate requests from ai-proxy-cloudflare to the
+   * balance endpoints (GET /v1/ai-tokens/proxy/balance/:apiKey and
+   * POST /v1/ai-tokens/proxy/deduct).  Must be a strong random string ≥32 chars.
+   * If unset, the proxy-facing routes return 503.
+   */
+  AI_BALANCE_SHARED_SECRET?: string;
+
+  /**
    * Passphrase used to decrypt ai.json.enc at runtime (in-memory only — never written to disk).
    * Set as a Cloudflare secret. Used by GET /v1/ai/parameters when ai:config is stored in KV_CACHE.
    */
@@ -288,6 +302,14 @@ export class ApiError extends Error {
 
   static badRequest(message: string, details?: Record<string, unknown>) {
     return new ApiError('bad_request', 400, message, details);
+  }
+
+  static serviceUnavailable(message = 'Service unavailable') {
+    return new ApiError('service_unavailable', 503, message);
+  }
+
+  static serverError(message = 'Internal server error') {
+    return new ApiError('internal_server_error', 500, message);
   }
 }
 

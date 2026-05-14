@@ -9,6 +9,50 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ### Added
 
+#### Digital products & downloadable files
+
+- **New variant type `digital`**: variants can now be marked as `variant_type = 'digital'` with `requires_shipping` automatically coerced to `0`.
+- **`digital_assets` table** (migration 035): stores file metadata per variant — either an R2 `file_key` or an external `file_url`.
+- **Admin routes** (`apps/merchant/src/routes/digital-assets.ts`):
+  - `POST /v1/products/:id/variants/:variantId/digital-asset` — upsert asset metadata.
+  - `GET /v1/products/:id/variants/:variantId/digital-asset` — fetch asset metadata.
+  - `DELETE /v1/products/:id/variants/:variantId/digital-asset` — remove asset and reset `variant_type` to `physical`.
+  - `POST /v1/admin/digital-assets/upload-url` — generate presigned R2 upload URL.
+  - `PUT /v1/admin/digital-assets/upload/:key` — proxy file upload to R2.
+- **Customer download routes** (`apps/merchant/src/routes/downloads.ts`):
+  - `GET /v1/orders/:orderId/downloads` — returns JWT-signed download URLs per digital item (requires order in paid/processing/shipped/delivered status).
+  - `GET /v1/downloads/:token` — validates token, streams from R2 or redirects to external URL. TTL: 7 days.
+- **Frontend**: order detail page now shows download buttons when digital items are present. i18n keys added for all 6 languages.
+- **Optional `DIGITAL_ASSETS_BUCKET` R2 binding**: when unset, only external-URL storage is supported.
+
+#### AI token packages
+
+- **New variant type `ai_tokens`**: virtual products with `ai_token_units` (units per purchase), no shipping, no inventory row.
+- **New tables** (migration 035): `ai_token_balances` (customer wallet per API key) and `ai_token_transactions` (credit/debit ledger).
+- **Customer routes** (`apps/merchant/src/routes/ai-tokens.ts`):
+  - `GET /v1/me/ai-tokens/balance` — view balance and masked API key.
+  - `POST /v1/me/ai-tokens/link` — link an ai-proxy API key and apply any pending credits.
+- **Proxy routes** (shared-secret auth, `AI_BALANCE_SHARED_SECRET` env var):
+  - `GET /v1/ai-tokens/proxy/balance/:apiKey` — balance check for ai-proxy-cloudflare.
+  - `POST /v1/ai-tokens/proxy/deduct` — deduct tokens after a successful AI request.
+- **Admin routes**: `GET /v1/admin/ai-tokens` — paginated balance list.
+- **Webhook integration**: `webhooks.ts` now calls `creditAiTokens()` after a successful Stripe `checkout.session.completed` event for orders containing `ai_tokens` variants. Runs non-blocking via `waitUntil`.
+- **Profile convenience**: `PATCH /v1/me/profile` now accepts `ai_proxy_api_key` (stored in `customers.metadata`). Set `null` to unlink.
+- **Frontend**: account dashboard has a new "AI Tokens" tab with balance display, API key link/unlink widget. i18n keys added for all 6 languages.
+
+#### ai-proxy-cloudflare — balance enforcement
+
+- **`src/lib/balance.ts`** (new): `checkBalance()` and `deductBalance()` helpers that call the Fufuni merchant backend.
+- **`src/index.ts`**: before forwarding a request, checks balance (HTTP 402 if ≤ 0). After a successful response, deducts 1 unit via `waitUntil`.
+- **Standalone mode**: when `FUFUNI_MERCHANT_URL` is empty/unset, balance enforcement is completely disabled — fully backward-compatible.
+- `wrangler.jsonc` documents `FUFUNI_MERCHANT_URL` (plaintext var) and `AI_BALANCE_SHARED_SECRET` (secret).
+
+#### MCP knowledge base
+
+- New topic **`digital-products`**: covers variant types, digital assets, download token flow, and frontend integration.
+- New topic **`ai-tokens-integration`**: covers AI token product setup, credit-on-purchase webhook, proxy balance enforcement, and customer account flow.
+- Updated topic **`db-schema`**: documents migration 035 tables (`digital_assets`, `ai_token_balances`, `ai_token_transactions`).
+
 #### UCP — Phase 4 post-audit
 
 - **`PATCH /ucp/v1/checkout-sessions/{id}`** (P3): new endpoint for partial session updates.

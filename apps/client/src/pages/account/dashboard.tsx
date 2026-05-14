@@ -21,6 +21,7 @@ import { useWishlist } from "@/hooks/use-wishlist";
 import { useSavedCarts } from "@/hooks/use-saved-carts";
 import { SavedCartsManager } from "@/components/saved-carts-manager";
 import { WishlistManager } from "@/components/wishlist-manager";
+import { AiTokensWidget } from "@/components/ai-tokens-widget";
 import { formatMoney } from "@/utils/currency";
 import { getApiBase } from "@/lib/api-base";
 import { LoadingPane } from "@/shared/ui/feedback/loading-pane";
@@ -241,7 +242,7 @@ export default function Dashboard() {
             onSelectionChange={(key) => setSelectedTab(key as string)}
           >
             <Tabs.ListContainer>
-              <Tabs.List className="grid w-full grid-cols-1 md:grid-cols-4">
+              <Tabs.List className="grid w-full grid-cols-1 md:grid-cols-5">
                 <Tabs.Tab className="text-center font-semibold" id="overview">
                   {t("account-overview")}
                   <Tabs.Indicator />
@@ -267,6 +268,11 @@ export default function Dashboard() {
                   {t("account-recent-orders-tab", {
                     count: profile.order_count,
                   })}
+                  <Tabs.Indicator />
+                </Tabs.Tab>
+
+                <Tabs.Tab className="text-center font-semibold" id="ai-tokens">
+                  {t("ai-tokens-tab")}
                   <Tabs.Indicator />
                 </Tabs.Tab>
               </Tabs.List>
@@ -397,6 +403,13 @@ export default function Dashboard() {
                     </Link>
                   </div>
                 )}
+              </div>
+            </Tabs.Panel>
+
+            {/* AI Tokens Panel */}
+            <Tabs.Panel id="ai-tokens">
+              <div className="py-6 px-6">
+                <AiTokensWidget />
               </div>
             </Tabs.Panel>
           </Tabs>

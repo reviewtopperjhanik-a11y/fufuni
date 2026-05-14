@@ -21,6 +21,10 @@ const topic: Topic = {
     'Per-user theme is stored in Auth0 user_metadata (JWT custom claim), NOT in the store_themes DB table. The store_themes table holds merchant-level default theme configuration.',
     'getDb(c.var.db) returns a Database object with query<T>(sql, params?): Promise<T[]> and run(sql, params?): Promise<{changes}> — both proxy to the Durable Object via RPC.',
     'Migration 034 added currency, reason (duplicate|fraudulent|requested_by_customer), notes, and updated_at to the existing refunds table. The refunds table now fully tracks partial refunds with audit trail.',
+    'Migration 035 added variant_type (physical|digital|ai_tokens) and ai_token_units columns to the variants table, and created three new tables: digital_assets (per-variant download metadata), ai_token_balances (customer AI token wallet), and ai_token_transactions (debit/credit ledger).',
+    'digital_assets table: id, variant_id (FK→variants), file_key (R2 object key or null), file_url (external URL or null), filename, content_type, created_at, updated_at. One row per digital variant.',
+    'ai_token_balances table: id, customer_id (FK→customers), api_key (TEXT UNIQUE), balance INTEGER, created_at, updated_at. One row per customer per API key.',
+    'ai_token_transactions table: id, customer_id (FK→customers), order_id (FK→orders), api_key TEXT, delta INTEGER, reason TEXT, created_at.',
   ],
   buildPrompt: (src) => appendFacts(`
 Below is the source of the Durable Object class (do.ts).  It contains the SCHEMA

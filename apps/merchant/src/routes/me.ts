@@ -206,6 +206,9 @@ const updateMyProfile = createRoute({
                         phone: z.string().optional(),
                         locale: z.string().optional(),
                         accepts_marketing: z.boolean().optional(),
+                        ai_proxy_api_key: z.string().nullable().optional().openapi({
+                            description: 'AI proxy API key stored in customer metadata. Set to null to unlink.',
+                        }),
                     }),
                 },
             },
@@ -251,6 +254,18 @@ adminApp.openapi(updateMyProfile, async (c) => {
     if (body.locale !== undefined) updates.locale = body.locale || null;
     if (body.accepts_marketing !== undefined)
         updates.accepts_marketing = body.accepts_marketing ? 1 : 0;
+
+    // ai_proxy_api_key is stored inside customers.metadata JSON field.
+    if (body.ai_proxy_api_key !== undefined) {
+        let metadata: Record<string, unknown> = {};
+        try { metadata = customer.metadata ? JSON.parse(customer.metadata) : {}; } catch { /* ignore */ }
+        if (body.ai_proxy_api_key === null) {
+            delete metadata.ai_proxy_api_key;
+        } else {
+            metadata.ai_proxy_api_key = body.ai_proxy_api_key;
+        }
+        updates.metadata = JSON.stringify(metadata);
+    }
 
     const setClauses = Object.keys(updates)
         .map((k) => `${k} = ?`)

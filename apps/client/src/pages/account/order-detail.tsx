@@ -22,6 +22,13 @@ interface OrderItem {
   unit_price_cents: number;
 }
 
+interface DownloadLink {
+  sku: string;
+  title: string;
+  download_url: string;
+  expires_at: string;
+}
+
 interface Order {
   id: string;
   number: string;
@@ -50,6 +57,7 @@ export default function OrderDetail() {
   const auth = useAuth() as any;
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [downloads, setDownloads] = useState<DownloadLink[]>([]);
   const apiBase = getApiBase();
 
   useEffect(() => {
@@ -61,6 +69,16 @@ export default function OrderDetail() {
         );
 
         setOrder(result);
+
+        // Fetch download links (only available for paid orders with digital items)
+        try {
+          const dlResult: { downloads: DownloadLink[] } = await auth.getJson(
+            `${apiBase}/v1/orders/${result.id}/downloads`,
+          );
+          setDownloads(dlResult.downloads ?? []);
+        } catch {
+          // Ignore — order may have no digital items
+        }
       } catch (error) {
         console.error("Error fetching order:", error);
         navigate("/account/orders");
@@ -273,6 +291,31 @@ export default function OrderDetail() {
           </div>
         </Card.Content>
       </Card>
+      {/* Downloads — shown only when digital items are present */}
+      {downloads.length > 0 && (
+        <Card>
+          <Card.Header>
+            <h2 className="text-lg font-semibold">{t("downloads-title")}</h2>
+          </Card.Header>
+          <Separator />
+          <Card.Content className="gap-3">
+            {downloads.map((dl, idx) => (
+              <div key={idx} className="flex justify-between items-center">
+                <span className="text-sm">{dl.title}</span>
+                <Button
+                  as="a"
+                  href={dl.download_url}
+                  rel="noopener noreferrer"
+                  target="_blank"
+                  variant="outline"
+                >
+                  {t("downloads-button")}
+                </Button>
+              </div>
+            ))}
+          </Card.Content>
+        </Card>
+      )}
     </div>
   );
 }

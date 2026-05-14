@@ -9,6 +9,8 @@ declare namespace Cloudflare {
 	interface Env {
 		KV_CACHE: KVNamespace;
 		IMAGES: R2Bucket;
+		DIGITAL_ASSETS_BUCKET?: R2Bucket;
+		AI_BALANCE_SHARED_SECRET?: string;
 		IMAGES_URL: "";
 		DOMAIN_NAME: string;
 		CRYPTOKEN: string;
