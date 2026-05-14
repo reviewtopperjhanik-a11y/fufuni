@@ -51,6 +51,8 @@ adminApp.use('*', authMiddleware);
 // Query parameters
 const AiParamsQuery = z.object({
   provider: z.string().optional().describe('Optional provider key filter (e.g., "groq", "anthropic")'),
+  capability: z.enum(['chat', 'embedding']).default('chat')
+    .describe('AI capability to resolve. Defaults to "chat" and filters providers by model usage.'),
 });
 
 // Response schema
@@ -81,7 +83,7 @@ const aiParamsRoute = createRoute({
     'Returns the API key, model and base URL for the AI provider. ' +
     'Requires ai:api permission. ' +
     'Selects a non-expired key randomly from the highest-priority model. ' +
-    'Optionally filter by provider using the ?provider=<key> query parameter.',
+    'Defaults to capability=chat and optionally filters by provider using the ?provider=<key> query parameter.',
   security: [{ bearerAuth: ['ai:api'] }],
   middleware: [aiAccessOnly] as const,
   request: { query: AiParamsQuery },
@@ -99,13 +101,17 @@ const aiParamsRoute = createRoute({
 adminApp.openapi(aiParamsRoute, async (c) => {
   const query = c.req.valid('query');
   const providerFilter = query.provider;
+  const capability = query.capability;
 
   // 1. Try encrypted config from KV first (ai:config key)
   const config = await loadConfig(c.env);
   if (config) {
     // selectModels() returns candidates sorted by priority ascending (1 = best).
-    // Filter by provider key if specified via ?provider=<key> query param.
-    const candidates = selectModels(config, providerFilter ? { providerKey: providerFilter } : {});
+    // Filter by provider key and requested capability.
+    const candidates = selectModels(config, {
+      ...(providerFilter ? { providerKey: providerFilter } : {}),
+      usage: capability,
+    });
     // Iterate through candidates (in priority order) and find the first provider with non-expired keys.
     for (const { providerKey, provider, model } of candidates) {
       const validKeys = provider.keys.filter(k => k.type !== 'expired');
@@ -124,17 +130,27 @@ adminApp.openapi(aiParamsRoute, async (c) => {
     }
 
     // All candidates have expired keys only.
+    if (candidates.length === 0) {
+      throw new ApiError(
+        'not_configured',
+        503,
+        providerFilter
+          ? `Provider "${providerFilter}" has no models configured for capability "${capability}".`
+          : `No AI providers are configured for capability "${capability}".`
+      );
+    }
+
     if (providerFilter) {
       throw new ApiError(
         'no_valid_keys',
         503,
-        `Provider "${providerFilter}" has no non-expired API keys configured.`
+        `Provider "${providerFilter}" has no non-expired API keys configured for capability "${capability}".`
       );
     } else {
       throw new ApiError(
         'no_valid_keys',
         503,
-        'All configured AI providers have only expired API keys. Update ai.json.enc and re-deploy.'
+        `All configured AI providers for capability "${capability}" have only expired API keys. Update ai.json.enc and re-deploy.`
       );
     }
   }
@@ -150,6 +166,14 @@ adminApp.openapi(aiParamsRoute, async (c) => {
       503,
       'AI is not configured. Either: (1) upload ai.json.enc to KV_CACHE under key "ai:config", ' +
       'or (2) set env vars AI_API_KEY, AI_MODEL, AI_API_URL.'
+    );
+  }
+
+  if (capability !== 'chat') {
+    throw new ApiError(
+      'not_configured',
+      503,
+      `Legacy AI env vars only support capability "chat". Upload ai.json.enc to configure capability "${capability}".`
     );
   }
 
