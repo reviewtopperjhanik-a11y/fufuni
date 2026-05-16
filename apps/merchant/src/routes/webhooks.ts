@@ -447,7 +447,7 @@ webhooks.post('/stripe', async (c) => {
                 );
                 for (const aiItem of aiTokenItems) {
                   if (aiItem.ai_token_units) {
-                    await creditAiTokens(db, customerId, orderId, aiItem.ai_token_units * aiItem.qty);
+                    await creditAiTokens(db, customerId, orderId, aiItem.ai_token_units * aiItem.qty, c.var.db, c.executionCtx);
                   }
                 }
               } catch (err) {

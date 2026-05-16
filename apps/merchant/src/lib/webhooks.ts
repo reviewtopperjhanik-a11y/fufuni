@@ -33,7 +33,9 @@ export type WebhookEventType =
   | 'order.updated'
   | 'order.shipped'
   | 'order.refunded'
-  | 'inventory.low';
+  | 'inventory.low'
+  | 'ai_tokens.key_created'
+  | 'ai_tokens.credited';
 
 /**
  * The envelope object sent to webhook subscriber URLs.

@@ -755,6 +755,9 @@ export const WebhookEvent = z.enum([
   'order.refunded',
   'inventory.low',
   'order.*',
+  'ai_tokens.key_created',
+  'ai_tokens.credited',
+  'ai_tokens.*',
   '*',
 ]);
 

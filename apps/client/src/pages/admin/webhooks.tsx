@@ -29,6 +29,7 @@ import {
   CheckCircle,
   Clock,
   RotateCw,
+  FileCode,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button, Modal, useOverlayState } from "@heroui/react";
@@ -40,42 +41,229 @@ import DefaultLayout from "@/layouts/default";
 
 /**
  * Predefined events that can be subscribed to when creating or editing a
- * webhook. The `value` is sent to the backend, while `label` and
- * `description` are shown in the UI.
+ * webhook. The `value` is sent to the backend; `label` and `description`
+ * are i18n keys resolved via `t()` in the render.
  */
 const WEBHOOK_EVENTS = [
   {
     value: "order.created",
-    label: "Order Created",
-    description: "When a new order is placed",
+    label: "admin-webhooks-event-order-created",
+    description: "admin-webhooks-event-order-created-desc",
   },
   {
     value: "order.updated",
-    label: "Order Updated",
-    description: "When order status changes",
+    label: "admin-webhooks-event-order-updated",
+    description: "admin-webhooks-event-order-updated-desc",
   },
   {
     value: "order.shipped",
-    label: "Order Shipped",
-    description: "When order is marked shipped",
+    label: "admin-webhooks-event-order-shipped",
+    description: "admin-webhooks-event-order-shipped-desc",
   },
   {
     value: "order.refunded",
-    label: "Order Refunded",
-    description: "When order is refunded",
+    label: "admin-webhooks-event-order-refunded",
+    description: "admin-webhooks-event-order-refunded-desc",
   },
   {
     value: "inventory.low",
-    label: "Low Inventory",
-    description: "When stock drops below threshold",
+    label: "admin-webhooks-event-inventory-low",
+    description: "admin-webhooks-event-inventory-low-desc",
   },
   {
     value: "order.*",
-    label: "All Order Events",
-    description: "Subscribe to all order events",
+    label: "admin-webhooks-event-order-all",
+    description: "admin-webhooks-event-order-all-desc",
   },
-  { value: "*", label: "All Events", description: "Subscribe to everything" },
+  {
+    value: "ai_tokens.key_created",
+    label: "admin-webhooks-event-ai-tokens-key-created",
+    description: "admin-webhooks-event-ai-tokens-key-created-desc",
+  },
+  {
+    value: "ai_tokens.credited",
+    label: "admin-webhooks-event-ai-tokens-credited",
+    description: "admin-webhooks-event-ai-tokens-credited-desc",
+  },
+  {
+    value: "ai_tokens.*",
+    label: "admin-webhooks-event-ai-tokens-all",
+    description: "admin-webhooks-event-ai-tokens-all-desc",
+  },
+  {
+    value: "*",
+    label: "admin-webhooks-event-all",
+    description: "admin-webhooks-event-all-desc",
+  },
 ] as const;
+
+/** HTTP headers included in every webhook delivery. Values shown are examples. */
+const EXAMPLE_HTTP_HEADERS: [string, string][] = [
+  ["Content-Type", "application/json"],
+  [
+    "X-Fufuni-Signature",
+    "a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2",
+  ],
+  ["X-Fufuni-Timestamp", "1748000000"],
+  ["X-Fufuni-Delivery-Id", "550e8400-e29b-41d4-a716-446655440000"],
+  ["User-Agent", "Fufuni-Webhook/1.0"],
+];
+
+const _BASE_ORDER = {
+  id: "9a8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d",
+  number: 1042,
+  customer_email: "customer@example.com",
+  customer_id: "cus_AbCdEf123456",
+  shipping: {
+    name: "Jean Dupont",
+    phone: "+33612345678",
+    address: {
+      line1: "12 rue de la Paix",
+      line2: null,
+      city: "Paris",
+      postal_code: "75001",
+      state: null,
+      country: "FR",
+    },
+  },
+  stripe: {
+    checkout_session_id: "cs_test_a1b2c3d4e5f6",
+    payment_intent_id: "pi_test_a1b2c3d4e5f6",
+  },
+  items: [{ sku: "1M", title: "AI Tokens — 1M", qty: 1, unit_price_cents: 4990 }],
+  created_at: "2026-05-16T10:30:00.000Z",
+};
+
+/**
+ * Realistic example payloads for each concrete event type.
+ * Keys match the `value` fields in WEBHOOK_EVENTS (no wildcards).
+ */
+const WEBHOOK_PAYLOAD_EXAMPLES: Record<string, object> = {
+  "order.created": {
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    type: "order.created",
+    created_at: "2026-05-16T10:30:00.000Z",
+    data: {
+      order: {
+        ..._BASE_ORDER,
+        status: "paid",
+        amounts: {
+          subtotal_cents: 4990,
+          tax_cents: 998,
+          shipping_cents: 490,
+          total_cents: 6478,
+          currency: "eur",
+        },
+      },
+    },
+  },
+  "order.updated": {
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    type: "order.updated",
+    created_at: "2026-05-16T11:00:00.000Z",
+    data: {
+      order: {
+        ..._BASE_ORDER,
+        status: "processing",
+        amounts: {
+          subtotal_cents: 4990,
+          discount_cents: 0,
+          tax_cents: 998,
+          taxes: [],
+          shipping_cents: 490,
+          total_cents: 6478,
+          currency: "eur",
+        },
+        discount: null,
+        tracking: { number: null, url: null, shipped_at: null },
+      },
+      previous_status: "paid",
+    },
+  },
+  "order.shipped": {
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    type: "order.shipped",
+    created_at: "2026-05-16T14:00:00.000Z",
+    data: {
+      order: {
+        ..._BASE_ORDER,
+        status: "shipped",
+        amounts: {
+          subtotal_cents: 4990,
+          discount_cents: 0,
+          tax_cents: 998,
+          taxes: [],
+          shipping_cents: 490,
+          total_cents: 6478,
+          currency: "eur",
+        },
+        discount: null,
+        tracking: {
+          number: "1Z999AA10123456784",
+          url: "https://track.carrier.com/1Z999AA10123456784",
+          shipped_at: "2026-05-16T14:00:00.000Z",
+        },
+      },
+      previous_status: "processing",
+    },
+  },
+  "order.refunded": {
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    type: "order.refunded",
+    created_at: "2026-05-17T09:00:00.000Z",
+    data: {
+      order: {
+        ..._BASE_ORDER,
+        status: "refunded",
+        amounts: {
+          subtotal_cents: 4990,
+          discount_cents: 0,
+          tax_cents: 998,
+          taxes: [],
+          shipping_cents: 490,
+          total_cents: 6478,
+          currency: "eur",
+        },
+        discount: null,
+        tracking: { number: null, url: null, shipped_at: null },
+      },
+      refund: {
+        stripe_refund_id: "re_test_a1b2c3d4e5f6",
+        amount_cents: 6478,
+      },
+    },
+  },
+  "inventory.low": {
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    type: "inventory.low",
+    created_at: "2026-05-16T15:30:00.000Z",
+    data: { sku: "SHIRT-M-BLU", available: 3, threshold: 5 },
+  },
+  "ai_tokens.key_created": {
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    type: "ai_tokens.key_created",
+    created_at: "2026-05-16T10:30:00.000Z",
+    data: {
+      customer_id: "cus_AbCdEf123456",
+      order_id: "9a8b7c6d-5e4f-3a2b-1c0d-9e8f7a6b5c4d",
+      api_key: "fufkey_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AB",
+      credited_units: 1000000,
+      balance_units: 1000000,
+    },
+  },
+  "ai_tokens.credited": {
+    id: "550e8400-e29b-41d4-a716-446655440000",
+    type: "ai_tokens.credited",
+    created_at: "2026-05-16T11:00:00.000Z",
+    data: {
+      customer_id: "cus_AbCdEf123456",
+      order_id: "b2c3d4e5-f6a7-8b9c-0d1e-2f3a4b5c6d7e",
+      api_key: "fufkey_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789AB",
+      credited_units: 100000,
+      balance_units: 1100000,
+    },
+  },
+};
 
 /**
  * Basic webhook record returned in the list endpoint.
@@ -126,6 +314,10 @@ export default function WebhooksPage() {
   // request (provider caching is keyed by URL so we also append a cache-busting
   // query parameter when we call `getJson`).
   const [refreshIndex, setRefreshIndex] = useState(0);
+
+  const examplesModalState = useOverlayState();
+  const [examplesEventType, setExamplesEventType] = useState("order.created");
+  const [copiedPayload, setCopiedPayload] = useState(false);
 
   const [newUrl, setNewUrl] = useState("");
   const [newEvents, setNewEvents] = useState<string[]>(["order.created"]);
@@ -290,6 +482,14 @@ export default function WebhooksPage() {
                 size={16}
               />
             </button>
+            <button
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 text-sm rounded hover:bg-(--bg-hover) transition-colors"
+              style={{ color: "var(--text-muted)" }}
+              onClick={() => examplesModalState.open()}
+            >
+              <FileCode size={15} />
+              {t("admin-webhooks-examples-btn")}
+            </button>
             <Button
               className="inline-flex items-center gap-1.5"
               size="sm"
@@ -442,12 +642,12 @@ export default function WebhooksPage() {
                               onChange={() => toggleEvent(event.value)}
                             />
                             <div>
-                              <p className="text-sm ">{event.label}</p>
+                              <p className="text-sm ">{t(event.label)}</p>
                               <p
                                 className="text-xs"
                                 style={{ color: "var(--text-muted)" }}
                               >
-                                {event.description}
+                                {t(event.description)}
                               </p>
                             </div>
                           </label>
@@ -751,6 +951,160 @@ export default function WebhooksPage() {
                       </div>
                     </div>
                   )}
+                </Modal.Body>
+              </Modal.Dialog>
+            </Modal.Container>
+          </Modal.Backdrop>
+        </Modal>
+        {/* Payload Examples Modal */}
+        <Modal state={examplesModalState}>
+          <Modal.Backdrop>
+            <Modal.Container size="lg">
+              <Modal.Dialog>
+                <Modal.Header>
+                  {t("admin-webhooks-examples-title")}
+                </Modal.Header>
+                <Modal.Body>
+                  <div className="space-y-4">
+                    {/* Event type selector */}
+                    <div>
+                      <label
+                        className="block text-xs font-medium uppercase tracking-wide mb-2"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {t("admin-webhooks-examples-event")}
+                      </label>
+                      <select
+                        className="w-full px-3 py-2 text-sm rounded-lg focus:outline-none focus:ring-2"
+                        style={{
+                          background: "var(--bg-card)",
+                          border: "1px solid var(--border)",
+                          color: "var(--text)",
+                        }}
+                        value={examplesEventType}
+                        onChange={(e) => setExamplesEventType(e.target.value)}
+                      >
+                        {WEBHOOK_EVENTS.filter(
+                          (ev) => !ev.value.includes("*"),
+                        ).map((ev) => (
+                          <option key={ev.value} value={ev.value}>
+                            {t(ev.label)}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Method badge */}
+                    <div className="flex items-center gap-2">
+                      <span
+                        className="px-2 py-0.5 text-xs font-bold rounded font-mono"
+                        style={{
+                          background: "var(--bg-subtle)",
+                          border: "1px solid var(--border-subtle)",
+                          color: "var(--text)",
+                        }}
+                      >
+                        POST
+                      </span>
+                      <span
+                        className="text-sm"
+                        style={{ color: "var(--text-muted)" }}
+                      >
+                        {t("admin-webhooks-examples-endpoint-note")}
+                      </span>
+                    </div>
+
+                    {/* Headers */}
+                    <div>
+                      <h4
+                        className="text-xs font-medium uppercase tracking-wide mb-2"
+                        style={{ color: "var(--text-secondary)" }}
+                      >
+                        {t("admin-webhooks-examples-headers")}
+                      </h4>
+                      <div
+                        className="rounded-lg overflow-hidden"
+                        style={{ border: "1px solid var(--border)" }}
+                      >
+                        <pre
+                          className="p-3 text-xs overflow-x-auto leading-relaxed"
+                          style={{
+                            background: "var(--bg-subtle)",
+                            color: "var(--text)",
+                          }}
+                        >
+                          {EXAMPLE_HTTP_HEADERS.map(
+                            ([k, v]) => `${k}: ${v}`,
+                          ).join("\n")}
+                        </pre>
+                      </div>
+                    </div>
+
+                    {/* Body */}
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <h4
+                          className="text-xs font-medium uppercase tracking-wide"
+                          style={{ color: "var(--text-secondary)" }}
+                        >
+                          {t("admin-webhooks-examples-body")}
+                        </h4>
+                        <button
+                          className="p-1.5 rounded hover:bg-(--bg-hover)"
+                          style={{ color: "var(--text-muted)" }}
+                          onClick={() => {
+                            const payload =
+                              WEBHOOK_PAYLOAD_EXAMPLES[examplesEventType];
+                            if (payload) {
+                              navigator.clipboard.writeText(
+                                JSON.stringify(payload, null, 2),
+                              );
+                              setCopiedPayload(true);
+                              setTimeout(() => setCopiedPayload(false), 2000);
+                            }
+                          }}
+                        >
+                          {copiedPayload ? (
+                            <Check className="text-green-500" size={14} />
+                          ) : (
+                            <Copy size={14} />
+                          )}
+                        </button>
+                      </div>
+                      <div
+                        className="rounded-lg overflow-hidden"
+                        style={{ border: "1px solid var(--border)" }}
+                      >
+                        <pre
+                          className="p-3 text-xs overflow-x-auto overflow-y-auto max-h-72 leading-relaxed"
+                          style={{
+                            background: "var(--bg-subtle)",
+                            color: "var(--text)",
+                          }}
+                        >
+                          {JSON.stringify(
+                            WEBHOOK_PAYLOAD_EXAMPLES[examplesEventType],
+                            null,
+                            2,
+                          )}
+                        </pre>
+                      </div>
+                    </div>
+
+                    {/* Signature note */}
+                    <p
+                      className="text-xs"
+                      style={{ color: "var(--text-muted)" }}
+                    >
+                      {t("admin-webhooks-examples-note")}
+                    </p>
+
+                    <div className="flex justify-end">
+                      <Button onPress={() => examplesModalState.close()}>
+                        {t("done")}
+                      </Button>
+                    </div>
+                  </div>
                 </Modal.Body>
               </Modal.Dialog>
             </Modal.Container>

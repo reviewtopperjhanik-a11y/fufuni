@@ -777,6 +777,7 @@ adminApp.openapi(deleteProduct, async (c) => {
   }
 
   for (const v of variants) {
+    await db.run(`DELETE FROM warehouse_inventory WHERE sku = ?`, [v.sku]);
     await db.run(`DELETE FROM inventory WHERE sku = ?`, [v.sku]);
   }
 

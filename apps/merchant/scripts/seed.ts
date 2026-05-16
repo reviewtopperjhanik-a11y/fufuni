@@ -565,6 +565,48 @@ async function seedCategories() {
     parent_id: parentCategory.id,
   }, 'sports-outdoor.png');
 
+  const digitalProductsCategory = await createCat({
+    handle: 'digital-products',
+    name: JSON.stringify({
+      'en-US': 'Digital Products',
+      'fr-FR': 'Produits numériques',
+      'es-ES': 'Productos digitales',
+      'zh-CN': '数字产品',
+      'ar-SA': 'المنتجات الرقمية',
+      'he-IL': 'מוצרים דיגיטליים',
+    }),
+    description: JSON.stringify({
+      'en-US': 'Downloadable files and digital content delivered instantly after purchase.',
+      'fr-FR': 'Fichiers téléchargeables et contenus numériques livrés instantanément après achat.',
+      'es-ES': 'Archivos descargables y contenido digital entregado instantáneamente tras la compra.',
+      'zh-CN': '购买后即时交付的可下载文件和数字内容。',
+      'ar-SA': 'ملفات قابلة للتنزيل ومحتوى رقمي يُسلَّم فوراً بعد الشراء.',
+      'he-IL': 'קבצים להורדה ותוכן דיגיטלי שמסופקים מיידית לאחר הרכישה.',
+    }),
+    parent_id: parentCategory.id,
+  }, 'digitalproducts.png');
+
+  const aiTokensCategory = await createCat({
+    handle: 'ai-tokens',
+    name: JSON.stringify({
+      'en-US': 'AI Credits',
+      'fr-FR': 'Crédits IA',
+      'es-ES': 'Créditos IA',
+      'zh-CN': 'AI 积分',
+      'ar-SA': 'رصيد الذكاء الاصطناعي',
+      'he-IL': 'קרדיטים לבינה מלאכותית',
+    }),
+    description: JSON.stringify({
+      'en-US': 'AI token packages — purchase credits to use with AI-powered features.',
+      'fr-FR': 'Packs de tokens IA — achetez des crédits pour utiliser les fonctionnalités IA.',
+      'es-ES': 'Paquetes de tokens IA — compra créditos para usar las funciones con IA.',
+      'zh-CN': 'AI 积分包 — 购买积分以使用 AI 功能。',
+      'ar-SA': 'حزم رموز الذكاء الاصطناعي — اشترِ الرصيد لاستخدام ميزات الذكاء الاصطناعي.',
+      'he-IL': 'חבילות טוקנים של בינה מלאכותית — רכוש קרדיטים לשימוש בתכונות AI.',
+    }),
+    parent_id: parentCategory.id,
+  }, 'aitokens.png');
+
   return {
     merchandising: parentCategory.id,
     classicTees: classicTeesCategory.id,
@@ -577,6 +619,8 @@ async function seedCategories() {
     homeLiving: homeLivingCategory.id,
     eventsSignage: eventsSignageCategory.id,
     sportsOutdoor: sportsOutdoorCategory.id,
+    digitalProducts: digitalProductsCategory.id,
+    aiTokens: aiTokensCategory.id,
   };
 }
 
@@ -849,6 +893,30 @@ const PRODUCT_CATALOG = [
     title:       { 'en-US': 'Paraglider Wing EN-D',    'fr-FR': 'Voile de parapente EN-D',       'es-ES': 'Ala de parapente EN-D',         'zh-CN': '滑翔伞翼 EN-D',     'ar-SA': 'EN-D جناح طيران شراعي',    'he-IL': 'כנף מצנח רחיפה EN-D' },
     description: { 'en-US': 'Packed paraglider wing with branded canopy panel, delivered folded in transport configuration.', 'fr-FR': 'Voile de parapente emballée avec panneau de voile cousu, livrée pliée en configuration de transport.', 'es-ES': 'Ala de parapente embalada con panel de vela personalizado, entregada plegada para transporte.', 'ar-SA': 'جناح طيران شراعي معبأ مع جزء قماش يحمل العلامة، يُسلم مطوياً بوضعية النقل.', 'zh-CN': '带品牌伞翼面板的打包滑翔伞翼，折叠后按运输状态交付。', 'he-IL': 'כנף מצנח רחיפה ארוזה עם פאנל ממותג, מסופקת מקופלת לתצורת הובלה。' },
     variants: [{ sku: 'PARAGLIDER-XS', title: 'PTV 40-60', price_cents: 329000, weight_g: 3200, stock: 1 },{ sku: 'PARAGLIDER-S', title: 'PTV 60-80', price_cents: 399000, weight_g: 3300, stock: 0 },{ sku: 'PARAGLIDER-M', title: 'PTV 80-100', price_cents: 499000, weight_g: 3400, stock: 2 },{ sku: 'PARAGLIDER-L', title: 'PTV 100-120', price_cents: 399000, weight_g: 3500, stock: 1 } ,{ sku: 'PARAGLIDER-BI', title: 'Tandem 90-220', price_cents: 699000, weight_g: 5500, stock: 5 }],
+  },
+
+  // ── Digital Products ───────────────────────────────────────────────────────
+  {
+    key: 'design-template', file: 'software.png', handle: 'design-template-pack', vendor: 'SCTG',
+    categories: ['digital-products'],
+    title:       { 'en-US': 'Design Template Pack',  'fr-FR': 'Pack de modèles graphiques', 'es-ES': 'Pack de plantillas de diseño', 'zh-CN': '设计模板包', 'ar-SA': 'حزمة قوالب التصميم', 'he-IL': 'חבילת תבניות עיצוב' },
+    description: { 'en-US': '<p>A collection of print-ready vector templates for branded merchandise. Delivered as a ZIP archive with AI, EPS and PNG formats.</p>', 'fr-FR': '<p>Collection de modèles vectoriels prêts à imprimer pour les produits de marque. Livrée sous forme d\'archive ZIP avec les formats AI, EPS et PNG.</p>', 'es-ES': '<p>Colección de plantillas vectoriales listas para imprimir para merchandising de marca. Entregadas como archivo ZIP con formatos AI, EPS y PNG.</p>', 'zh-CN': '<p>印刷就绪的品牌商品矢量模板合集，以包含 AI、EPS 和 PNG 格式的 ZIP 压缩包形式交付。</p>', 'ar-SA': '<p>مجموعة من القوالب المتجهية الجاهزة للطباعة للبضائع ذات العلامة التجارية. تُسلَّم كأرشيف ZIP بصيغ AI وEPS وPNG.</p>', 'he-IL': '<p>אוסף תבניות וקטוריות מוכנות להדפסה למוצרי מותג. מסופק כארכיון ZIP בפורמטים AI, EPS ו-PNG.</p>' },
+    variants: [
+      { sku: 'TEMPLATE-PACK-FULL', title: 'Full Bundle', price_cents: 4900, weight_g: 0, stock: 0, variant_type: 'digital', requires_shipping: false },
+    ],
+  },
+
+  // ── AI Token Packages ──────────────────────────────────────────────────────
+  {
+    key: 'ai-tokens', file: 'aitokens.png', handle: 'ai-token-pack', vendor: 'SCTG',
+    categories: ['ai-tokens'],
+    title:       { 'en-US': 'AI Credit Pack',        'fr-FR': 'Pack de crédits IA',          'es-ES': 'Pack de créditos IA',         'zh-CN': 'AI 积分包', 'ar-SA': 'حزمة رصيد الذكاء الاصطناعي', 'he-IL': 'חבילת קרדיטים AI' },
+    description: { 'en-US': '<p>Purchase AI credits to power AI features. Credits are added instantly to your account after payment.</p>', 'fr-FR': '<p>Achetez des crédits IA pour alimenter les fonctionnalités IA. Les crédits sont ajoutés instantanément à votre compte après paiement.</p>', 'es-ES': '<p>Compra créditos IA para potenciar las funciones de IA. Los créditos se añaden instantáneamente a tu cuenta tras el pago.</p>', 'zh-CN': '<p>购买 AI 积分以驱动 AI 功能。付款后积分将立即添加到您的账户。</p>', 'ar-SA': '<p>اشترِ رصيد الذكاء الاصطناعي لتشغيل ميزات الذكاء الاصطناعي. يُضاف الرصيد فوراً إلى حسابك بعد الدفع.</p>', 'he-IL': '<p>רכוש קרדיטים AI להפעלת תכונות בינה מלאכותית. הקרדיטים נוספים מיידית לחשבונך לאחר התשלום.</p>' },
+    variants: [
+      { sku: '100K', title: '100 000 tokens', price_cents: 990,  weight_g: 0, stock: 0, variant_type: 'ai_tokens', ai_token_units: 100000,   requires_shipping: false },
+      { sku: '1M',   title: '1M tokens',      price_cents: 4990, weight_g: 0, stock: 0, variant_type: 'ai_tokens', ai_token_units: 1000000,  requires_shipping: false },
+      { sku: '10M',  title: '10M tokens',     price_cents: 9990, weight_g: 0, stock: 0, variant_type: 'ai_tokens', ai_token_units: 10000000, requires_shipping: false },
+    ],
   },
 ] as const;
 
@@ -1157,6 +1225,8 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
     'home-living':      categoryData.homeLiving,
     'events-signage':   categoryData.eventsSignage,
     'sports-outdoor':   categoryData.sportsOutdoor,
+    'digital-products': categoryData.digitalProducts,
+    'ai-tokens':        categoryData.aiTokens,
   };
 
   for (const prod of PRODUCT_CATALOG) {
@@ -1195,13 +1265,16 @@ async function seedProducts(regionData: any, categoryData: any): Promise<Record<
       if (usdId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: usdId, price_cents: convertCents(v.price_cents, EUR_TO_USD) });
       if (gbpId) await api(`/v1/products/${product.id}/variants/${created.id}/prices`, { currency_id: gbpId, price_cents: convertCents(v.price_cents, EUR_TO_GBP) });
 
-      // Special mock distribution: TEE-BLK-S is split between IT/FR warehouses
-      // for regional stock testing; all other SKUs are stocked in FR.
-      if (v.sku === 'TEE-BLK-S') {
-        await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.it, delta: 10,         reason: 'restock' });
-        await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock - 10, reason: 'restock' });
-      } else {
-        await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock, reason: 'restock' });
+      const variantType = (v as any).variant_type ?? 'physical';
+      if (variantType === 'physical') {
+        // Special mock distribution: TEE-BLK-S is split between IT/FR warehouses
+        // for regional stock testing; all other SKUs are stocked in FR.
+        if (v.sku === 'TEE-BLK-S') {
+          await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.it, delta: 10,         reason: 'restock' });
+          await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock - 10, reason: 'restock' });
+        } else {
+          await api(`/v1/inventory/${encodeURIComponent(v.sku)}/warehouse-adjust`, { warehouse_id: regionData.warehouses.fr, delta: stock, reason: 'restock' });
+        }
       }
     }
   }

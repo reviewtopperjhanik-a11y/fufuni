@@ -4,131 +4,99 @@
   To add or modify topics, edit files in apps/mcp/src/knowledge/topics/
   description:  Call this when configuring or troubleshooting the Cloudflare AI Gateway for unified AI access.
   model:        mistral/magistral-medium-latest
-  tokens_in:    43937
-  tokens_out:   2810
+  tokens_in:    45185
+  tokens_out:   2221
   api_endpoint: https://gateway.ai.cloudflare.com/v1/___cloudflare_account_id___/default/compat
   manual_facts_checksum: f361e65aacea64561b249b0974d29a4cd4cb2d29b55a3561d8115884920afd43
-  sources_checksum: 163c8943894c02944482b44449dd29627cba13c7b143157132b585fdc7819c7f
+  sources_checksum: c8fd9ba343dea215c2b39286ff68aa31b4ec6e364db0fe6ba675d532bc43b72f
   source_file_hashes:
-    ai.json: b3df99466091292601a8042e2fe3b4a5bba6d866cec5042b0d3db451b505fd38
-    apps/merchant/src/routes/ai.ts: b085eac401125425a866e85e3616c736aa7e4e09423439abd9b362556fb22aa4
+    ai.json: 28387d7a412f3ff91ce9a5f73d76d7ede57ab97b457dfdb16cbd810c1f252b27
+    apps/merchant/src/routes/ai.ts: 1f3f81bfa6e05535c6e6929bba4d058e5d3c49a53d9202d702af97d3db9f91ea
     apps/merchant/src/lib/ai-enc.ts: 3f13384b186eab64dde8e7c66d8438853c130743531967759850a36a9d344b56
     apps/mcp/src/lib/ai-enc.ts: f409c18daf1d8642c73c7a3322011cdb213561c86a0913d6ff62ff5ab281e634
     apps/mcp/src/knowledge/generate.ts: 80c0d6c822629d2fd5a9c5e4911b631cabe5a7f500ab4d40a0b7847e43e07129
     apps/mcp/scripts/gen-knowledge.ts: 8e0c8573baad39e89dc30037f27d82c0ca5335cb1dc44e96a565d52adf55a58a
     apps/mcp/src/tools.ts: 8001ed94f61d6a2231667fe030cd687a30bfe8e1926f4e2043eb046fb05dbd21
-    apps/client/src/utils/ai-client.ts: 59cd919e436eb2543023fcdab5d084d78c2616bbc713888676fbf045abd86b69
+    apps/client/src/utils/ai-client.ts: 386022fc3d64458e711a7edeb9a06793b7c1d87be48266b06ce77c01b6263ff3
 -->
 ## Cloudflare AI Gateway — Unified Access
 
-Cloudflare AI Gateway provides a unified interface to access multiple AI providers through a single endpoint. It offers:
-- Observability into AI usage
-- Centralized logging
-- Request caching
-- Rate limiting
-- Unified authentication
+The Cloudflare AI Gateway consolidates access to multiple AI providers through a single endpoint, offering observability, logging, caching, and rate limiting. It supports two integration paths:
 
-The gateway supports two integration paths:
-1. **Compatibility path**: Standard OpenAI-compatible endpoint for all providers
-2. **Native path**: Provider-specific endpoint for Gemini embeddings
-
-## ai.json Configuration Schema
-
-The gateway is configured via `ai.json` with provider-specific settings:
+1. **Compat path** (all providers): OpenAI-compatible endpoint for chat completions (e.g., Groq, Anthropic, Mistral)
+2. **Native path** (Gemini only): Provider-specific endpoint for embeddings
 
 ```typescript
-interface AiProvider {
-  protocol: 'openai' | 'anthropic' | 'gemini';
-  endpoint: string; // Direct provider URL
-  gatewayEndpoint?: string; // Cloudflare gateway URL
-  gatewayModelPrefix?: string; // Provider slug for model prefixing
-  keys: Array<{
-    key: string;
-    owner?: string;
-    type?: 'expired' | 'free' | 'paid' | 'premium' | 'unlimited';
-  }>;
-  models: Array<{
-    id: string;
-    contextWindow: number;
-    maxOutputTokens: number;
-    tpmLimit: number | null;
-    priority: number;
-    tags?: string[];
-    usage: 'chat' | 'embedding'; // Required for proper routing
-    defaultDimensions?: number; // For embedding models
-  }>;
-}
-```
-
-Minimal provider configuration example:
-
-```json
+// Example ai.json provider block
 {
-  "providers": {
-    "groq": {
-      "protocol": "openai",
-      "endpoint": "https://api.groq.com/openai/v1",
-      "gatewayEndpoint": "https://gateway.ai.cloudflare.com/v1/___account_id___/default/compat",
-      "gatewayModelPrefix": "groq",
-      "keys": [{"key": "gsk_..."}],
-      "models": [
-        {
-          "id": "llama-3.3-70b-versatile",
-          "usage": "chat",
-          "contextWindow": 131072,
-          "maxOutputTokens": 32768,
-          "priority": 1
-        }
-      ]
-    }
+  "groq": {
+    "protocol": "openai",
+    "endpoint": "https://api.groq.com/openai/v1",
+    "gatewayEndpoint": "https://gateway.ai.cloudflare.com/v1/___account_id___/default/compat",
+    "gatewayModelPrefix": "groq",
+    "models": [
+      {
+        "id": "llama-3.3-70b-versatile",
+        "usage": "chat",
+        "contextWindow": 131072,
+        "maxOutputTokens": 32768,
+        "priority": 1
+      }
+    ]
   }
 }
 ```
 
-## Credential Encryption
+---
 
-AI credentials are encrypted using AES-256-CBC with PBKDF2:
+### ai.json Schema
+
+The configuration file defines providers with these key fields:
+
+- `protocol`: Wire format (`openai`, `anthropic`, `gemini`)
+- `endpoint`: Direct provider URL
+- `gatewayEndpoint`: Cloudflare compat endpoint (optional)
+- `gatewayModelPrefix`: Prefix for gateway model IDs (e.g., `"groq"`, `"anthropic"`)
+- `keys`: Array of `{key, owner?, type?}`
+- `models`: Array of model definitions with:
+  - `id`: Model identifier
+  - `usage`: `"chat"` or `"embedding"` (required)
+  - `contextWindow`: Token limit
+  - `defaultDimensions`: Output vector size (embedding models)
+
+---
+
+### Encryption
+
+Plaintext `ai.json` is encrypted to `ai.json.enc` using:
 
 ```bash
 openssl enc -aes-256-cbc -a -pbkdf2 -iter 100000 -salt \
   -in ai.json -out ai.json.enc -pass pass:"${CRYPTOKEN}"
 ```
 
-Decryption in the worker:
+Decryption in `lib/ai-enc.ts` uses the Web Crypto API:
 
 ```typescript
-// apps/merchant/src/lib/ai-enc.ts
-export async function decryptAiConfig(
-  base64Ciphertext: string,
-  password: string,
-): Promise<AiConfig> {
-  // 1. Base64 decode
-  // 2. Verify "Salted__" header
-  // 3. PBKDF2-SHA256 derivation (100,000 iterations)
-  // 4. AES-256-CBC decrypt
-  // 5. Parse JSON
+const config = await decryptAiConfig(encryptedContent, env.CRYPTOKEN);
+```
+
+---
+
+### Gateway Authentication
+
+The gateway uses the `cf-aig-authorization` header:
+
+```typescript
+headers: {
+  "cf-aig-authorization": `Bearer ${env.CLOUDFLARE_AIG_TOKEN}`
 }
 ```
 
-## Gateway Authentication
-
-Requests are authenticated using:
+Endpoint selection logic:
 
 ```typescript
-// apps/merchant/src/routes/ai.ts
-const gatewayAuthHeader = CLOUDFLARE_AIG_TOKEN
-  ? { 'cf-aig-authorization': `Bearer ${CLOUDFLARE_AIG_TOKEN}` }
-  : {};
-```
-
-Endpoint resolution logic:
-
-```typescript
-// apps/mcp/src/lib/ai-enc.ts
-export function resolveProviderEndpoint(
-  provider: AiProvider,
-  aigToken: string | undefined,
-): { endpoint: string; useGateway: boolean } {
+function resolveProviderEndpoint(provider, aigToken) {
   if (aigToken && provider.gatewayEndpoint) {
     return { endpoint: provider.gatewayEndpoint, useGateway: true };
   }
@@ -136,203 +104,136 @@ export function resolveProviderEndpoint(
 }
 ```
 
-## Model ID Prefixing
+---
 
-Model IDs are prefixed for gateway routing:
+### Model ID Prefixing
+
+When using the gateway, model IDs are prefixed with the provider slug:
 
 ```typescript
-// apps/mcp/src/lib/ai-enc.ts
-export function resolveModelId(
-  modelId: string,
-  provider: AiProvider,
-  useGateway: boolean,
-): string {
-  if (useGateway && provider.gatewayModelPrefix) {
-    const prefix = `${provider.gatewayModelPrefix}/`;
-    return modelId.startsWith(prefix)
-      ? modelId
-      : `${prefix}${modelId}`;
-  }
-  return modelId;
-}
+// Input model ID + provider
+{ modelId: "llama-3.3-70b-versatile", provider: groqConfig }
+
+// Resolved for gateway
+"groq/llama-3.3-70b-versatile"
 ```
 
-Examples:
-- `llama-3.3-70b-versatile` → `groq/llama-3.3-70b-versatile`
-- `claude-haiku-4-5` → `anthropic/claude-haiku-4-5`
-- `gemini-3-flash-preview` → `google-ai-studio/gemini-3-flash-preview`
+---
 
-## Backend Implementation
+### Backend Integration
 
-The merchant worker exposes AI parameters:
+The Merchant Worker exposes configuration via:
 
 ```typescript
 // apps/merchant/src/routes/ai.ts
-adminApp.openapi(
-  createRoute({
-    method: 'get',
-    path: '/parameters',
-    security: [{ bearerAuth: ['ai:api'] }],
-    responses: {
-      200: {
-        content: { 'application/json': { schema: AiParamsResponse } },
-      }
-    }
-  }),
-  async (c) => {
-    // Returns either gateway or direct config
-    return c.json({
-      providerName: 'groq',
-      apiKey: '...',
-      model: 'llama-3.3-70b-versatile',
-      url: 'https://api.groq.com/openai/v1',
-      cloudflareAigToken: '...', // When configured
-      cloudflareAigUrl: provider.gatewayEndpoint // When configured
-    });
-  }
-);
+app.get('/parameters', async (c) => {
+  const { provider, capability } = c.req.valid('query');
+  // Returns { providerName, apiKey, model, url, cloudflareAigToken?, cloudflareAigUrl? }
+});
 ```
 
-## MCP Knowledge Generation
+Example response with gateway enabled:
 
-The MCP generation pipeline uses the gateway:
+```json
+{
+  "providerName": "groq",
+  "apiKey": "gsk_...",
+  "model": "llama-3.3-70b-versatile",
+  "url": "https://api.groq.com/openai/v1",
+  "cloudflareAigToken": "AIG_TOKEN...",
+  "cloudflareAigUrl": "https://gateway.ai.cloudflare.com/v1/..."
+}
+```
+
+---
+
+### MCP Knowledge Generation
+
+The generation scripts pass gateway credentials through the call stack:
 
 ```typescript
 // apps/mcp/src/knowledge/generate.ts
-const result = await generateEmbedding(query, {
-  apiKeys: keyPool,
-  model: 'gemini-embedding-2-preview',
-  vectorDimension: 256,
-  gatewayBaseUrl, // From resolveProviderEndpoint
-  aigToken: env.CLOUDFLARE_AIG_TOKEN
+const result = await callAi(..., {
+  aigToken: env.CLOUDFLARE_AIG_TOKEN,
+  gatewayBaseUrl: provider.gatewayEndpoint?.replace(/\/compat$/, '')
 });
 ```
 
-## MCP Tools Implementation
-
-Semantic search via gateway embeddings:
+Embedding results track the connection method:
 
 ```typescript
-// apps/mcp/src/tools.ts
-server.registerTool("retrieve_knowledge", {
-  // ...
-}, async ({ query }) => {
-  // 1. BM25 lexical search
-  // 2. Gateway-powered vector search
-  const result = await generateEmbedding(query, {
-    apiKeys,
-    model: VECTOR_MODEL,
-    gatewayBaseUrl,
-    aigToken: env.CLOUDFLARE_AIG_TOKEN
-  });
-
-  return {
-    content: [{
-      type: "text",
-      text: JSON.stringify({
-        query,
-        mode: result ? "hybrid" : "BM25-only",
-        chunks: topResults,
-        stats: result?.stats,
-        connection: result?.connection // "gateway" or "direct"
-      })
-    }]
-  };
-});
+interface EmbeddingResult {
+  vector: number[];
+  stats: { key: string; nbTry: number; nbSuccess: number }[];
+  connection: "gateway" | "direct";
+}
 ```
 
-## Frontend Implementation
+---
 
-The frontend client handles gateway routing:
+### Frontend Integration
+
+The client library automatically routes through the gateway when both `cloudflareAigToken` and `cloudflareAigUrl` are present:
 
 ```typescript
 // apps/client/src/utils/ai-client.ts
-export async function translateWithAi(
-  content: string,
-  targetLanguage: string,
-  aiParams: AiParams,
-  isHtml = true
-): Promise<TranslationResult> {
-  // Gateway routing logic
-  if (aiParams.cloudflareAigUrl && aiParams.cloudflareAigToken) {
-    const provider = detectProvider(aiParams.url, aiParams.provider);
-    const prefix = gatewayModelPrefix(provider);
-    const prefixedModel = `${prefix}/${aiParams.model}`;
-    return callOpenAiCompatibleApi(content, targetLanguage, {
-      ...aiParams,
-      url: aiParams.cloudflareAigUrl,
-      model: prefixedModel
-    });
+async function translateWithAi(content, targetLanguage, aiParams) {
+  if (aiParams.cloudflareAigToken && aiParams.cloudflareAigUrl) {
+    const provider = detectProvider(aiParams.url);
+    const prefixedModel = `${gatewayModelPrefix(provider)}/${aiParams.model}`;
+    // Use gateway endpoint
   }
-  // ...
 }
 ```
 
-## CORS Limitation
+---
 
-Direct browser-to-gateway calls fail due to CORS preflight issues:
-- Cloudflare AI Gateway with authentication returns 401 on OPTIONS requests
-- Browsers cannot send custom headers in OPTIONS requests
-- No JavaScript workaround exists for this browser security restriction
+### CORS Limitation
 
-Temporary workaround:
-```javascript
-// .env
-DISABLE_CLOUDFLARE_AIG=true
-```
+Direct browser-to-gateway calls fail due to 401 on OPTIONS preflight. Workarounds:
 
-Expected fix from Cloudflare: Support for authenticated CORS preflight.
-
-## Gemini Embedding Native Path
-
-Special handling for Gemini embeddings:
+1. **Temporary**: Set `DISABLE_CLOUDFLARE_AIG=true` in your `.env`
+2. **Long-term**: Await Cloudflare's CORS preflight fix
 
 ```typescript
-// apps/mcp/src/lib/embeddings.ts
-async function generateEmbeddingViaGateway(
-  text: string,
-  opts: {
-    gatewayBaseUrl: string;
-    aigToken: string;
+// In your Vite config
+export default defineConfig({
+  define: {
+    'import.meta.env.DISABLE_CLOUDFLARE_AIG': JSON.stringify(process.env.DISABLE_CLOUDFLARE_AIG)
   }
-): Promise<EmbeddingResult> {
-  const endpoint = new URL(
-    `google-ai-studio/v1beta/models/${model}:embedContent`,
-    opts.gatewayBaseUrl
-  );
-
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "cf-aig-authorization": `Bearer ${opts.aigToken}`
-    },
-    body: JSON.stringify({
-      model,
-      content: { parts: [{ text }] },
-      task_type: "RETRIEVAL_DOCUMENT"
-    })
-  });
-
-  // ...
-}
+});
 ```
 
-## Known Pitfalls
+---
 
-1. **Model usage field**: Always set `usage: "chat"` or `usage: "embedding"` on all models to prevent incorrect model selection.
+### Gemini Embedding Native Path
 
-2. **Field name matching**: AiParams field names must exactly match the /v1/ai/parameters response:
-   ```typescript
-   interface AiParams {
-     apiKey: string;      // Must match response
-     model: string;       // Must match response
-     url: string;         // Must match response
-     cloudflareAigToken?: string;
-     cloudflareAigUrl?: string;
-   }
-   ```
+For vector embeddings, the native Gemini path is used:
 
-3. **Gateway model prefixing**: When using the gateway, model IDs must be properly prefixed with the provider slug (e.g., "groq/llama-3.3-70b-versatile").
+```typescript
+// Model configuration
+{
+  "id": "gemini-embedding-2-preview",
+  "usage": "embedding",
+  "defaultDimensions": 256
+}
 
-4. **CORS limitations**: Direct browser-to-gateway calls are currently not possible due to the OPTIONS preflight authentication issue.
+// Request endpoint (via gateway)
+"https://gateway.ai.cloudflare.com/v1/.../google-ai-studio/v1beta/models/gemini-embedding-2-preview:embedContent"
+```
+
+---
+
+### Known Pitfalls
+
+1. **Always specify `usage`**: Models without `usage` may be incorrectly selected for chat vs embedding tasks
+2. **Field name matching**: AiParams must match `/v1/ai/parameters` response exactly
+3. **Rate limits**: Gateway applies separate rate limits from direct provider calls
+4. **Model priority**: Ensure high-priority models have valid, non-expired keys
+
+Verify your configuration:
+
+```typescript
+const candidates = selectModels(config, { usage: "chat" });
+console.log(candidates.map(c => c.model.id));
+```

@@ -243,10 +243,10 @@ adminApp.openapi(addCartItems, async (c) => {
     if (!variant) throw ApiError.notFound(`SKU not found: ${sku}`);
     if (variant.status !== 'active') throw ApiError.invalidRequest(`SKU not active: ${sku}`);
 
-    // --- Phase 2b: Use unified helper (warehouse-aware) ---
-    const available = await getAvailableQty(db, sku);
-    if (available < qty) throw ApiError.insufficientInventory(sku);
-    // --- End Phase 2b ---
+    if (variant.variant_type === 'physical') {
+      const available = await getAvailableQty(db, sku);
+      if (available < qty) throw ApiError.insufficientInventory(sku);
+    }
 
     // Resolve price using multi-currency helper (Option A: strict fallback)
     const unitPriceCents = await resolveVariantPrice(db, variant.id, currencyId);
@@ -521,17 +521,18 @@ adminApp.openapi(checkoutCart, async (c) => {
   // --- End Phase 2b ---
 
   try {
-    // --- Phase 2b: Use unified helper for reserve ---
     for (const item of items) {
-      try {
-        await reserveInventory(db, item.sku, item.qty);
-        reservedItems.push({ sku: item.sku, qty: item.qty });
-      } catch (err) {
-        await releaseReservedInventory();
-        throw err;
+      const [v] = await db.query<any>(`SELECT variant_type FROM variants WHERE sku = ?`, [item.sku]);
+      if (!v || v.variant_type === 'physical') {
+        try {
+          await reserveInventory(db, item.sku, item.qty);
+          reservedItems.push({ sku: item.sku, qty: item.qty });
+        } catch (err) {
+          await releaseReservedInventory();
+          throw err;
+        }
       }
     }
-    // --- End Phase 2b ---
   } catch (err) {
     await releaseReservedDiscount();
     await releaseReservedInventory();
@@ -665,9 +666,19 @@ adminApp.openapi(checkoutCart, async (c) => {
     }
   }
 
-  // Build dynamic shipping options from compatible shipping rates (Stripe shipping_options)
+  // Check if the cart is digital-only (no physical items requiring shipping).
+  const [{ physical_item_count }] = await db.query<any>(
+    `SELECT COUNT(*) AS physical_item_count FROM cart_items ci
+     JOIN variants v ON v.sku = ci.sku
+     WHERE ci.cart_id = ? AND v.requires_shipping = 1`,
+    [cartId]
+  );
+  const isDigitalOnlyCart = physical_item_count === 0;
+
+  // Build dynamic shipping options from compatible shipping rates (Stripe shipping_options).
+  // Skip entirely for digital-only carts — Stripe must not show a shipping selector.
   const currencyId = await getCurrencyIdForRegion(db, cart.region_id);
-  const compatibleRates = await getCompatibleShippingRates(
+  const compatibleRates = isDigitalOnlyCart ? [] : await getCompatibleShippingRates(
     db,
     cart.region_id,
     cartId,
@@ -708,7 +719,10 @@ adminApp.openapi(checkoutCart, async (c) => {
     },
   ];
 
-  const shippingOptions = shipping_options ?? (dynamicShippingOptions.length ? dynamicShippingOptions : defaultShippingOptions);
+  // Digital-only carts: no shipping options passed to Stripe at all.
+  const shippingOptions = isDigitalOnlyCart
+    ? undefined
+    : (shipping_options ?? (dynamicShippingOptions.length ? dynamicShippingOptions : defaultShippingOptions));
 
   let stripeCouponId: string | null = null;
   if (discount && discountAmountCents > 0) {
@@ -1087,18 +1101,29 @@ adminApp.openapi(getAvailableShippingRates, async (c) => {
   const [cart] = await db.query<any>(`SELECT * FROM carts WHERE id = ?`, [cartId]);
   if (!cart) throw ApiError.notFound('Cart not found');
 
+  // Digital-only carts need no shipping at all.
+  const [{ physical_count }] = await db.query<any>(
+    `SELECT COUNT(*) AS physical_count FROM cart_items ci
+     JOIN variants v ON v.sku = ci.sku
+     WHERE ci.cart_id = ? AND v.requires_shipping = 1`,
+    [cartId]
+  );
+  if (physical_count === 0) {
+    return c.json({ items: [], cart_total_weight_g: 0 }, 200);
+  }
+
   if (!cart.shipping_country) {
     throw ApiError.invalidRequest(
       'No shipping address set. Call PUT /v1/carts/{cartId}/shipping-address first.'
     );
   }
 
-  // Compute cart total weight
+  // Compute cart total weight (physical items only)
   const weightResult = await db.query<any>(`
     SELECT COALESCE(SUM(v.weight_g * ci.qty), 0) AS total_weight_g
     FROM cart_items ci
     JOIN variants v ON v.sku = ci.sku
-    WHERE ci.cart_id = ?
+    WHERE ci.cart_id = ? AND v.requires_shipping = 1
   `, [cartId]);
 
   const cart_weight_g: number = weightResult[0]?.total_weight_g ?? 0;

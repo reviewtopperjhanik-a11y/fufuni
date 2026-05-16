@@ -51,7 +51,8 @@ import { z } from '@hono/zod-openapi';
 import { getDb } from '../db';
 import { customerAuthMiddleware } from '../middleware/customer-auth';
 import { authMiddleware, adminOnly } from '../middleware/auth';
-import { ApiError, uuid, now, type HonoEnv } from '../types';
+import { ApiError, uuid, now, type HonoEnv, type DOStub } from '../types';
+import { dispatchWebhooks } from '../lib/webhooks';
 
 // ── Shared schemas ────────────────────────────────────────────────────────────
 
@@ -78,6 +79,17 @@ function validateProxyAuth(authHeader: string | undefined, secret: string | unde
   if (provided.length !== secret.length || !timingSafeEqual(provided, secret)) {
     throw ApiError.unauthorized('Invalid proxy secret');
   }
+}
+
+/**
+ * Generates a unique AI proxy API key in the format `fufkey_<40 random alphanum chars>`.
+ * Uses crypto.getRandomValues for uniform distribution.
+ */
+function generateFufKey(): string {
+  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const buf = new Uint8Array(40);
+  crypto.getRandomValues(buf);
+  return 'fufkey_' + Array.from(buf, (v) => chars[v % chars.length]).join('');
 }
 
 /** Timing-safe string comparison (avoids early-exit leaking secret length). */
@@ -131,12 +143,10 @@ customerAiTokensRouter.openapi(getMyBalance, async (c) => {
     `SELECT * FROM ai_token_balances WHERE customer_id = ?`,
     [customer.id]
   );
-  if (!balance) throw ApiError.notFound('No AI token balance found. Link your API key first.');
+  if (!balance) throw ApiError.notFound('No AI token balance found. Purchase an AI credit pack first.');
 
-  return c.json({
-    ...balance,
-    api_key: maskApiKey(balance.api_key),
-  }, 200);
+  // Return the full key to the authenticated owner — they need it to call the proxy.
+  return c.json(balance, 200);
 });
 
 // POST /v1/me/ai-tokens/link
@@ -425,60 +435,98 @@ adminAiTokensRouter.openapi(adminListBalances, async (c) => {
 // ── Shared helper: credit a customer after purchase ───────────────────────────
 
 /**
- * Credits ai token units to the customer's balance after a successful payment.
+ * Credits AI token units to the customer's balance after a successful payment.
  * Called from the Stripe webhook handler.
  *
- * If the customer has not linked an API key yet, the transaction is recorded
- * with an empty api_key and applied automatically when the customer links.
+ * If the customer has no linked API key, one is auto-generated (`fufkey_…`),
+ * persisted on the customer record and on `ai_token_balances`, then credited
+ * immediately.  An `ai_tokens.key_created` webhook is fired so the proxy can
+ * register the new key without any manual step.
  *
- * @param db         - Database helper
+ * If the customer already has a key the tokens are credited and an
+ * `ai_tokens.credited` webhook is fired.
+ *
+ * @param db         - Database helper (from getDb)
  * @param customerId - Internal customer ID
  * @param orderId    - Order ID (for the audit trail)
  * @param units      - Number of token units to credit
+ * @param stub       - DO stub (required for webhook dispatch — pass c.var.db)
+ * @param ctx        - Worker execution context (required for webhook dispatch)
  */
 export async function creditAiTokens(
   db: any,
   customerId: string,
   orderId: string,
-  units: number
+  units: number,
+  stub?: DOStub,
+  ctx?: ExecutionContext
 ): Promise<void> {
-  const [customer] = await db.query<any>(`SELECT metadata FROM customers WHERE id = ?`, [customerId]);
-  let apiKey = '';
-  try {
-    const meta = customer?.metadata ? JSON.parse(customer.metadata) : {};
-    apiKey = meta.ai_proxy_api_key ?? '';
-  } catch { /* ignore malformed metadata */ }
+  const [customer] = await db.query<any>(
+    `SELECT metadata FROM customers WHERE id = ?`,
+    [customerId]
+  );
+
+  let meta: Record<string, unknown> = {};
+  try { meta = customer?.metadata ? JSON.parse(customer.metadata) : {}; } catch { /* ignore */ }
+
+  let apiKey: string = (meta.ai_proxy_api_key as string) ?? '';
+  let keyIsNew = false;
+
+  // Auto-generate a fufkey if none exists yet.
+  if (!apiKey) {
+    apiKey = generateFufKey();
+    keyIsNew = true;
+    meta.ai_proxy_api_key = apiKey;
+    await db.run(
+      `UPDATE customers SET metadata = ?, updated_at = ? WHERE id = ?`,
+      [JSON.stringify(meta), now(), customerId]
+    );
+  }
 
   const transactionId = uuid();
   const timestamp = now();
 
-  // Record the credit transaction regardless of whether the key is known.
   await db.run(
     `INSERT INTO ai_token_transactions (id, api_key, customer_id, order_id, amount, type, note, created_at)
      VALUES (?, ?, ?, ?, ?, 'credit', ?, ?)`,
     [transactionId, apiKey, customerId, orderId, units, `Purchase — order ${orderId}`, timestamp]
   );
 
-  if (!apiKey) {
-    // Store pending credit on the balance row so linkApiKey can apply it later.
-    // We do not upsert ai_token_balances yet because we don't have an api_key.
-    return;
-  }
-
   // Upsert balance.
   const [existing] = await db.query<any>(
     `SELECT customer_id FROM ai_token_balances WHERE customer_id = ?`,
     [customerId]
   );
+  let newBalance: number;
   if (existing) {
     await db.run(
-      `UPDATE ai_token_balances SET balance_units = balance_units + ?, updated_at = ? WHERE customer_id = ?`,
-      [units, timestamp, customerId]
+      `UPDATE ai_token_balances SET api_key = ?, balance_units = balance_units + ?, updated_at = ? WHERE customer_id = ?`,
+      [apiKey, units, timestamp, customerId]
     );
+    const [updated] = await db.query<any>(
+      `SELECT balance_units FROM ai_token_balances WHERE customer_id = ?`,
+      [customerId]
+    );
+    newBalance = updated?.balance_units ?? units;
   } else {
+    newBalance = units;
     await db.run(
       `INSERT INTO ai_token_balances (customer_id, api_key, balance_units, updated_at) VALUES (?, ?, ?, ?)`,
       [customerId, apiKey, units, timestamp]
+    );
+  }
+
+  // Dispatch outbound webhook so the proxy can register / update the key.
+  if (stub && ctx) {
+    const eventType = keyIsNew ? 'ai_tokens.key_created' : 'ai_tokens.credited';
+    ctx.waitUntil(
+      dispatchWebhooks(stub, ctx, eventType, {
+        customer_id: customerId,
+        order_id: orderId,
+        api_key: apiKey,
+        credited_units: units,
+        balance_units: newBalance,
+      }).catch((err) => console.warn(`Failed to dispatch ${eventType} webhook`, err))
     );
   }
 }

@@ -1,7 +1,7 @@
 import { useTranslation } from "react-i18next";
 import DefaultLayout from "@/layouts/default";
 import { useCart } from "@/hooks/use-cart";
-import { createCart, addItemsToCart, checkoutCart } from "@/lib/store-api";
+import { createCart, addItemsToCart, checkoutCart, getAvailableShippingRates } from "@/lib/store-api";
 import { Button, Card, Input } from "@heroui/react";
 import { useState, useEffect } from "react";
 import { formatMoney } from "@/utils/currency";
@@ -72,7 +72,23 @@ export default function CartPage() {
         items.map((i) => ({ sku: i.sku, qty: i.qty })),
       );
       setCurrentCart(updatedCart);
-      setStep("shipping-address");
+
+      // Detect digital-only carts: the backend returns [] when no physical items exist,
+      // even before a shipping address is set. Physical carts throw a 400 here.
+      let isDigitalOnly = false;
+      try {
+        const { items: rates } = await getAvailableShippingRates(cart.id);
+        isDigitalOnly = rates.length === 0;
+      } catch {
+        // Backend threw 400 "No shipping address set" → cart has physical items.
+        isDigitalOnly = false;
+      }
+
+      if (isDigitalOnly) {
+        await proceedToPayment(cart.id, "initial");
+      } else {
+        setStep("shipping-address");
+      }
     } catch (err: any) {
       setCheckoutError(err?.message || t("checkout-failed"));
       console.error("Checkout error:", err);
@@ -85,29 +101,30 @@ export default function CartPage() {
     setStep("shipping-rate");
   };
 
-  const handleShippingRateSelect = async (cart: any) => {
-    // Shipping rate is already saved on cart, now proceed to Stripe checkout
-    setCurrentCart(cart);
+  /** Redirect to Stripe checkout for the given cart id. */
+  const proceedToPayment = async (cartId: string, fallbackStep: CheckoutStep = "shipping-rate") => {
     setStep("processing");
-
     try {
-      // Remove last / from import.meta.env.STORE_URL if exists to prevent double slash
       const storeUrl = (import.meta.env.STORE_URL || "").replace(/\/$/, "");
-
       const { checkout_url } = await checkoutCart(
-        currentCart.id,
+        cartId,
         `${storeUrl}/success?session_id={CHECKOUT_SESSION_ID}`,
         window.location.href,
       );
-
       // DO NOT call clear() here — keep cart intact so the user can
       // return from Stripe without losing their basket.
       window.location.href = checkout_url;
     } catch (err: any) {
       setCheckoutError(err?.message || t("checkout-failed"));
-      setStep("shipping-rate");
+      setStep(fallbackStep);
       console.error("Checkout error:", err);
     }
+  };
+
+  const handleShippingRateSelect = async (cart: any) => {
+    // Shipping rate is already saved on cart, now proceed to Stripe checkout
+    setCurrentCart(cart);
+    await proceedToPayment(cart.id);
   };
 
   const handleBackToAddresses = () => {
@@ -249,7 +266,7 @@ export default function CartPage() {
                   )}
 
                   <p className="text-sm text-default-500">
-                    {t("shipping-note") || "Next, we'll collect your delivery address and show available shipping options."}
+                    {t("checkout-continue-note")}
                   </p>
 
                   <div className="flex flex-wrap justify-between gap-3">

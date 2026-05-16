@@ -50,7 +50,10 @@ const VALID_EVENTS = [
   'order.shipped',
   'order.refunded',
   'inventory.low',
+  'ai_tokens.key_created',
+  'ai_tokens.credited',
   'order.*',
+  'ai_tokens.*',
   '*',
 ] as const;
 

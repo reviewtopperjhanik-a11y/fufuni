@@ -26,7 +26,7 @@ import { Pagination } from "@heroui/react";
 import { Modal } from "@heroui/react";
 import { Card } from "@heroui/react";
 import { Checkbox } from "@heroui/react";
-import { Wand2, Image as ImageIcon } from "lucide-react";
+import { Wand2, Image as ImageIcon, Trash2 } from "lucide-react";
 
 import DefaultLayout from "@/layouts/default";
 import { useSecuredApi } from "@/authentication";
@@ -188,6 +188,26 @@ export default function ProductsPage() {
   const [formTagsValue, setFormTagsValue] = useState(""); // display value for current locale
   const [formHandle, setFormHandle] = useState("");
   const [formHandleValue, setFormHandleValue] = useState(""); // display value for current locale
+
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
+
+  const handleDeleteProduct = async () => {
+    if (!editingProduct) return;
+    if (!deleteConfirm) {
+      setDeleteConfirm(true);
+      return;
+    }
+    try {
+      await deleteJson(`${apiBase}/v1/products/${editingProduct.id}`);
+      setProducts((prev) => prev.filter((p) => p.id !== editingProduct.id));
+      setCreateModal(false);
+      setEditingProduct(null);
+      setDeleteConfirm(false);
+    } catch (err: any) {
+      setDeleteConfirm(false);
+      alert(err?.message ?? t("admin-products-delete-error"));
+    }
+  };
 
   // variants modal state
   const [variantModal, setVariantModal] = useState(false);
@@ -1243,10 +1263,23 @@ export default function ProductsPage() {
                     )}
                   </Modal.Body>
                   <Modal.Footer>
+                    {editingProduct && (
+                      <Button
+                        variant="danger"
+                        onPress={handleDeleteProduct}
+                        className="mr-auto"
+                      >
+                        <Trash2 className="w-4 h-4 mr-1" />
+                        {deleteConfirm
+                          ? t("admin-products-btn-delete-confirm")
+                          : t("admin-products-btn-delete")}
+                      </Button>
+                    )}
                     <Button
                       onPress={() => {
                         setCreateModal(false);
                         setEditingProduct(null);
+                        setDeleteConfirm(false);
                       }}
                     >
                       {t("admin-products-btn-cancel")}
